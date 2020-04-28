@@ -1,0 +1,7 @@
+DEBUG = True
+
+
+# 百度翻译api
+APP_ID = '20200218000385441'
+SECRET_KEY = 'hO6cnZbSeXq0CWo6CGgO'
+SALT = 'nut'
