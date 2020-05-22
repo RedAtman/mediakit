@@ -18,6 +18,7 @@ print('config', config, ret)
 # 视频路径
 video_path_org = 'tmp/input.mp4'
 video_path_org = '/Users/nut/Movies/Theater/Time-lapse/20190609 冰山梁.mp4'
+video_path_org = '/Users/nut/Downloads/好像差点颜色.MP4'
 # video_path_org = '20190609 冰山梁.mp4'
 
 # 获取视频文件格式
@@ -67,9 +68,9 @@ def generate_metadat(title='一枚量子的延时摄影作品', keywords=[], aut
 
         keywords_concat = reduce(concat, list(keywords.values()))
 
-        keywords_en = translate.result(keywords_concat)
+        # keywords_en = translate.result(keywords_concat)
 
-        keywords_concat.extend(keywords_en)
+        # keywords_concat.extend(keywords_en)
 
         # print('keywords_concat', keywords_concat)
 
@@ -87,7 +88,7 @@ metadata = generate_metadat(
     title='一枚量子的延时摄影作品', keywords=keywords, author=author)
 
 metadata = ['-metadata', 'author=' + "@@@ "]
-# print('metadata', metadata)
+print('metadata', metadata)
 
 
 # 执行命令
@@ -116,9 +117,9 @@ else:
 
     order = copy.deepcopy(order_prefix)
     order.extend(['-i', tmp,
-                  '-ss', audio_defer,
-                  '-i', audio_path_org,
-                  'afade=t=in:ss=0:d=15',
+                  # '-ss', audio_defer,
+                  # '-i', audio_path_org,
+                  # 'afade=t=in:ss=0:d=15',
                   # '-filter_complex',
                   # "[1:a]afade=t=in:ss=0:d=5[a1]",
                   '-c', 'copy',

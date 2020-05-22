@@ -30,6 +30,13 @@ class Translate(object):
         :param q: :String: 待翻译文字。
         :return :String: 已翻译文字。
         """
+        if isinstance(q, list):
+            # q = str(q)
+            q = ','.join(q)
+
+            # print('q', len(q), type(q), q)
+            # q = q.replace("[", "")
+            # q = q.replace("]", "")
         q = str(q)
         # print('q', type(q), q)
         data = {
@@ -43,16 +50,22 @@ class Translate(object):
 
         # 获取翻译结果
         rps = requests.post(self.api, data=data)
-        content = json.loads(rps.content)
+        # print('requests',data, type(rps.content), dir(rps), rps.json())
+        # content = json.loads(rps.content)
+        content = rps.json()
         # print(type(content), content)
         trans_result = content.get('trans_result')[0].get('dst')
-        # print(type(trans_result), trans_result)
+        # print('trans_result',type(trans_result), trans_result)
 
         # 错误处理 对不能进行json.loads的数据进行容错
         try:
-            trans_result = trans_result.replace("'", '"')
-            ret = json.loads(trans_result)
-            # print(type(ret), ret)
+            # trans_result = trans_result.replace("'", '"')
+            # print('trans_result',type(trans_result), trans_result)
+            # ret = json.loads(trans_result)
+            # ret = trans_result.replace("[", "")
+            # ret = trans_result.replace("]", "")
+            ret = trans_result.split(",")
+            print(len(ret), type(ret), ret)
         except Exception as e:
             print('不能进行json.loads处理', e)
             ret = trans_result

@@ -25,6 +25,7 @@ class Config:
         # print('config_user', config_user)
 
         for attr in dir(user):
+            # print('attr', attr)
             if attr.isupper():
                 setattr(self, attr, getattr(user, attr))
 
