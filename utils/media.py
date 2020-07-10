@@ -4,31 +4,32 @@ import subprocess
 import copy
 import functools
 import os
+from concurrent import futures
+from threading import current_thread
 
-from utils import translate
+from utils import log,translate,decorator
 
 
 def execute():
-    """
-    执行shell命令（用于类方法的可调用self的装饰器）
-    """
+    '''执行shell命令（用于类方法的可调用self的装饰器）
+    '''
     def _dec(func):
         def _func(self, *args, **kwargs):
             func(self, *args, **kwargs)
             start_time = time.time()
-            print('after', start_time, self.order)
+            log.info('Task(%s) start at %s' % (func.__name__,start_time), self.order)
             ret = subprocess.run(self.order)
             # ret = subprocess.Popen(
             # self.order, shell=False, stdout=subprocess.PIPE).stdout
 
             duration = time.time() - start_time
-            print('耗时', duration, '执行结果：', ret)
+            log.info('耗时', duration, '执行结果：', ret)
         return _func
     return _dec
 
 
 class Audio(object):
-    """docstring for Audio"""
+    '''docstring for Audio'''
 
     def __init__(self, cls):
         # self.arg = arg
@@ -36,15 +37,15 @@ class Audio(object):
 
 
 class Media(object):
-    """docstring for Media"""
+    '''docstring for Media'''
 
-    def __init__(self, path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None):
-        """
+    def __init__(self, path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='info'):
+        '''
         :params
             title: string, 视频标题;
             keywords: dict{key:list} / list, 视频关键词;
             artist: list, 视频作者;
-        """
+        '''
         self.path = path
         self.dir, self.name, self.format = re.findall(
             '(.*)\/([^<>/\\\|:""\?]+)\.(\w+)$', self.path)[0]
@@ -59,12 +60,12 @@ class Media(object):
         self.lens = lens
         self.keywords = keywords
         self.keywords_list = []
-        self.order_prefix = ['ffmpeg', '-y', '-loglevel', 'debug']
+        self.order_prefix = ['ffmpeg', '-y', '-loglevel', loglevel]
 
     @property
     def duration(self):
-        """ 媒体时长（单位/s）
-        """
+        '''媒体时长（单位/s）
+        '''
         result = subprocess.run([
             "ffprobe", "-v", "error", "-show_entries",
             "format=duration", "-of",
@@ -75,33 +76,47 @@ class Media(object):
 
     @property
     def output_path(self):
-        """ 媒体输出路径
-        """
+        '''媒体输出路径
+        '''
         time_str = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         # path = self.dir + "/_" + self.title + "_" + \
         #     str(int(round(time.time() * 1000))) + "." + self.format
         path = self.dir + "/_" + self.title + "_" + \
             time_str + "." + self.format
-        print('output path', path)
+        log.info('output path', path)
         return path
 
-    @property
-    def trim_path(self):
-        """ str 媒体剪切片段输出路径
-        """
-        num = 1
-        path = self.dir + "/" + self.title + "_trim_" + \
-            str(num) + "." + self.format
-        while os.path.exists(path):
-            num += 1
-            path = self.dir + "/" + self.title + "_trim_" + \
-                str(num) + "." + self.format
-        return path
+
+    def trim_path(self,trim_number=None):
+        '''产生媒体剪切片段输出路径
+        :param: trim_number(number): 1
+        :reture: str:/Users/nut/Downloads/RS/_trim/HNK91_trim_1.mp4
+        '''
+
+        file_dir = self.dir + "/_trim/"
+        try:
+            os.mkdir(file_dir)
+        except Exception as e:
+            try:
+                os.makedirs(file_dir)
+            except Exception as e:
+                # print('mkdirs', e)
+                # os.makedirs(self.save_dir)
+                pass
+
+        trim_number = trim_number or 1
+        file_path = file_dir + self.title + "_trim_" + \
+                str(trim_number) + "." + self.format
+        while os.path.exists(file_path):
+            trim_number += 1
+            file_path = file_dir + self.title + "_trim_" + \
+                str(trim_number) + "." + self.format
+        log.info('trim_path',file_path)
+        return file_path
 
     @property
     def order_metadata(self):
-        '''
-        doc: 生成视频元数据order; 同时生成keywords_list;
+        '''生成视频元数据order; 同时生成keywords_list;
         '''
         meta_key_list = ['title', 'artist', 'album_artist',
                          'category', 'camera', 'lens', 'keywords']
@@ -150,17 +165,15 @@ class Media(object):
     @property
     @execute()
     def metadata(self):
-        """
-        媒体元数据
-        """
+        '''媒体元数据
+        '''
         self.order = ['ffprobe', '-v', 'quiet', '-show_format',
                       '-show_streams', '-print_format', 'json', self.path]
 
     @execute()
     def save_metadata(self):
-        """
-        读取现有文件的元数据 并保存为txt文件
-        """
+        '''读取现有文件的元数据 并保存为txt文件
+        '''
         self.order = copy.deepcopy(self.order_prefix)
         metadata_path = self.dir + "/_" + self.title + ".txt"
         self.order.extend(['-i', self.path,
@@ -168,6 +181,8 @@ class Media(object):
 
     @execute()
     def set_metadata(self):
+        '''设置元数据
+        '''
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend(['-i', self.path])
         self.order.extend(self.order_metadata)
@@ -177,12 +192,11 @@ class Media(object):
 
     @execute()
     def add_voice(self, audio_path, audio_defer, fade_duration=1):
-        """
-        添加声音 同时设置淡入淡出 及过度时长
-        :param: audio_path: 声音文件路径
-        :param: audio_defer: 声音文件截取处（单位/秒）
-        :param: fade_duration: 淡入淡出过度时长（单位/秒，默认值：1）
-        """
+        '''添加声音 同时设置淡入淡出 及过度时长
+        :param: audio_path(str): 声音文件路径
+        :param: audio_defer(number): 声音文件截取处（单位/秒）
+        :param: fade_duration(number): 淡入淡出过度时长（单位/秒，默认值：1）
+        '''
         fade_order = "[1:a]afade=t=in:st=0:d=" + str(fade_duration) \
             + ",afade=t=out:st=" + str(self.duration - 1) \
             + ":d=" + str(fade_duration)
@@ -239,9 +253,8 @@ class Media(object):
 
     @execute()
     def delete_voice(self):
-        """
-        去除声音（静音）
-        """
+        '''去除声音（静音）
+        '''
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend(['-i', self.path])
         # order.extend(self.metadata)
@@ -250,16 +263,19 @@ class Media(object):
                            self.output_path])
 
     @execute()
-    def trim(self, ss="00:00:00", to="00:00:01"):
-        """
-        截取视频指定某一段时间
-        """
+    def trim(self, time=(),trim_number=None):
+        '''截取视频指定某一段时间
+        :param: times(tuple): ("00:26:56", "00:28:36")
+        :param: trim_number(number): 1
+        '''
+        if not time:
+            return False
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend([
 
             # 截取时间
-            '-ss', ss,
-            '-to', to,
+            '-ss', time[0],
+            '-to', time[1],
 
             # 使用copy后 避免太过于精确切割而丢失帧
             '-accurate_seek',
@@ -280,13 +296,59 @@ class Media(object):
             '-acodec', 'aac',
 
             # '-avoid_negative_ts', '1',
-            self.trim_path])
+            self.trim_path(trim_number=trim_number)])
+
+    def trim_mul(self, times=()):
+        '''批量截取
+        :param: times(tuple): ("00:26:56", "00:28:36")
+        '''
+        if not time:
+            return False
+        for time in times:
+            # self.trim(ss=time[0], to=time[1])
+            self.trim(time)
+
+    @classmethod
+    @decorator.Timekeep()
+    def trim_mul_file(cls, files=[]):
+        '''多线程批量文件截取
+        :param: files(list):
+            [
+                {
+                    'path':'/Users/nut/Downloads/RS/CCAV.mp4',
+                    'trim_times':(
+                        ("00:50:22", "01:03:27"),
+                        ("01:19:39", "01:37:04")...
+                    )
+                }...
+            ]
+        '''
+        thread_pool = futures.ThreadPoolExecutor(max_workers=64)
+        all_task = []
+        for file in files:
+            trim_number = 0
+            trim_times = file.get('trim_times')
+            for time in trim_times:
+                obj = cls(file.get('path'))
+                trim_number += 1
+                task = thread_pool.submit(
+                    obj.trim, time=time,trim_number=trim_number)
+                # task.add_done_callback(callback)
+                all_task.append(task)
+                log.info('trim_mul_file',time,trim_number)
+                log.info('线程', current_thread().getName(), os.getpid())
+
+
+        # log.info('all_task', all_task)
+
+        thread_pool.shutdown(wait=True)
+        log.info('主线程', current_thread().getName(), os.getpid())
+        log.info('All done!')
 
     @execute()
     def decode(self, format='mov'):
-        """
-        截取视频指定某一段时间
-        """
+        '''
+        '''
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend([
             '-i', self.path,
@@ -296,10 +358,6 @@ class Media(object):
 
             # '-avoid_negative_ts', '1',
             self.dir + "/" + self.title + "_decode_." + format])
-
-    def trim_mul(self, times=(("00:00:00", "00:00:01"))):
-        for time in times:
-            self.trim(ss=time[0], to=time[1])
 
     def concat(self):
 
