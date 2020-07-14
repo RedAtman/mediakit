@@ -1,31 +1,15 @@
-import re
+import re,json
 import time
 import subprocess
 import copy
 import functools
-import os
+import os,sys
 from concurrent import futures
 from threading import current_thread
+import queue
 
 from utils import log,translate,decorator
 
-
-def execute():
-    '''执行shell命令（用于类方法的可调用self的装饰器）
-    '''
-    def _dec(func):
-        def _func(self, *args, **kwargs):
-            func(self, *args, **kwargs)
-            start_time = time.time()
-            log.info('Task(%s) start at %s' % (func.__name__,start_time), self.order)
-            ret = subprocess.run(self.order)
-            # ret = subprocess.Popen(
-            # self.order, shell=False, stdout=subprocess.PIPE).stdout
-
-            duration = time.time() - start_time
-            log.info('耗时', duration, '执行结果：', ret)
-        return _func
-    return _dec
 
 
 class Audio(object):
@@ -38,6 +22,8 @@ class Audio(object):
 
 class Media(object):
     '''docstring for Media'''
+    __thread_pool = futures.ThreadPoolExecutor(max_workers=64)
+    __queue = queue.Queue(maxsize=0)
 
     def __init__(self, path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='info'):
         '''
@@ -46,12 +32,12 @@ class Media(object):
             keywords: dict{key:list} / list, 视频关键词;
             artist: list, 视频作者;
         '''
-        self.path = path
+        self.path = path.strip()
         self.dir, self.name, self.format = re.findall(
             '(.*)\/([^<>/\\\|:""\?]+)\.(\w+)$', self.path)[0]
-        self.audio = {
-            "path": {"input": ""}
-        }
+        # self.audio = {
+        #     "path": {"input": ""}
+        # }
         self.title = title or self.name
         self.artist = artist
         self.album_artist = artist
@@ -63,16 +49,37 @@ class Media(object):
         self.order_prefix = ['ffmpeg', '-y', '-loglevel', loglevel]
 
     @property
+    def metadata(self):
+        '''媒体元数据
+        '''
+
+        @decorator.Timekeep()
+        @decorator.Executor()
+        def func(self):
+            self.order = ['ffprobe', '-v', 'quiet', '-show_format',
+                          '-show_streams', '-print_format', 'json', self.path]
+
+        result = func(self)
+        if result.get('returncode') == 0:
+            ret = json.loads(result.get('result'))
+        else:
+            ret = False
+        # log.info('metadata func', ret)
+        return ret
+
+    @property
     def duration(self):
         '''媒体时长（单位/s）
         '''
-        result = subprocess.run([
-            "ffprobe", "-v", "error", "-show_entries",
-            "format=duration", "-of",
-            "default=noprint_wrappers=1:nokey=1", self.path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT)
-        return float(result.stdout)
+        # result = subprocess.run([
+        #     "ffprobe", "-v", "error", "-show_entries",
+        #     "format=duration", "-of",
+        #     "default=noprint_wrappers=1:nokey=1", self.path],
+        #     stdout=subprocess.PIPE,
+        #     stderr=subprocess.STDOUT)
+        # return float(result.stdout)
+
+        return self.metadata.get('streams')[0].get('duration')
 
     @property
     def output_path(self):
@@ -87,31 +94,33 @@ class Media(object):
         return path
 
 
-    def trim_path(self,trim_number=None):
+    def get_file_path(self,suffix='suffix',suffix_number=1):
         '''产生媒体剪切片段输出路径
-        :param: trim_number(number): 1
+        :param: suffix_number(number): 1
         :reture: str:/Users/nut/Downloads/RS/_trim/HNK91_trim_1.mp4
         '''
 
-        file_dir = self.dir + "/_trim/"
-        try:
-            os.mkdir(file_dir)
-        except Exception as e:
+        # file_dir = self.dir + "/_trim/"
+        file_dir = os.path.join(self.dir, '_' + suffix)
+        if not os.path.exists(file_dir):
             try:
-                os.makedirs(file_dir)
+                os.mkdir(file_dir)
             except Exception as e:
-                # print('mkdirs', e)
-                # os.makedirs(self.save_dir)
-                pass
+                try:
+                    os.makedirs(file_dir)
+                except Exception as e:
+                    # print('mkdirs', e)
+                    # os.makedirs(self.save_dir)
+                    pass
 
-        trim_number = trim_number or 1
-        file_path = file_dir + self.title + "_trim_" + \
-                str(trim_number) + "." + self.format
+        suffix_number = suffix_number or 1
+        file_path = os.path.join(file_dir, self.title + "-" + suffix + '_' + \
+                str(suffix_number) + "." + self.format)
         while os.path.exists(file_path):
-            trim_number += 1
-            file_path = file_dir + self.title + "_trim_" + \
-                str(trim_number) + "." + self.format
-        log.info('trim_path',file_path)
+            suffix_number += 1
+            file_path = os.path.join(file_dir, self.title + "-" + suffix + '_' + \
+                str(suffix_number) + "." + self.format)
+        log.info('get_file_path',file_path)
         return file_path
 
     @property
@@ -162,24 +171,19 @@ class Media(object):
 
         return order_metadata
 
-    @property
-    @execute()
-    def metadata(self):
-        '''媒体元数据
-        '''
-        self.order = ['ffprobe', '-v', 'quiet', '-show_format',
-                      '-show_streams', '-print_format', 'json', self.path]
 
-    @execute()
+    @decorator.Timekeep()
+    @decorator.Executor()
     def save_metadata(self):
         '''读取现有文件的元数据 并保存为txt文件
         '''
         self.order = copy.deepcopy(self.order_prefix)
-        metadata_path = self.dir + "/_" + self.title + ".txt"
+        metadata_path = self.dir + "/" + self.title + '_metadate' + ".txt"
         self.order.extend(['-i', self.path,
                            '-f', 'ffmetadata', metadata_path])
 
-    @execute()
+    @decorator.Timekeep()
+    @decorator.Executor()
     def set_metadata(self):
         '''设置元数据
         '''
@@ -190,7 +194,8 @@ class Media(object):
                            '-c:v', 'copy',
                            self.output_path])
 
-    @execute()
+    @decorator.Timekeep()
+    @decorator.Executor()
     def add_voice(self, audio_path, audio_defer, fade_duration=1):
         '''添加声音 同时设置淡入淡出 及过度时长
         :param: audio_path(str): 声音文件路径
@@ -221,7 +226,8 @@ class Media(object):
                            '-shortest',
                            self.output_path])
 
-    @execute()
+    @decorator.Timekeep()
+    @decorator.Executor()
     def images_to_video(self, images_path, image_format, bit_rate='5000k'):
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend([
@@ -251,7 +257,8 @@ class Media(object):
             # '-shortest',
             images_path + '/output_' + bit_rate + '1920' + time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()) + '.mp4'])
 
-    @execute()
+    @decorator.Timekeep()
+    @decorator.Executor()
     def delete_voice(self):
         '''去除声音（静音）
         '''
@@ -262,11 +269,12 @@ class Media(object):
                            '-c:v', 'copy',
                            self.output_path])
 
-    @execute()
-    def trim(self, time=(),trim_number=None):
+    @decorator.Timekeep()
+    @decorator.Executor()
+    def trim(self, time=(),suffix_number=None):
         '''截取视频指定某一段时间
         :param: times(tuple): ("00:26:56", "00:28:36")
-        :param: trim_number(number): 1
+        :param: suffix_number(number): 1
         '''
         if not time:
             return False
@@ -283,7 +291,7 @@ class Media(object):
             '-i', self.path,
 
             # 线程(待验证)
-            # '-threads', '4',
+            '-threads', '4',
 
             # 对video类型文件设置编码类型
             # 注意：copy会带来前面一段时间丢帧问题并且无预览图
@@ -296,7 +304,7 @@ class Media(object):
             '-acodec', 'aac',
 
             # '-avoid_negative_ts', '1',
-            self.trim_path(trim_number=trim_number)])
+            self.get_file_path(suffix='trim',suffix_number=suffix_number)])
 
     def trim_mul(self, times=()):
         '''批量截取
@@ -323,29 +331,91 @@ class Media(object):
                 }...
             ]
         '''
-        thread_pool = futures.ThreadPoolExecutor(max_workers=64)
-        all_task = []
         for file in files:
-            trim_number = 0
+            suffix_number = 0
             trim_times = file.get('trim_times')
             for time in trim_times:
                 obj = cls(file.get('path'))
-                trim_number += 1
-                task = thread_pool.submit(
-                    obj.trim, time=time,trim_number=trim_number)
-                # task.add_done_callback(callback)
-                all_task.append(task)
-                log.info('trim_mul_file',time,trim_number)
-                log.info('线程', current_thread().getName(), os.getpid())
+                suffix_number += 1
+                print('suffix_number',suffix_number)
+                cls.thread_pool_excutor(obj.trim, time=time,suffix_number=suffix_number)
+                # task = cls.__thread_pool.submit(
+                #     obj.trim, time=time,suffix_number=suffix_number)
+                # # task.add_done_callback(callback)
+                log.info('trim_mul_file',time,suffix_number)
+                log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,current_thread().getName(), os.getpid()))
 
+        # cls.__thread_pool.shutdown(wait=True)
+        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,current_thread().getName(), os.getpid()))
 
-        # log.info('all_task', all_task)
+    @classmethod
+    def thread_pool_excutor(cls,*args,**kwargs):
+        with cls.__thread_pool as tp:
+            task = tp.submit(
+                *args,**kwargs)
+            # task.add_done_callback(callback)
 
-        thread_pool.shutdown(wait=True)
-        log.info('主线程', current_thread().getName(), os.getpid())
-        log.info('All done!')
+            cls.__thread_pool.shutdown(wait=True)
+            log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,current_thread().getName(), os.getpid()))
 
-    @execute()
+    def compress(self, bit_rate=800):
+        '''文件体积压缩
+        :param: bit_rate(number): 压缩比特率，默认800，单位k。
+        '''
+
+        compress_file_path = self.get_file_path('compress')
+
+        @decorator.Timekeep()
+        @decorator.Executor()
+        def func(self):
+            metadata = self.metadata
+            if bit_rate > 800:
+                pass
+            else:
+                width = 640
+                rate = int(width / metadata.get('streams')[0].get('width'))
+                height = int(rate * metadata.get('streams')[0].get('height'))
+            log.info('compress width height',rate,metadata.get('streams')[0].get('width'),metadata.get('streams')[0].get('height'),width,height)
+
+            self.order = copy.deepcopy(self.order_prefix)
+            self.order.extend([
+                '-i', self.path, 
+                '-s', str(width)+'x'+str(height),
+                '-aspect', str(width)+':'+str(height),
+                '-threads', '0',
+                '-c:v', 'hevc_videotoolbox',
+                '-r', '24.00',
+                '-pix_fmt', 'yuv420p',
+                '-b:v', str(bit_rate) + 'k',
+                '-maxrate', str(bit_rate + 200) + 'k',
+                '-bufsize', '4M',
+                '-allow_sw', '1',
+                '-profile:v', 'main',
+                '-vtag', 'hvc1',
+                '-c:a:0', 'aac',
+                '-ac:a:0', '2',
+                '-ar:a:0', '32000',
+                '-b:a:0', '128k',
+                '-strict',
+                '-2',
+                '-sn',
+                '-f', self.format,
+                '-map', '0:0',
+                '-map', '0:1',
+                '-map_chapters', '0',
+                '-max_muxing_queue_size', '40000',
+                '-map_metadata', '0',
+                compress_file_path])
+            # return compress_file_path
+
+        ret = func(self)
+        log.info('compress func', ret)
+        return compress_file_path
+
+    def transcode(self):
+        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,current_thread().getName(), os.getpid()))
+        pass
+
     def decode(self, format='mov'):
         '''
         '''
