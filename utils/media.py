@@ -27,14 +27,15 @@ class Media(object):
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
 
-    def __init__(self, path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='info'):
+    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='info'):
         '''
         :params
+            file_path(String): 媒体文件路径。
             title: string, 视频标题;
+            artist(list): 视频作者;
             keywords: dict{key:list} / list, 视频关键词;
-            artist: list, 视频作者;
         '''
-        self.file_path = path.strip()
+        self.file_path = file_path.strip()
         self.dir, self.title, self.format = self.get_file_info(self.file_path)
         # self.audio = {
         #     "path": {"input": ""}
@@ -45,34 +46,13 @@ class Media(object):
         self.camera = camera
         self.lens = lens
         self.keywords = keywords
-        self.keywords_list = []
+        self.keywords_list = set()
         self.order_prefix = ['ffmpeg', '-y', '-loglevel', loglevel]
         # self.lock = threading.Lock()
 
-    @staticmethod
-    def get_file_info(path):
-        return re.findall(
-            '(.*)\/([^<>/\\\|:""\?]+)\.(\w+)$', path)[0]
-
-    # @property
-    @staticmethod
-    def get_metadata(path):
-        '''媒体元数据
-        '''
-        path = path.strip()
-        @decorator.Timekeep()
-        @decorator.executor
-        def func(path):
-            return ['ffprobe', '-v', 'quiet', '-show_format',
-                          '-show_streams', '-print_format', 'json', path]
-
-        result = func(path)
-        if result.get('returncode') == 0:
-            ret = json.loads(result.get('result'))
-        else:
-            raise TypeError('%s is not JSONable' % type(result))
-        # log.info('metadata func', ret)
-        return ret
+    @property
+    def metadata(self):
+        return self.get_metadata(self.file_path)
 
     @property
     def duration(self):
@@ -97,8 +77,36 @@ class Media(object):
         #     str(int(round(time.time() * 1000))) + "." + self.format
         path = self.dir + "/_" + self.title + "_" + \
             time_str + "." + self.format
-        log.info('output path', path)
+        log.debug('output path', path)
         return path
+
+    @staticmethod
+    def get_file_info(file_path):
+        '''获取媒体文件三个数据: file_dir, file_title, file_format。
+        :param: file_path(str): 媒体文件路径。
+        '''
+        return re.findall(
+            '(.*)\/([^<>/\\\|:""\?]+)\.(\w+)$', file_path)[0]
+
+    @staticmethod
+    def get_metadata(file_path):
+        '''获取媒体元数据。
+        :param: file_path(str): 媒体文件路径。
+        '''
+        file_path = file_path.strip()
+        @decorator.Timekeep()
+        @decorator.executor
+        def func(file_path):
+            return ['ffprobe', '-v', 'quiet', '-show_format',
+                          '-show_streams', '-print_format', 'json', file_path]
+
+        result = func(file_path)
+        if result.get('returncode') == 0:
+            ret = json.loads(result.get('result'))
+        else:
+            raise TypeError('%s is not JSONable' % type(result))
+        log.debug('get_metadata func', ret)
+        return ret
 
     @classmethod
     def create_file_path(cls, file_path, suffix='suffix', suffix_number=1, lock=None):
@@ -144,7 +152,7 @@ class Media(object):
 
     @property
     def order_metadata(self):
-        '''生成视频元数据order; 同时生成keywords_list;
+        '''生成获取视频元数据的命令行执行order(List); 同时生成 keywords_list;
         '''
         meta_key_list = ['title', 'artist', 'album_artist',
                          'category', 'camera', 'lens', 'keywords']
@@ -156,37 +164,37 @@ class Media(object):
             # print('order_metadata', key, meta)
             if isinstance(meta, str):
                 order_metadata.extend(['-metadata', str(key) + '=' + meta])
-                self.keywords_list.append(meta)
+                self.keywords_list.add(meta)
             if isinstance(meta, list):
                 order_metadata.extend(
                     ['-metadata', str(key) + '=' + ",".join(meta)])
-                # print('meta', type(meta), meta)
-                self.keywords_list.extend(meta)
+                # log.info('meta', type(meta), meta)
+                self.keywords_list.update(meta)
             # 若是dict 则拼接values
             if isinstance(meta, dict):
                 from functools import reduce
 
                 def concat(a, b):
-                    print('concat', type(a), type(b))
+                    log.info('concat', type(a), type(b))
                     a.extend(b)
                     return a
 
                 meta_concat = reduce(concat, list(meta.values()))
-                print('meta_concat', meta_concat)
+                log.info('meta_concat', meta_concat)
 
                 order_metadata.extend(
                     ['-metadata', str(key) + '=' + ",".join(meta_concat)])
-                self.keywords_list.extend(meta_concat)
+                self.keywords_list.update(meta_concat)
         # print('order_metadata,self.keywords_list', order_metadata,self.keywords_list)
 
         # print('translate',translate.translate,dir(translate.translate))
         keywords_en_list = translate.translate.result(self.keywords_list)
-        self.keywords_list.extend(keywords_en_list)
-        self.keywords_list = [i.strip() for i in self.keywords_list]
-        print('keywords_list-----', self.keywords_list)
+        self.keywords_list.update(keywords_en_list)
+        self.keywords_list = {i.strip() for i in self.keywords_list}
+        log.info('keywords_list', self.keywords_list)
         order_metadata.extend(
             ['-metadata', 'keywords' + '=' + ",".join(self.keywords_list)])
-        print('order_metadata', order_metadata)
+        log.info('order_metadata', order_metadata)
 
         return order_metadata
 

@@ -5,6 +5,7 @@ import hashlib
 import requests
 
 from config import config
+from utils import log
 
 
 class Translate(object):
@@ -27,9 +28,10 @@ class Translate(object):
 
     def result(self, q):
         """ 发送翻译请求、解析翻译结果。输入默认检测语种，输出英文。
-        :param q: :String: 待翻译文字。
-        :return :String: 已翻译文字。
+        :param: q(String & List & Set): 待翻译文字。
+        :return(List): 已翻译文字。
         """
+        log.debug('Translate result q',type(q),q)
         if isinstance(q, list):
             # q = str(q)
             q = ','.join(q)
@@ -37,6 +39,8 @@ class Translate(object):
             # print('q', len(q), type(q), q)
             # q = q.replace("[", "")
             # q = q.replace("]", "")
+        if isinstance(q, set):
+            q = ','.join(list(q))
         q = str(q)
         # print('q', type(q), q)
         data = {
@@ -55,21 +59,22 @@ class Translate(object):
         content = rps.json()
         # print(type(content), content)
         trans_result = content.get('trans_result')[0].get('dst')
-        # print('trans_result',type(trans_result), trans_result)
+        log.debug('trans_result',type(trans_result), trans_result)
 
         # 错误处理 对不能进行json.loads的数据进行容错
         try:
             # trans_result = trans_result.replace("'", '"')
             # print('trans_result',type(trans_result), trans_result)
-            # ret = json.loads(trans_result)
-            # ret = trans_result.replace("[", "")
-            # ret = trans_result.replace("]", "")
-            ret = trans_result.split(",")
-            print(len(ret), type(ret), ret)
+            # result = json.loads(trans_result)
+            # result = trans_result.replace("[", "")
+            # result = trans_result.replace("]", "")
+            result = trans_result.split(",")
+            log.debug(len(result), type(result), result)
         except Exception as e:
-            print('不能进行json.loads处理', e)
-            ret = trans_result
-        return ret
+            log.debug('不能进行json.loads处理', e)
+            result = trans_result
+        log.info('Translate result result',type(result),result)
+        return result
 
 
 translate = Translate()
