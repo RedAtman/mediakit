@@ -191,7 +191,7 @@ class Log(object):
         if stream:
             self.stream = logging.StreamHandler()
             self.stream.setFormatter(_Formatter(
-                '<%(levelname)s> %(caller_file_name)s[%(caller_line_number)d][%(lineno)s] %(message)-12s'))
+                '<%(levelname)s> %(caller_file_name)s[%(caller_line_number)d] %(message)-12s'))
             self.stream.setLevel(self.__level_mapping.get(self.level))
             self.logger.addHandler(self.stream)
 
@@ -241,8 +241,10 @@ class Log(object):
 # log = Log(level="error")
 # log = Log(level="critical", stream=True)
 # log.info('config.BASE_DIR', dir(config))
-log = Log(stream=True, logs_dir=config.BASE_DIR)
+# log = Log(stream=True, logs_dir=config.BASE_DIR)
 # log = Log(level="debug", stream=True, logs_dir=config.BASE_DIR)
+log = Log(level="info", stream=True, logs_dir=config.BASE_DIR)
+# log = Log(level="warning", stream=True, logs_dir=config.BASE_DIR)
 # log = Log(level="error", stream=True, logs_dir=config.BASE_DIR)
 # log = Log(level="debug", stream=True)
 # log = Log()
