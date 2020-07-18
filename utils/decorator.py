@@ -10,7 +10,7 @@ def timekeep(func):
         start_time = time.time()
         ret = func(*args, **kwargs)
         log.warning(
-            "耗时:", time.time() - start_time, 
+            '<TASK>%s,耗时:%s' % (func.__name__, time.time() - start_time),
             # '执行结果:', ret,
             )
         return ret
@@ -28,7 +28,7 @@ def Timekeep():
             log.debug('Task start(%s):' % (func.__name__), start_time)
             ret = func(self, *args, **kwargs)
             log.warning(
-                '耗时:', time.time() - start_time, 
+                '<TASK>%s,耗时:%s' % (func.__name__, time.time() - start_time)
                 # '执行结果:', ret
                 )
             return ret

@@ -35,8 +35,8 @@ class BoundedExecutor:
             future.add_done_callback(lambda x: self.semaphore.release())
             for callback in callback_list:
                 future.add_done_callback(callback)
-            future.add_done_callback(func)
-            future.add_done_callback(func2)
+            # future.add_done_callback(func)
+            # future.add_done_callback(func2)
             return future
 
     """See concurrent.futures.Executor#shutdown"""

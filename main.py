@@ -1,7 +1,12 @@
 import sys,os,threading
 from core import init
 from utils import log, Log, Media, BoundedExecutor, decorator
-
+# print(log._Log__level_mapping)
+# print(log._Log__level_list)
+# print(log.level)
+# log.level = 'warning'
+# print(log.level)
+# print(log.logger)
 
 # path = '/Users/nut/Downloads/RS/1408.mp4'
 # media = Media(path,loglevel='info')
@@ -70,10 +75,14 @@ files = [
 
 # <INFO> media.py[26][26] 耗时, 320.07262897491455, '-threads', '40',
 
-ret = Media.trim_mul_file(files=files)
+# ret = Media.muti_trim_compress(files=files)
+ret = Media.muti_trim(files=files, callback_list=['compress'])
 
-# media = Media('/Users/nut/Downloads/RS/ANV131.mp4')
+# media = Media('/Users/nut/Downloads/RS/test.mp4')
 # ret = media.trim(time=("00:00:00", "00:00:26"))
+
+# ret = Media.compress(file_path = '/Users/nut/Downloads/RS/test.mp4')
+
 log.info('ret', ret)
 
 @decorator.timekeep
@@ -90,7 +99,7 @@ def main():
             # task = cls.__thread_pool.submit(
             #     obj.trim, time=time,suffix_number=suffix_number)
             # # task.add_done_callback(callback)
-            log.info('trim_mul_file',time,suffix_number)
+            log.info('muti_trim_compress',time,suffix_number)
         executor.shutdown(wait=True)
 
     # cls.__thread_pool.shutdown(wait=True)

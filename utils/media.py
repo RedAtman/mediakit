@@ -22,7 +22,7 @@ class Audio(object):
 
 class Media(object):
     '''docstring for Media'''
-    __order_prefix = ['ffmpeg', '-y', '-loglevel', 'info']
+    __order_prefix = ['ffmpeg', '-y', '-loglevel', 'warning']
     # __thread_pool = futures.ThreadPoolExecutor(max_workers=64)
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
@@ -94,18 +94,19 @@ class Media(object):
         :param: file_path(str): 媒体文件路径。
         '''
         file_path = file_path.strip()
-        @decorator.Timekeep()
+        # @decorator.Timekeep()
         @decorator.executor
-        def func(file_path):
+        # @decorator.Executor()
+        def get_metadata(file_path):
             return ['ffprobe', '-v', 'quiet', '-show_format',
                           '-show_streams', '-print_format', 'json', file_path]
 
-        result = func(file_path)
+        result = get_metadata(file_path)
         if result.get('returncode') == 0:
             ret = json.loads(result.get('result'))
         else:
             raise TypeError('%s is not JSONable' % type(result))
-        log.debug('get_metadata func', ret)
+        log.debug('get_metadata get_metadata', ret)
         return ret
 
     @classmethod
@@ -138,7 +139,7 @@ class Media(object):
                 suffix_number += 1
                 file_path = os.path.join(file_dir, file_title + "-" + suffix + '_' + \
                     str(suffix_number) + "." + file_format)
-            log.warning('file_path',file_path)
+            log.info('file_path',file_path)
             open(file_path, encoding='utf-8', mode='x')
         except Exception as e:
             raise
@@ -153,6 +154,7 @@ class Media(object):
     @property
     def order_metadata(self):
         '''生成获取视频元数据的命令行执行order(List); 同时生成 keywords_list;
+        :return(List): 命令行执行order。
         '''
         meta_key_list = ['title', 'artist', 'album_artist',
                          'category', 'camera', 'lens', 'keywords']
@@ -197,7 +199,6 @@ class Media(object):
         log.info('order_metadata', order_metadata)
 
         return order_metadata
-
 
     @decorator.Timekeep()
     @decorator.Executor()
@@ -296,7 +297,7 @@ class Media(object):
                            '-c:v', 'copy',
                            self.output_path])
 
-    # @decorator.Timekeep()
+    @decorator.Timekeep()
     @decorator.Executor()
     def trim(self, time=(), suffix_number=1, lock=None):
         '''截取视频指定某一段时间
@@ -335,7 +336,7 @@ class Media(object):
             file_path])
         return {'path': file_path}
 
-    def trim_mul(self, times=()):
+    def muti_trim(self, times=()):
         '''批量截取
         :param: times(tuple): ("00:26:56", "00:28:36")
         '''
@@ -347,19 +348,22 @@ class Media(object):
 
     @classmethod
     @decorator.Timekeep()
-    def trim_mul_file(cls, files=[]):
+    def muti_trim(cls, files=[], callback_list=['compress']):
         '''多线程批量文件截取
-        :param: files(list):
+        :param: files(List): 待剪切文件列表。
             [
                 {
                     'path':'/Users/nut/Downloads/RS/CCAV.mp4',
                     'trim_times':(
                         ("00:50:22", "01:03:27"),
-                        ("01:19:39", "01:37:04")...
+                        ("01:19:39", "01:37:04"), ...
                     )
                 }...
             ]
+        :param: callback_list(List): 处理完文件剪切后的回调函数列表。
+            ['compress', ...]
         '''
+
         executor = BoundedExecutor(20, 20)
 
         for file in files:
@@ -367,13 +371,12 @@ class Media(object):
             for time in file.get('trim_times'):
                 suffix_number += 1
                 log.warning('suffix_number', suffix_number)
-                # future = executor.submit(cls(file.get('path')).create_file_path, lock=executor.lock, suffix='trim', suffix_number=suffix_number)
                 future = executor.submit(cls(file.get('path')).trim, time=time, suffix_number=suffix_number, lock=executor.lock)
-                future.add_done_callback(cls.compress)
-                log.info('trim_mul_file', time,suffix_number)
+                for callback in callback_list:
+                    future.add_done_callback(getattr(cls, callback))
+                log.info('muti_trim', time, suffix_number)
             executor.shutdown(wait=True)
 
-        # cls.__thread_pool.shutdown(wait=True)
         log.warning('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid()))
 
     def test(self,future):
@@ -402,27 +405,35 @@ class Media(object):
         log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
 
     @classmethod
-    def compress(cls, future, file_path=None, bit_rate=800):
+    def compress(cls, *args, file_path='', bit_rate=800):
+    # def compress(cls, future, file_path='', bit_rate=800):
         '''文件体积压缩
         :param: future(Object future): future.result()返回一个dict，其中path键对应待压缩文件路径。
         :param: file_path(number): 压缩比特率，默认800，单位k。
         :param: bit_rate(number): 压缩比特率，默认800，单位k。
         '''
-        file_path = file_path or future.result().get('path')
-        file_path = file_path.strip()
+        if args:
+            future = args[0]
+            file_path = future.result().get('path')
+        elif file_path:
+            file_path = file_path.strip()
+        else: raise
+
+        # file_path = file_path or future.result().get('path')
+        # file_path = file_path.strip()
 
         file_dir, file_title, file_format = cls.get_file_info(file_path)
-        compress_file_path = cls.create_file_path(file_path, suffix='compress', lock=None)
+        compress_file_path = cls.create_file_path(file_path, suffix='compress', lock=cls.__lock)
 
         @decorator.timekeep
         @decorator.executor
-        def func():
+        def compress():
             metadata = cls.get_metadata(file_path)
             if bit_rate > 800:
                 pass
             else:
                 width = 640
-                rate = int(width / metadata.get('streams')[0].get('width'))
+                rate = float(width / metadata.get('streams')[0].get('width'))
                 height = int(rate * metadata.get('streams')[0].get('height'))
             log.info('compress width height',rate,metadata.get('streams')[0].get('width'),metadata.get('streams')[0].get('height'),width,height)
 
@@ -455,9 +466,10 @@ class Media(object):
                 '-max_muxing_queue_size', '40000',
                 '-map_metadata', '0',
                 compress_file_path])
+            log.info('compress',order)
             return order
 
-        ret = func()
+        ret = compress()
         return compress_file_path
 
     def transcode(self):
