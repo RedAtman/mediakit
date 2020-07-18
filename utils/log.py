@@ -142,8 +142,8 @@ class Log(object):
         # 关闭logger向上级传输
         self.logger.propagate = False
 
+        # 设置日志level，并统一更新由更新level连带的一系列更新
         self.update_level(level)
-
 
         # # 创建logs_dir
         # self.create_logs_dir(logs_dir=logs_dir)
@@ -176,6 +176,10 @@ class Log(object):
 
         self.logger.setLevel(self.__level_mapping.get(self.level))
         self.create_logs_dir()
+
+        # 清除之前的handlers
+        self.logger.handlers.clear()
+
         self.set_file_log()
         self.set_stream_log()
 

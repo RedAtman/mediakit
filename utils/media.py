@@ -319,7 +319,7 @@ class Media(object):
 
             '-i', self.file_path,
 
-            # 线程(待验证)
+            # 线程(设置为4效率最高，但通用性待验证)
             '-threads', '4',
 
             # 对video类型文件设置编码类型
@@ -348,7 +348,7 @@ class Media(object):
 
     @classmethod
     @decorator.Timekeep()
-    def muti_trim(cls, files=[], callback_list=['compress']):
+    def muti_trim(cls, files=[], callback_list=[]):
         '''多线程批量文件截取
         :param: files(List): 待剪切文件列表。
             [
