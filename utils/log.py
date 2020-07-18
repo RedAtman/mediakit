@@ -149,8 +149,9 @@ class Log(object):
                     self.__level_list))
         else:
             self.level = level
-        self.create_logs_dir()
 
+        # 创建logs_dir
+        self.create_logs_dir(logs_dir=logs_dir)
 
         # 为logger设置level
         self.logger.setLevel(self.__level_mapping.get(self.level))
@@ -158,13 +159,15 @@ class Log(object):
         # 关闭logger向上级传输
         self.logger.propagate = False
 
+        # 设置file_log & stream_log
         self.set_file_log(fmt=fmt)
-
         if stream:
             self.set_stream_log()
 
     def create_logs_dir(self, logs_dir=None):
-        # 生成logs_dir
+        '''创建logs_dir
+        :param logs_dir(String): log文件路径。
+        '''
         if logs_dir:
             self.logs_dir = os.path.join(logs_dir, 'logs', self.level)
         else:
@@ -176,7 +179,9 @@ class Log(object):
         # print('logs_dir', self.logs_dir)
 
     def set_file_log(self, fmt=None):
-        # 设置日志格式
+        '''设置日志格式
+        :param fmt(): log格式。
+        '''
         self.fmt = fmt or '%(asctime)-12s %(name)s %(filename)s[%(lineno)d] %(levelname)-8s %(message)-12s'
         self.formatter = _Formatter(self.fmt)
 
@@ -197,7 +202,8 @@ class Log(object):
         self.logger.addHandler(self.file)
 
     def set_stream_log(self):
-        # 日志显示到屏幕上
+        '''设置屏幕打印日志
+        '''
         self.stream = logging.StreamHandler()
         self.stream.setFormatter(_Formatter(
             '<%(levelname)s> %(caller_file_name)s[%(caller_line_number)d] %(message)-12s'))
@@ -205,8 +211,7 @@ class Log(object):
         self.logger.addHandler(self.stream)
 
     def get_log_path(self, logs_dir=None):
-        """
-        创建log日志文件文件名，以当前日期进行命名
+        """创建log日志文件文件名，以当前日期进行命名
         :param logs_dir: 保存log日志文件的文件夹路径
         :return: 拼接好的log文件名。格式：path_to/logs/level/20200202.log
         """
@@ -226,13 +231,13 @@ class Log(object):
         return log_path
 
     def __getattr__(self, attr):
-        # 简化调用logger层级(将level映射为方法): log.logger.info(msg) > log.info(msg)
         # print('__getattr__', attr)
         # print('__getattr__',self.__level_list, attr,)
+
+        # 简化调用logger层级(将level映射为方法): log.logger.info(msg) > log.info(msg)
         if attr in self.__level_list or attr == 'exception':
             # print('__getattr__ if', attr)
             return getattr(self.logger, attr)
-        # print('__getattr__ else', self.__dict__)
         raise AttributeError(
             '{0} object has no attribute {1}'.format(self.__class__.__name__, attr))
 
@@ -248,13 +253,9 @@ class Log(object):
             self.create_logs_dir()
             self.set_file_log()
             self.set_stream_log()
-            
-
 
     def __call__(self, msg):
-        '''
-        进一步简化调用logger的字符数量:
-        log.info(msg) > log(msg)
+        '''进一步简化调用logger的字符数量: log.info(msg) > log(msg)
         '''
         return getattr(self, self.level)(msg)
 
