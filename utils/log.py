@@ -134,11 +134,35 @@ class Log(object):
             stream=False):
         # 获取用户名
         self.username = username
+
         # 创建logger
         self.logger = logging.getLogger(self.username or logging.__name__)
         # self.logger = logging.getLogger()
 
-        # 校验level
+        # 关闭logger向上级传输
+        self.logger.propagate = False
+
+        self.update_level(level)
+
+
+        # # 创建logs_dir
+        # self.create_logs_dir(logs_dir=logs_dir)
+
+        # # 为logger设置level
+        # self.logger.setLevel(self.__level_mapping.get(self.level))
+
+
+        # # 设置file_log & stream_log
+        # self.set_file_log(fmt=fmt)
+        # if stream:
+        #     self.set_stream_log()
+
+    def update_level(self, level):
+        '''设置日志level，并统一更新由更新level连带的一系列更新。
+        :param level(String): log level。
+        '''
+
+        # 校验并更新level
         if not type(level) == str:
             raise TypeError(
                 "level expected type is str but get type {}".format(
@@ -148,21 +172,12 @@ class Log(object):
                 "check level at least one corrected logLevel in: {}".format(
                     self.__level_list))
         else:
-            self.level = level
+            self.__dict__['level'] = level
 
-        # 创建logs_dir
-        self.create_logs_dir(logs_dir=logs_dir)
-
-        # 为logger设置level
         self.logger.setLevel(self.__level_mapping.get(self.level))
-
-        # 关闭logger向上级传输
-        self.logger.propagate = False
-
-        # 设置file_log & stream_log
-        self.set_file_log(fmt=fmt)
-        if stream:
-            self.set_stream_log()
+        self.create_logs_dir()
+        self.set_file_log()
+        self.set_stream_log()
 
     def create_logs_dir(self, logs_dir=None):
         '''创建logs_dir
@@ -249,10 +264,11 @@ class Log(object):
 
         # 若修改的属性是level 则需修改以下几个地方才可以
         if hasattr(self, attr) and attr in ['level']:
-            self.logger.setLevel(self.__level_mapping.get(self.level))
-            self.create_logs_dir()
-            self.set_file_log()
-            self.set_stream_log()
+            # self.logger.setLevel(self.__level_mapping.get(self.level))
+            # self.create_logs_dir()
+            # self.set_file_log()
+            # self.set_stream_log()
+            self.update_level(value)
 
     def __call__(self, msg):
         '''进一步简化调用logger的字符数量: log.info(msg) > log(msg)
