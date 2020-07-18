@@ -27,7 +27,7 @@ class Media(object):
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
 
-    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='info'):
+    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='warning'):
         '''
         :params
             file_path(String): 媒体文件路径。
@@ -306,7 +306,10 @@ class Media(object):
         '''
         if not time:
             return False
-        file_path = self.create_file_path(self.file_path, suffix='trim', suffix_number=suffix_number, lock=lock)
+        trim_file_path = self.create_file_path(self.file_path, suffix='trim', suffix_number=suffix_number, lock=lock)
+
+        log.warning('线程:%s, 父进程:%s, <TASK (%s) start...>, %s' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid(), trim_file_path))
+
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend([
 
@@ -333,8 +336,8 @@ class Media(object):
             '-acodec', 'aac',
 
             # '-avoid_negative_ts', '1',
-            file_path])
-        return {'path': file_path}
+            trim_file_path])
+        return {'path': trim_file_path}
 
     def muti_trim(self, times=()):
         '''批量截取
@@ -347,95 +350,18 @@ class Media(object):
             self.trim(time)
 
     @classmethod
-    @decorator.Timekeep()
-    def muti_trim(cls, files=[], callback_list=[]):
-        '''多线程批量文件截取
-        :param: files(List): 待剪切文件列表。
-            [
-                {
-                    'path':'/Users/nut/Downloads/RS/CCAV.mp4',
-                    'trim_times':(
-                        ("00:50:22", "01:03:27"),
-                        ("01:19:39", "01:37:04"), ...
-                    )
-                }...
-            ]
-        :param: callback_list(List): 处理完文件剪切后的回调函数列表。
-            ['compress', ...]
-        '''
-
-        executor = BoundedExecutor(20, 20)
-
-        for file in files:
-            suffix_number = 0
-            for time in file.get('trim_times'):
-                suffix_number += 1
-                log.warning('suffix_number', suffix_number)
-                future = executor.submit(cls(file.get('path')).trim, time=time, suffix_number=suffix_number, lock=executor.lock)
-                for callback in callback_list:
-                    future.add_done_callback(getattr(cls, callback))
-                log.info('muti_trim', time, suffix_number)
-            executor.shutdown(wait=True)
-
-        log.warning('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid()))
-
-    def test(self,future):
-        log.warning('test self', self, future)
-        pass
-
-    @classmethod
-    def thread_pool_excutor(cls, *args, callback=None, **kwargs):
-        # with cls.__thread_pool as tp:
-        #     task = tp.submit(
-        #         *args,**kwargs)
-        #     # task.add_done_callback(callback)
-
-        #     cls.__thread_pool.shutdown(wait=True)
-        #     log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
-
-        task = cls.__thread_pool.submit(
-            *args,**kwargs)
-        # task.add_done_callback(callback)
-        # cls.__queue.put(task)
-
-
-        cls.__thread_pool.shutdown(wait=True)
-
-        # result = futures.wait(cls.__queue, return_when=futures.ALL_COMPLETED)
-        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
-
-    @classmethod
     def compress(cls, *args, file_path='', bit_rate=800):
-    # def compress(cls, future, file_path='', bit_rate=800):
         '''文件体积压缩
         :param: future(Object future): future.result()返回一个dict，其中path键对应待压缩文件路径。
         :param: file_path(number): 压缩比特率，默认800，单位k。
         :param: bit_rate(number): 压缩比特率，默认800，单位k。
         '''
-        if args:
-            future = args[0]
-            file_path = future.result().get('path')
-        elif file_path:
-            file_path = file_path.strip()
-        else: raise
-
-        # file_path = file_path or future.result().get('path')
-        # file_path = file_path.strip()
-
-        file_dir, file_title, file_format = cls.get_file_info(file_path)
-        compress_file_path = cls.create_file_path(file_path, suffix='compress', lock=cls.__lock)
 
         @decorator.timekeep
         @decorator.executor
         def compress():
-            metadata = cls.get_metadata(file_path)
-            if bit_rate > 800:
-                pass
-            else:
-                width = 640
-                rate = float(width / metadata.get('streams')[0].get('width'))
-                height = int(rate * metadata.get('streams')[0].get('height'))
-            log.info('compress width height',rate,metadata.get('streams')[0].get('width'),metadata.get('streams')[0].get('height'),width,height)
+
+            log.warning('线程:%s, 父进程:%s, <TASK (%s) start...>, %s' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid(), compress_file_path))
 
             order = copy.deepcopy(cls.__order_prefix)
             order.extend([
@@ -466,11 +392,90 @@ class Media(object):
                 '-max_muxing_queue_size', '40000',
                 '-map_metadata', '0',
                 compress_file_path])
-            log.info('compress',order)
             return order
 
-        ret = compress()
+        if args:
+            future = args[0]
+            file_path = future.result().get('path')
+        elif file_path:
+            file_path = file_path.strip()
+        else: raise
+
+        metadata = cls.get_metadata(file_path)
+        width = 640
+        rate = float(width / metadata.get('streams')[0].get('width'))
+
+        # 若源文件分辨率宽度<640 则跳过压缩
+        if rate < 1:
+            height = int(rate * metadata.get('streams')[0].get('height'))
+            log.info('compress width height',rate,metadata.get('streams')[0].get('width'),metadata.get('streams')[0].get('height'),width,height)
+
+            file_dir, file_title, file_format = cls.get_file_info(file_path)
+            compress_file_path = cls.create_file_path(file_path, suffix='compress', lock=cls.__lock)
+
+            ret = compress()
+        else:
+            return False
+
         return compress_file_path
+
+    @classmethod
+    @decorator.Timekeep()
+    def muti_trim(cls, files=[], callback_list=[]):
+        '''多线程批量文件截取
+        :param: files(List): 待剪切文件列表。
+            [
+                {
+                    'path':'/Users/nut/Downloads/RS/CCAV.mp4',
+                    'trim_times':(
+                        ("00:50:22", "01:03:27"),
+                        ("01:19:39", "01:37:04"), ...
+                    )
+                }...
+            ]
+        :param: callback_list(List): 处理完文件剪切后的回调函数列表。
+            ['compress', ...]
+        '''
+
+        log.warning('线程:%s, 父进程:%s, <TASK (%s) start...>' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid()))
+
+        executor = BoundedExecutor(20, 20)
+
+        for file in files:
+            suffix_number = 0
+            for time in file.get('trim_times'):
+                suffix_number += 1
+                log.info('suffix_number', suffix_number)
+                future = executor.submit(cls(file.get('path')).trim, time=time, suffix_number=suffix_number, lock=executor.lock)
+                for callback in callback_list:
+                    future.add_done_callback(getattr(cls, callback))
+                log.info('muti_trim', time, suffix_number)
+            # executor.shutdown(wait=True)
+
+    def test(self,future):
+        log.warning('test self', self, future)
+        pass
+
+    @classmethod
+    def thread_pool_excutor(cls, *args, callback=None, **kwargs):
+        # with cls.__thread_pool as tp:
+        #     task = tp.submit(
+        #         *args,**kwargs)
+        #     # task.add_done_callback(callback)
+
+        #     cls.__thread_pool.shutdown(wait=True)
+        #     log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
+
+        task = cls.__thread_pool.submit(
+            *args,**kwargs)
+        # task.add_done_callback(callback)
+        # cls.__queue.put(task)
+
+
+        cls.__thread_pool.shutdown(wait=True)
+
+        # result = futures.wait(cls.__queue, return_when=futures.ALL_COMPLETED)
+        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
 
     def transcode(self):
         log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))

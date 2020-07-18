@@ -192,10 +192,8 @@ class Log(object):
         else:
             # self.logs_dir = sys.argv[0][0:-3] + '.log'  # 动态获取调用文件的名字
             # print('logs_dir', self.logs_dir)
-            pardir = os.path.abspath(os.path.join(
-                os.path.dirname("__file__"), os.path.pardir))
-            self.logs_dir = os.path.join(pardir, "logs", self.level)
-        # print('logs_dir', self.logs_dir)
+            self.logs_dir = os.path.join(os.path.dirname("__file__"), "logs", self.level)
+        # print('create_logs_dir logs_dir', os.path.pardir, self.logs_dir)
 
     def set_file_log(self, fmt=None):
         '''设置日志格式
@@ -235,9 +233,7 @@ class Log(object):
         :return: 拼接好的log文件名。格式：path_to/logs/level/20200202.log
         """
         # 创建文件目录
-        if os.path.exists(self.logs_dir) and os.path.isdir(self.logs_dir):
-            pass
-        else:
+        if not os.path.exists(self.logs_dir) and not os.path.isdir(self.logs_dir):
             try:
                 os.mkdir(self.logs_dir)
             except Exception as e:
@@ -279,7 +275,7 @@ class Log(object):
         '''
         return getattr(self, self.level)(msg)
 
-
+# print('config.BASE_DIR',config.BASE_DIR)
 # log = Log(username='nut')
 # log = Log(stream=True,)
 # log.info('config.BASE_DIR')

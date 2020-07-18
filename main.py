@@ -2,6 +2,7 @@ import sys,os,threading
 from core import init
 from utils import log, Log, Media, BoundedExecutor, decorator
 from tmp.files import files
+# log.info('test')
 # print(log._Log__level_mapping)
 # print(log._Log__level_list)
 # print(log.level)
