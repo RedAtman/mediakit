@@ -132,7 +132,11 @@ class Log(object):
             backupCount=10,
             fmt=None,
             stream=False):
-        self.username = username  # 获取用户
+        # 获取用户名
+        self.username = username
+        # 创建logger
+        self.logger = logging.getLogger(self.username or logging.__name__)
+        # self.logger = logging.getLogger()
 
         # 校验level
         if not type(level) == str:
@@ -145,7 +149,21 @@ class Log(object):
                     self.__level_list))
         else:
             self.level = level
+        self.create_logs_dir()
 
+
+        # 为logger设置level
+        self.logger.setLevel(self.__level_mapping.get(self.level))
+
+        # 关闭logger向上级传输
+        self.logger.propagate = False
+
+        self.set_file_log(fmt=fmt)
+
+        if stream:
+            self.set_stream_log()
+
+    def create_logs_dir(self, logs_dir=None):
         # 生成logs_dir
         if logs_dir:
             self.logs_dir = os.path.join(logs_dir, 'logs', self.level)
@@ -157,16 +175,7 @@ class Log(object):
             self.logs_dir = os.path.join(pardir, "logs", self.level)
         # print('logs_dir', self.logs_dir)
 
-        # 创建logger
-        self.logger = logging.getLogger(self.username or logging.__name__)
-        # self.logger = logging.getLogger()
-
-        # 为logger设置level
-        self.logger.setLevel(self.__level_mapping.get(self.level))
-
-        # 关闭logger向上级传输
-        self.logger.propagate = False
-
+    def set_file_log(self, fmt=None):
         # 设置日志格式
         self.fmt = fmt or '%(asctime)-12s %(name)s %(filename)s[%(lineno)d] %(levelname)-8s %(message)-12s'
         self.formatter = _Formatter(self.fmt)
@@ -187,13 +196,13 @@ class Log(object):
         self.file.setLevel(self.__level_mapping.get(self.level))
         self.logger.addHandler(self.file)
 
+    def set_stream_log(self):
         # 日志显示到屏幕上
-        if stream:
-            self.stream = logging.StreamHandler()
-            self.stream.setFormatter(_Formatter(
-                '<%(levelname)s> %(caller_file_name)s[%(caller_line_number)d] %(message)-12s'))
-            self.stream.setLevel(self.__level_mapping.get(self.level))
-            self.logger.addHandler(self.stream)
+        self.stream = logging.StreamHandler()
+        self.stream.setFormatter(_Formatter(
+            '<%(levelname)s> %(caller_file_name)s[%(caller_line_number)d] %(message)-12s'))
+        self.stream.setLevel(self.__level_mapping.get(self.level))
+        self.logger.addHandler(self.stream)
 
     def get_log_path(self, logs_dir=None):
         """
@@ -219,12 +228,28 @@ class Log(object):
     def __getattr__(self, attr):
         # 简化调用logger层级(将level映射为方法): log.logger.info(msg) > log.info(msg)
         # print('__getattr__', attr)
+        # print('__getattr__',self.__level_list, attr,)
         if attr in self.__level_list or attr == 'exception':
             # print('__getattr__ if', attr)
             return getattr(self.logger, attr)
-        # print('__getattr__ else', attr)
+        # print('__getattr__ else', self.__dict__)
         raise AttributeError(
             '{0} object has no attribute {1}'.format(self.__class__.__name__, attr))
+
+    def __setattr__(self, attr, value):
+        # print('__setattr__', dir(self))
+        # print('__setattr__', attr, value)
+        # self.attr = value   # 错误写法 会再次调用自身__setattr__，造成死循环。
+        self.__dict__[attr] = value
+
+        # 若修改的属性是level 则需修改以下几个地方才可以
+        if hasattr(self, attr) and attr in ['level']:
+            self.logger.setLevel(self.__level_mapping.get(self.level))
+            self.create_logs_dir()
+            self.set_file_log()
+            self.set_stream_log()
+            
+
 
     def __call__(self, msg):
         '''
@@ -241,9 +266,9 @@ class Log(object):
 # log = Log(level="error")
 # log = Log(level="critical", stream=True)
 # log.info('config.BASE_DIR', dir(config))
-# log = Log(stream=True, logs_dir=config.BASE_DIR)
+log = Log(stream=True, logs_dir=config.BASE_DIR)
 # log = Log(level="debug", stream=True, logs_dir=config.BASE_DIR)
-log = Log(level="info", stream=True, logs_dir=config.BASE_DIR)
+# log = Log(level="info", stream=True, logs_dir=config.BASE_DIR)
 # log = Log(level="warning", stream=True, logs_dir=config.BASE_DIR)
 # log = Log(level="error", stream=True, logs_dir=config.BASE_DIR)
 # log = Log(level="debug", stream=True)
