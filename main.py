@@ -16,17 +16,29 @@ log.level = 'warning'
 # media.transcode()
 
 
-# media = Media('/Users/nut/Downloads/RS/test.mp4')
+# media = Media('/Users/nut/Downloads/RS/_test/test.mp4')
 # ret = media.trim(time=("00:00:00", "00:00:26"))
+# media = Media('/Users/nut/Downloads/RS/_to_be_compress/BelAmi Online – Jambo Africa Series – Hoyt Kogan &amp;amp; Jarrod Lanvin – 810p.mp4')
+
+# ret = media.metadata.get('format').get('width')
 
 
-ret = Media.muti_trim(files=files, callback_list=['compress'])
 
 
-# ret = Media.compress(file_path = '/Users/nut/Downloads/RS/test.mp4')
+# ret = Media.multi_trim(files=files, callback_list=['compress'])
+# ret = Media.multi_trim(files=files)
 
 
-log.info('ret', ret)
+# ret = Media.compress(file_path = '/Users/nut/Downloads/RS/_test/test.mp4')
+# ret = Media.compress(file_path = '/Users/nut/Downloads/RS/_to_be_compress/BelAmi Online – Jambo Africa Series – Hoyt Kogan &amp;amp; Jarrod Lanvin – 810p.mp4')
+# ret = Media.get_width('/Users/nut/Downloads/RS/_to_be_compress/BelAmi Online – Jambo Africa Series – Hoyt Kogan &amp;amp; Jarrod Lanvin – 810p.mp4')
+
+
+ret = Media.multi_compress(path = '/Users/nut/Downloads/RS/_to_be_compress')
+# ret = Media.multi_compress(path='/Users/nut/Downloads/RS/_test')
+
+
+log.warning('ret', ret)
 
 
 if __name__ == '__main__':

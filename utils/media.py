@@ -22,12 +22,12 @@ class Audio(object):
 
 class Media(object):
     '''docstring for Media'''
-    __order_prefix = ['ffmpeg', '-y', '-loglevel', 'warning']
+    __order_prefix = ['ffmpeg', '-y', '-loglevel', 'info']
     # __thread_pool = futures.ThreadPoolExecutor(max_workers=64)
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
 
-    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='warning'):
+    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='info'):
         '''
         :params
             file_path(String): 媒体文件路径。
@@ -52,7 +52,9 @@ class Media(object):
 
     @property
     def metadata(self):
-        return self.get_metadata(self.file_path)
+        result = self.get_metadata(self.file_path)
+        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name, result))
+        return result
 
     @property
     def duration(self):
@@ -87,6 +89,7 @@ class Media(object):
         '''
         return re.findall(
             '(.*)\/([^<>/\\\|:""\?]+)\.(\w+)$', file_path)[0]
+        # return os.path.
 
     @staticmethod
     def get_metadata(file_path):
@@ -102,12 +105,31 @@ class Media(object):
                           '-show_streams', '-print_format', 'json', file_path]
 
         result = get_metadata(file_path)
+        log.info('get_metadata result',result.get('result'))
         if result.get('returncode') == 0:
-            ret = json.loads(result.get('result'))
+            metadata = json.loads(result.get('result'))
         else:
             raise TypeError('%s is not JSONable' % type(result))
-        log.debug('get_metadata get_metadata', ret)
-        return ret
+        return metadata
+
+    @classmethod
+    def get_width(cls, file_path):
+        metadata = cls.get_metadata(file_path)
+        if metadata.get('format').get('width'):
+            return metadata.get('format').get('width')
+        else:
+            for i in metadata.get('streams'):
+                if i.get('width'):
+                    return i.get('width')
+    @classmethod
+    def get_height(cls, file_path):
+        metadata = cls.get_metadata(file_path)
+        if metadata.get('format').get('height'):
+            return metadata.get('format').get('height')
+        else:
+            for i in metadata.get('streams'):
+                if i.get('height'):
+                    return i.get('height')
 
     @classmethod
     def create_file_path(cls, file_path, suffix='suffix', suffix_number=1, lock=None):
@@ -308,7 +330,7 @@ class Media(object):
             return False
         trim_file_path = self.create_file_path(self.file_path, suffix='trim', suffix_number=suffix_number, lock=lock)
 
-        log.warning('线程:%s, 父进程:%s, <TASK (%s) start...>, %s' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid(), trim_file_path))
+        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name, trim_file_path))
 
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend([
@@ -333,13 +355,14 @@ class Media(object):
 
             # 若voice copy失败
             '-c:v', 'copy',
-            '-acodec', 'aac',
+            '-c:a', 'copy',
+            # '-acodec', 'aac',
 
             # '-avoid_negative_ts', '1',
             trim_file_path])
         return {'path': trim_file_path}
 
-    def muti_trim(self, times=()):
+    def multi_trim(self, times=()):
         '''批量截取
         :param: times(tuple): ("00:26:56", "00:28:36")
         '''
@@ -350,7 +373,7 @@ class Media(object):
             self.trim(time)
 
     @classmethod
-    def compress(cls, *args, file_path='', bit_rate=800):
+    def compress(cls, *args, file_path='', bit_rate=800000):
         '''文件体积压缩
         :param: future(Object future): future.result()返回一个dict，其中path键对应待压缩文件路径。
         :param: file_path(number): 压缩比特率，默认800，单位k。
@@ -361,7 +384,7 @@ class Media(object):
         @decorator.executor
         def compress():
 
-            log.warning('线程:%s, 父进程:%s, <TASK (%s) start...>, %s' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid(), compress_file_path))
+            log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name, compress_file_path))
 
             order = copy.deepcopy(cls.__order_prefix)
             order.extend([
@@ -372,8 +395,8 @@ class Media(object):
                 '-c:v', 'hevc_videotoolbox',
                 '-r', '24.00',
                 '-pix_fmt', 'yuv420p',
-                '-b:v', str(bit_rate) + 'k',
-                '-maxrate', str(bit_rate + 200) + 'k',
+                '-b:v', str(bit_rate),
+                '-maxrate', str(bit_rate + 200000),
                 '-bufsize', '4M',
                 '-allow_sw', '1',
                 '-profile:v', 'main',
@@ -385,7 +408,10 @@ class Media(object):
                 '-strict',
                 '-2',
                 '-sn',
-                '-f', file_format,
+
+                # ffmpeg can automatically determine the appropriate format from the output file name, so most users can omit the -f option.
+                '-f', 'mp4',
+
                 '-map', '0:0',
                 '-map', '0:1',
                 '-map_chapters', '0',
@@ -401,16 +427,23 @@ class Media(object):
             file_path = file_path.strip()
         else: raise
 
+        print('compress',file_path)
         metadata = cls.get_metadata(file_path)
         width = 640
-        rate = float(width / metadata.get('streams')[0].get('width'))
+        origin_width = cls.get_width(file_path)
+        origin_height = cls.get_height(file_path)
+        # log.warning('origin_width', origin_width)
+        rate = float(width / float(origin_width))
+        origin_bit_rate = metadata.get('streams')[0].get('bit_rate') or metadata.get('format').get('bit_rate')
+        origin_bit_rate = int(origin_bit_rate)
 
-        # 若源文件分辨率宽度<640 则跳过压缩
-        if rate < 1:
-            height = int(rate * metadata.get('streams')[0].get('height'))
+        # 若源文件分辨率宽度<640 或 源文件bit_rate<800000，则跳过压缩
+        if rate < 1 or bit_rate < origin_bit_rate:
+        # if True:
+            height = int(rate * float(origin_height))
             log.info('compress width height',rate,metadata.get('streams')[0].get('width'),metadata.get('streams')[0].get('height'),width,height)
 
-            file_dir, file_title, file_format = cls.get_file_info(file_path)
+            # file_dir, file_title, file_format = cls.get_file_info(file_path)
             compress_file_path = cls.create_file_path(file_path, suffix='compress', lock=cls.__lock)
 
             ret = compress()
@@ -421,7 +454,7 @@ class Media(object):
 
     @classmethod
     @decorator.Timekeep()
-    def muti_trim(cls, files=[], callback_list=[]):
+    def multi_trim(cls, files=[], callback_list=[]):
         '''多线程批量文件截取
         :param: files(List): 待剪切文件列表。
             [
@@ -437,7 +470,7 @@ class Media(object):
             ['compress', ...]
         '''
 
-        log.warning('线程:%s, 父进程:%s, <TASK (%s) start...>' % (sys._getframe().f_code.co_name, threading.current_thread().getName(), os.getpid()))
+        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name))
 
         executor = BoundedExecutor(20, 20)
 
@@ -445,12 +478,37 @@ class Media(object):
             suffix_number = 0
             for time in file.get('trim_times'):
                 suffix_number += 1
-                log.info('suffix_number', suffix_number)
+                log.info(sys._getframe().f_code.co_name, 'suffix_number', suffix_number)
                 future = executor.submit(cls(file.get('path')).trim, time=time, suffix_number=suffix_number, lock=executor.lock)
                 for callback in callback_list:
                     future.add_done_callback(getattr(cls, callback))
-                log.info('muti_trim', time, suffix_number)
+                log.info(sys._getframe().f_code.co_name, 'time, suffix_number', time, suffix_number)
             # executor.shutdown(wait=True)
+
+
+    @classmethod
+    @decorator.Timekeep()
+    def multi_compress(cls, path='', callback_list=[]):
+        '''多线程批量文件压缩
+        :param: files(List): 
+        :param: callback_list(List): 
+        '''
+
+        log.warning('父进程:%s, 线程:%s, <Task (%s) start...>' % (os.getpid(), threading.current_thread().getName(), sys._getframe().f_code.co_name))
+
+        executor = BoundedExecutor(20, 20)
+
+        path = path.strip()
+        if os.path.isdir(path):
+            file_path_list = os.listdir(path)
+        log.info(sys._getframe().f_code.co_name, 'file_path_list', file_path_list)
+
+        for file_path in file_path_list:
+            future = executor.submit(cls.compress, file_path=os.path.join(path, file_path))
+            log.info(sys._getframe().f_code.co_name, 'file_path', file_path, future)
+            for callback in callback_list:
+                future.add_done_callback(getattr(cls, callback))
+        executor.shutdown(wait=True)
 
     def test(self,future):
         log.warning('test self', self, future)

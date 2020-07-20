@@ -12,7 +12,7 @@ def timekeep(func):
     def inner(*args, **kwargs):
         start_time = time.time()
         ret = func(*args, **kwargs)
-        log.warning('<TASK (%s) finished!!!>, 线程:%s, 父进程:%s, 耗时:%s' % (func.__name__, threading.current_thread().getName(), os.getpid(), time.time() - start_time))
+        log.warning('线程:%s, 父进程:%s, 耗时:%s, <Task (%s) finished!!!>' % (threading.current_thread().getName(), os.getpid(), time.time() - start_time, func.__name__))
         return ret
     return inner
 
@@ -27,7 +27,7 @@ def Timekeep():
             start_time = time.time()
             log.debug('Task start(%s):' % (func.__name__), start_time)
             ret = func(self, *args, **kwargs)
-            log.warning('<TASK (%s) finished!!!>, 线程:%s, 父进程:%s, 耗时:%s' % (func.__name__, threading.current_thread().getName(), os.getpid(), time.time() - start_time))
+            log.warning('线程:%s, 父进程:%s, 耗时:%s, <Task (%s) finished!!!>' % (threading.current_thread().getName(), os.getpid(), time.time() - start_time, func.__name__))
             return ret
         return inner
     return wrapper
