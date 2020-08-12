@@ -1,16 +1,19 @@
-import re,json
+import re
+import json
 import time
 import subprocess
 import copy
 import functools
-import os,sys
+import os
+import sys
 from concurrent import futures
 import threading
 import queue
 
-from utils import log,translate,decorator,BoundedExecutor
+from utils import log, translate, decorator, BoundedExecutor
 
 lock = threading.Lock()
+
 
 class Audio(object):
     '''docstring for Audio'''
@@ -27,7 +30,7 @@ class Media(object):
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
 
-    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None,loglevel='info'):
+    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None, loglevel='info'):
         '''
         :params
             file_path(String): 媒体文件路径。
@@ -48,12 +51,15 @@ class Media(object):
         self.keywords = keywords
         self.keywords_list = set()
         self.order_prefix = ['ffmpeg', '-y', '-loglevel', loglevel]
+        self.order_prefix_v2 = ['ffmpeg', '-y', '-loglevel',
+                                loglevel, '-i', self.file_path, ]
         # self.lock = threading.Lock()
 
     @property
     def metadata(self):
         result = self.get_metadata(self.file_path)
-        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name, result))
+        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread(
+        ).getName(), os.getpid(), sys._getframe().f_code.co_name, result))
         return result
 
     @property
@@ -74,11 +80,17 @@ class Media(object):
     def output_path(self):
         '''媒体输出路径
         '''
-        time_str = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
-        # path = self.dir + "/_" + self.title + "_" + \
-        #     str(int(round(time.time() * 1000))) + "." + self.format
+        return self.get_output_path('')
+
+    def get_output_path(self, suffix=''):
+        '''媒体输出路径(代替 self.output_path)
+        '''
+        caller = sys._getframe().f_back.f_code.co_name
+        suffix = suffix or caller
+        suffix = suffix + '_' + time.strftime("%Y%m%d%H%M%S", time.localtime())
+
         path = self.dir + "/_" + self.title + "_" + \
-            time_str + "." + self.format
+            suffix + "." + self.format
         log.debug('output path', path)
         return path
 
@@ -98,14 +110,15 @@ class Media(object):
         '''
         file_path = file_path.strip()
         # @decorator.Timekeep()
+
         @decorator.executor
         # @decorator.Executor()
         def get_metadata(file_path):
             return ['ffprobe', '-v', 'quiet', '-show_format',
-                          '-show_streams', '-print_format', 'json', file_path]
+                    '-show_streams', '-print_format', 'json', file_path]
 
         result = get_metadata(file_path)
-        log.info('get_metadata result',result.get('result'))
+        log.info('get_metadata result', result.get('result'))
         if result.get('returncode') == 0:
             metadata = json.loads(result.get('result'))
         else:
@@ -121,6 +134,7 @@ class Media(object):
             for i in metadata.get('streams'):
                 if i.get('width'):
                     return i.get('width')
+
     @classmethod
     def get_height(cls, file_path):
         metadata = cls.get_metadata(file_path)
@@ -155,13 +169,13 @@ class Media(object):
             lock.acquire()
         try:
             suffix_number = suffix_number or 1
-            file_path = os.path.join(file_dir, file_title + "-" + suffix + '_' + \
-                    str(suffix_number) + "." + file_format)
+            file_path = os.path.join(file_dir, file_title + "-" + suffix + '_' +
+                                     str(suffix_number) + "." + file_format)
             while os.path.exists(file_path):
                 suffix_number += 1
-                file_path = os.path.join(file_dir, file_title + "-" + suffix + '_' + \
-                    str(suffix_number) + "." + file_format)
-            log.info('file_path',file_path)
+                file_path = os.path.join(file_dir, file_title + "-" + suffix + '_' +
+                                         str(suffix_number) + "." + file_format)
+            log.info('file_path', file_path)
             open(file_path, encoding='utf-8', mode='x')
         except Exception as e:
             raise
@@ -170,7 +184,7 @@ class Media(object):
         finally:
             if lock:
                 lock.release()
-        log.info('create_file_path',file_path)
+        log.info('create_file_path', file_path)
         return file_path
 
     @property
@@ -245,36 +259,96 @@ class Media(object):
                            self.output_path])
 
     @decorator.Timekeep()
-    @decorator.Executor()
-    def add_voice(self, audio_path, audio_defer, fade_duration=1):
+    @decorator.Executor_v2()
+    def reverse(self):
+        '''反转视频
+        '''
+        return [
+            '-vf', 'reverse',
+            '-aspect', '3:2',
+            '-c:v', 'libx265',
+            '-pix_fmt', 'yuv420p10le',
+            '-threads', '0',
+            '-tag:v', 'hvc1',
+            '-x265-params',
+            'crf=22',
+            '-an',
+            '-metadata', 'creation_time="2020-08-11T21:30:32"',
+            '-color_primaries', '9',
+            '-colorspace', '9',
+            '-color_range', '2',
+            '-color_trc', '14',
+        ]
+
+    @decorator.Timekeep()
+    @decorator.Executor_v2()
+    def add_audio(self, audio_path, audio_defer, fade_duration=1, reverse=False):
         '''添加声音 同时设置淡入淡出 及过度时长
         :param: audio_path(str): 声音文件路径
         :param: audio_defer(number): 声音文件截取处（单位/秒）
         :param: fade_duration(number): 淡入淡出过度时长（单位/秒，默认值：1）
+        :param: reverse(boolean): 是否反转视频流
         '''
         fade_order = "[1:a]afade=t=in:st=0:d=" + str(fade_duration) \
-            + ",afade=t=out:st=" + str(self.duration - 1) \
+            + ",afade=t=out:st=" + str(float(self.duration) - 1) \
             + ":d=" + str(fade_duration)
-        self.order = copy.deepcopy(self.order_prefix)
-        self.order.extend(['-i', self.path,
-                           '-ss', audio_defer,
-                           '-i', audio_path,
-                           # '-vf',
-                           # '[1:a]afade=in:0:5',
-                           # 'afade=out:20:5',
-                           # 'afade=t=in:ss=0:d=15',
+        order = [
+            '-ss', str(audio_defer),
+            '-i', audio_path,
+            # '-vf',
+            # '[1:a]afade=in:0:5',
+            # 'afade=out:20:5',
+            # 'afade=t=in:ss=0:d=15',
 
-                           # 设置淡入、淡出、及过度时长
-                           '-filter_complex',
-                           fade_order,
 
-                           # 对video类型文件直接copy 不重新编码
-                           '-c:v', 'copy',
-                           # '-c', 'copy',
+            # 设置淡入、淡出、及过度时长
+            '-filter_complex', fade_order,
 
-                           # 时长取最短的media
-                           '-shortest',
-                           self.output_path])
+            # 时长取最短的media
+            '-shortest',
+
+            # 经测试无效
+            # '-threads', '4',
+        ]
+
+        if reverse:
+            # 反转视频流及相关视频压缩控制（为了兼容apple设备）
+            order.extend([
+                # 反转视频流
+                '-vf', 'reverse',
+
+                '-aspect', '3:2',
+
+                # 视频编码
+                '-c:v', 'libx265',
+
+                '-pix_fmt', 'yuv420p10le',
+                '-threads', '0',
+                '-tag:v', 'hvc1',
+                '-x265-params',
+
+                # 视频质量范围（1-51） 8为Ultra Hight 22为Low
+                'crf=22',
+
+                # 禁掉源文件中的音频
+                '-an',
+
+                # '-metadata','creation_time="2020-08-11T21:30:32"',
+                '-color_primaries', '9',
+                '-colorspace', '9',
+                '-color_range', '2',
+                '-color_trc', '14',
+            ])
+        else:
+            # 若无需反转 则对video类型文件直接copy 不重新编码
+            order.extend([
+                '-c:v', 'copy',
+                # '-c:v', 'libx265',
+                # '-c', 'copy',
+            ])
+
+        # print('order',order)
+        return order
 
     @decorator.Timekeep()
     @decorator.Executor()
@@ -328,9 +402,11 @@ class Media(object):
         '''
         if not time:
             return False
-        trim_file_path = self.create_file_path(self.file_path, suffix='trim', suffix_number=suffix_number, lock=lock)
+        trim_file_path = self.create_file_path(
+            self.file_path, suffix='trim', suffix_number=suffix_number, lock=lock)
 
-        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name, trim_file_path))
+        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread(
+        ).getName(), os.getpid(), sys._getframe().f_code.co_name, trim_file_path))
 
         self.order = copy.deepcopy(self.order_prefix)
         self.order.extend([
@@ -384,13 +460,14 @@ class Media(object):
         @decorator.executor
         def compress():
 
-            log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name, compress_file_path))
+            log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread(
+            ).getName(), os.getpid(), sys._getframe().f_code.co_name, compress_file_path))
 
             order = copy.deepcopy(cls.__order_prefix)
             order.extend([
-                '-i', file_path, 
-                '-s', str(width)+'x'+str(height),
-                '-aspect', str(width)+':'+str(height),
+                '-i', file_path,
+                '-s', str(width) + 'x' + str(height),
+                '-aspect', str(width) + ':' + str(height),
                 '-threads', '0',
                 '-c:v', 'hevc_videotoolbox',
                 '-r', '24.00',
@@ -409,7 +486,9 @@ class Media(object):
                 '-2',
                 '-sn',
 
-                # ffmpeg can automatically determine the appropriate format from the output file name, so most users can omit the -f option.
+                # ffmpeg can automatically determine the appropriate format
+                # from the output file name, so most users can omit the -f
+                # option.
                 '-f', 'mp4',
 
                 '-map', '0:0',
@@ -425,26 +504,30 @@ class Media(object):
             file_path = future.result().get('path')
         elif file_path:
             file_path = file_path.strip()
-        else: raise
+        else:
+            raise
 
-        print('compress',file_path)
+        print('compress', file_path)
         metadata = cls.get_metadata(file_path)
         width = 640
         origin_width = cls.get_width(file_path)
         origin_height = cls.get_height(file_path)
         # log.warning('origin_width', origin_width)
         rate = float(width / float(origin_width))
-        origin_bit_rate = metadata.get('streams')[0].get('bit_rate') or metadata.get('format').get('bit_rate')
+        origin_bit_rate = metadata.get('streams')[0].get(
+            'bit_rate') or metadata.get('format').get('bit_rate')
         origin_bit_rate = int(origin_bit_rate)
 
         # 若源文件分辨率宽度<640 或 源文件bit_rate<800000，则跳过压缩
         if rate < 1 or bit_rate < origin_bit_rate:
-        # if True:
+            # if True:
             height = int(rate * float(origin_height))
-            log.info('compress width height',rate,metadata.get('streams')[0].get('width'),metadata.get('streams')[0].get('height'),width,height)
+            log.info('compress width height', rate, metadata.get('streams')[0].get(
+                'width'), metadata.get('streams')[0].get('height'), width, height)
 
             # file_dir, file_title, file_format = cls.get_file_info(file_path)
-            compress_file_path = cls.create_file_path(file_path, suffix='compress', lock=cls.__lock)
+            compress_file_path = cls.create_file_path(
+                file_path, suffix='compress', lock=cls.__lock)
 
             ret = compress()
         else:
@@ -470,21 +553,24 @@ class Media(object):
             ['compress', ...]
         '''
 
-        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>' % (threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name))
+        log.warning('线程:%s, 父进程:%s, <Task (%s) start...>' % (
+            threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name))
 
-        executor = BoundedExecutor(20, 20)
+        executor = BoundedExecutor(0, 5)
 
         for file in files:
             suffix_number = 0
             for time in file.get('trim_times'):
                 suffix_number += 1
-                log.info(sys._getframe().f_code.co_name, 'suffix_number', suffix_number)
-                future = executor.submit(cls(file.get('path')).trim, time=time, suffix_number=suffix_number, lock=executor.lock)
+                log.info(sys._getframe().f_code.co_name,
+                         'suffix_number', suffix_number)
+                future = executor.submit(cls(file.get(
+                    'path')).trim, time=time, suffix_number=suffix_number, lock=executor.lock)
                 for callback in callback_list:
                     future.add_done_callback(getattr(cls, callback))
-                log.info(sys._getframe().f_code.co_name, 'time, suffix_number', time, suffix_number)
+                log.info(sys._getframe().f_code.co_name,
+                         'time, suffix_number', time, suffix_number)
             # executor.shutdown(wait=True)
-
 
     @classmethod
     @decorator.Timekeep()
@@ -494,23 +580,27 @@ class Media(object):
         :param: callback_list(List): 
         '''
 
-        log.warning('父进程:%s, 线程:%s, <Task (%s) start...>' % (os.getpid(), threading.current_thread().getName(), sys._getframe().f_code.co_name))
+        log.warning('父进程:%s, 线程:%s, <Task (%s) start...>' % (
+            os.getpid(), threading.current_thread().getName(), sys._getframe().f_code.co_name))
 
-        executor = BoundedExecutor(20, 20)
+        executor = BoundedExecutor(0, 5)
 
         path = path.strip()
         if os.path.isdir(path):
             file_path_list = os.listdir(path)
-        log.info(sys._getframe().f_code.co_name, 'file_path_list', file_path_list)
+        log.info(sys._getframe().f_code.co_name,
+                 'file_path_list', file_path_list)
 
         for file_path in file_path_list:
-            future = executor.submit(cls.compress, file_path=os.path.join(path, file_path))
-            log.info(sys._getframe().f_code.co_name, 'file_path', file_path, future)
+            future = executor.submit(
+                cls.compress, file_path=os.path.join(path, file_path))
+            log.info(sys._getframe().f_code.co_name,
+                     'file_path', file_path, future)
             for callback in callback_list:
                 future.add_done_callback(getattr(cls, callback))
         executor.shutdown(wait=True)
 
-    def test(self,future):
+    def test(self, future):
         log.warning('test self', self, future)
         pass
 
@@ -525,18 +615,19 @@ class Media(object):
         #     log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
 
         task = cls.__thread_pool.submit(
-            *args,**kwargs)
+            *args, **kwargs)
         # task.add_done_callback(callback)
         # cls.__queue.put(task)
-
 
         cls.__thread_pool.shutdown(wait=True)
 
         # result = futures.wait(cls.__queue, return_when=futures.ALL_COMPLETED)
-        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
+        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe(
+        ).f_code.co_name, threading.current_thread().getName(), os.getpid()))
 
     def transcode(self):
-        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
+        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe(
+        ).f_code.co_name, threading.current_thread().getName(), os.getpid()))
         pass
 
     def decode(self, format='mov'):
