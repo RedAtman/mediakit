@@ -282,72 +282,123 @@ class Media(object):
 
     @decorator.Timekeep()
     @decorator.Executor_v2()
-    def add_audio(self, audio_path, audio_defer, fade_duration=1, reverse=False):
+    def combine(self, logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png', audio_path=None, audio_defer=0, fade_duration=1, crop='1080p', crop_y=0, reverse=False, ):
         '''添加声音 同时设置淡入淡出 及过度时长
         :param: audio_path(str): 声音文件路径
         :param: audio_defer(number): 声音文件截取处（单位/秒）
         :param: fade_duration(number): 淡入淡出过度时长（单位/秒，默认值：1）
         :param: reverse(boolean): 是否反转视频流
         '''
-        fade_order = "[1:a]afade=t=in:st=0:d=" + str(fade_duration) \
-            + ",afade=t=out:st=" + str(float(self.duration) - 1) \
-            + ":d=" + str(fade_duration)
-        order = [
-            '-ss', str(audio_defer),
-            '-i', audio_path,
-            # '-vf',
-            # '[1:a]afade=in:0:5',
-            # 'afade=out:20:5',
-            # 'afade=t=in:ss=0:d=15',
 
+        order = []
+        # filter_complex = "[1:a]afade=t=in:st=0:d=" + str(fade_duration) \
+        # + ",afade=t=out:st=" + str(float(self.duration) - 1) \
+        # + ":d=" + str(fade_duration)
 
-            # 设置淡入、淡出、及过度时长
-            '-filter_complex', fade_order,
+        filter_complex = []
+
+        if logo_path:
+            order.extend([
+                '-i', logo_path,
+            ])
+            filter_complex.extend([
+                '[1:v][0:v]scale2ref=h=ow/mdar:w=iw/10[logo][video]',
+                '[logo]format=argb,colorchannelmixer=aa=0.3[logo]',
+                '[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7',
+            ])
+        if audio_path:
+            audio_defer = str(audio_defer)
+            fade_duration = str(fade_duration)
+            order.extend([
+                '-ss', audio_defer,
+                '-t', str(float(self.duration)),
+                '-i', audio_path,
+            ])
+            filter_complex.extend([
+                # '[0:a]aeval=0:c=same[audio]',
+                '[2:a]afade=t=in:st=0:d=' + fade_duration +
+                ',afade=t=out:st=' + str(float(self.duration) - 1)
+                + ':d=' + fade_duration + ',volume=12dB',
+                # '[audio][music]amix=inputs=2:duration=shortest:dropout_transition=2',
+            ])
+
+        # vf = []
+        video_step_one = []
+        # if reverse:
+        #     # 反转视频流
+        #     vf.extend(['reverse'])
+        if crop:
+            # 画面裁剪 crop=width:height:x:y width:height表示裁剪后的尺寸
+            # x:y表示裁剪区域的左上角坐标
+            # '-vf', 'crop=1920:1080:0:0',
+            # '-vf', 'crop=4096:2160:0:288',
+            # vf.extend(['crop=1920:1080:0:200'])
+            resolution = {
+                '1080p': '1920:1080',
+                '4k': '4096:2160',
+            }
+            # xy = ''
+            xy = ':0:' + str(crop_y)
+            ret = resolution.get(crop) + xy
+
+            video_step_one.append('crop=' + ret)
+        if reverse:
+            video_step_one.append('reverse')
+
+        if video_step_one:
+            filter_complex[
+                0] = '[1:v][crop]scale2ref=h=ow/mdar:w=iw/10[logo][video]'
+            filter_complex.insert(
+                0, '[0:v]' + ','.join(video_step_one) + '[crop]')
+
+        # if vf:
+        #     # 反转视频流及相关视频压缩控制（为了兼容apple设备）
+        #     order.extend([
+        #         '-vf', ','.join(vf),
+
+        #         # 视频编码
+        #         '-c:v', 'libx265',
+        #     ])
+        # else:
+        #     # 若无需反转 则对video类型文件直接copy 不重新编码
+        #     order.extend([
+        #         '-c:v', 'copy',
+        #         # '-c:v', 'libx265',
+        #         # '-c', 'copy',
+        #     ])
+
+        order.extend([
+            '-filter_complex', ';'.join(filter_complex),
 
             # 时长取最短的media
-            '-shortest',
+            # '-shortest',
+        ])
 
-            # 经测试无效
-            # '-threads', '4',
-        ]
+        order.extend([
+            # 长宽比约束
+            # '-aspect', '16:9',
 
-        if reverse:
-            # 反转视频流及相关视频压缩控制（为了兼容apple设备）
-            order.extend([
-                # 反转视频流
-                '-vf', 'reverse',
+            # '-pix_fmt', 'yuv420p10le',
+            # '-threads', '0',
+            # '-tag:v', 'hvc1',
 
-                '-aspect', '3:2',
+            '-x265-params',
+            # 视频质量范围（1-51） 8为Ultra Hight 22为Low
+            'crf=22',
 
-                # 视频编码
-                '-c:v', 'libx265',
+            # 禁掉源文件中的音频
+            # '-an',
 
-                '-pix_fmt', 'yuv420p10le',
-                '-threads', '0',
-                '-tag:v', 'hvc1',
-                '-x265-params',
+            # '-metadata','creation_time="2020-08-11T21:30:32"',
 
-                # 视频质量范围（1-51） 8为Ultra Hight 22为Low
-                'crf=22',
+            # 颜色
+            '-color_primaries', '9',
+            '-colorspace', '9',
+            '-color_range', '2',
+            '-color_trc', '14',
+        ])
 
-                # 禁掉源文件中的音频
-                '-an',
-
-                # '-metadata','creation_time="2020-08-11T21:30:32"',
-                '-color_primaries', '9',
-                '-colorspace', '9',
-                '-color_range', '2',
-                '-color_trc', '14',
-            ])
-        else:
-            # 若无需反转 则对video类型文件直接copy 不重新编码
-            order.extend([
-                '-c:v', 'copy',
-                # '-c:v', 'libx265',
-                # '-c', 'copy',
-            ])
-
-        # print('order',order)
+        # print('order', order)
         return order
 
     @decorator.Timekeep()
@@ -421,7 +472,7 @@ class Media(object):
             '-i', self.file_path,
 
             # 线程(设置为4效率最高，但通用性待验证)
-            '-threads', '4',
+            # '-threads', '4',
 
             # 对video类型文件设置编码类型
             # 注意：copy会带来前面一段时间丢帧问题并且无预览图
