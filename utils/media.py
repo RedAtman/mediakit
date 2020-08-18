@@ -282,7 +282,7 @@ class Media(object):
 
     @decorator.Timekeep()
     @decorator.Executor_v2()
-    def combine(self, logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png', audio_path=None, audio_defer=0, fade_duration=1, crop='1080p', crop_y=0, reverse=False, ):
+    def combine(self, logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png', logo_transparent=0.3, audio_path=None, audio_defer=0, fade_duration=1, crop='1080p', crop_y=0, reverse=False, ):
         '''添加声音 同时设置淡入淡出 及过度时长
         :param: audio_path(str): 声音文件路径
         :param: audio_defer(number): 声音文件截取处（单位/秒）
@@ -302,8 +302,9 @@ class Media(object):
                 '-i', logo_path,
             ])
             filter_complex.extend([
-                '[1:v][0:v]scale2ref=h=ow/mdar:w=iw/10[logo][video]',
-                '[logo]format=argb,colorchannelmixer=aa=0.3[logo]',
+                '[1:v][0:v]scale2ref=h=ow/mdar:w=iw/9[logo][video]',
+                '[logo]format=argb,colorchannelmixer=aa=' +
+                str(logo_transparent) + '[logo]',
                 '[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7',
             ])
         if audio_path:
@@ -346,10 +347,11 @@ class Media(object):
             video_step_one.append('reverse')
 
         if video_step_one:
+            print('filter_complex', filter_complex)
             filter_complex[
-                0] = '[1:v][crop]scale2ref=h=ow/mdar:w=iw/10[logo][video]'
+                0] = '[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]'
             filter_complex.insert(
-                0, '[0:v]' + ','.join(video_step_one) + '[crop]')
+                0, '[0:v]' + ','.join(video_step_one) + '[video_step_one]')
 
         # if vf:
         #     # 反转视频流及相关视频压缩控制（为了兼容apple设备）
