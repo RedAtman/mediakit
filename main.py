@@ -14,10 +14,17 @@ log.level = 'warning'
 
 
 # path = '/Users/nut/Pictures/Resource/preset/20200809_01_H265-420_1080p_25_LQ.mov'
-# path = '/Users/nut/Pictures/Resource/preset/20200809_荇桥_02/20200809_02_H265-420_1080p_25_LQ.mov'
-path = '/Users/nut/Pictures/Resource/preset/20200809_荇桥_02/_trim/20200809_02_H265-420_1080p_25_LQ.mov'
+# path =
+# '/Users/nut/Pictures/Resource/preset/20200809_荇桥_02/20200809_02_H265-420_1080p_25_LQ.mov'
+path = '/Users/nut/Pictures/Resource/20200809_荇桥_02_H265-444_4K_25_UHQ.mov'
+# path = '/Users/nut/Pictures/Resource/20200809_荇桥_02_H265-420_1080p_25_LQ_voice.mov'
+path = '/Users/nut/Pictures/Resource/_trim/20200809_荇桥_02_H265-420_1080p_25_LQ_voice-trim_1.mov'
 # path = '/Users/nut/Downloads/RS/_test/test.mp4'
+# path = ' /Users/nut/Downloads/video/videoHelper.mp4'
+# path = '/Users/nut/Downloads/video/_trim/videoHelper-trim_1.mp4'
+
 audio_path = '/Users/nut/Downloads/Where Civilization Once Lay.m4a'
+audio_path = '/Users/nut/Downloads/In the Autumn.m4a'
 
 
 # media = Media(path,loglevel='info')
@@ -26,15 +33,15 @@ audio_path = '/Users/nut/Downloads/Where Civilization Once Lay.m4a'
 
 media = Media(path)
 # ret = Media.compress(file_path=path)
-# ret = media.trim(time=("00:00:01", "00:00:02"))
-
+# ret = media.trim(time=("00:00:00", "00:00:03"))
 
 # ret = media.metadata.get('format').get('width')
 
 # ret = media.reverse()
 
-ret = media.add_audio(audio_path, 40)
-# ret = media.add_audio(audio_path, 40, reverse=True)
+
+ret = media.combine(logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png',
+                    audio_path=audio_path, audio_defer=99.5, fade_duration=1, crop='1080p', crop_y=0, reverse=True,)
 
 
 # ret = Media.multi_trim(files=files, callback_list=['compress'])
