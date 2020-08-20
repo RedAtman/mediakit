@@ -283,17 +283,22 @@ class Media(object):
     @decorator.Timekeep()
     @decorator.Executor_v2()
     def combine(self, logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png', logo_transparent=0.3, audio_path=None, audio_defer=0, fade_duration=1, crop='1080p', crop_y=0, reverse=False, ):
-        '''添加声音 同时设置淡入淡出 及过度时长
-        :param: audio_path(str): 声音文件路径
-        :param: audio_defer(number): 声音文件截取处（单位/秒）
-        :param: fade_duration(number): 淡入淡出过度时长（单位/秒，默认值：1）
-        :param: reverse(boolean): 是否反转视频流
+        '''视频混合处理: 
+            添加logo并设置透明度 
+            添加音频并设置淡入淡出及过度时长 
+            视频剪切尺寸及y轴偏移量 
+            反转视频流
+        :param: logo_path(String): logo文件路径。
+        :param: logo_transparent(Float): logo透明度（0-1）。
+        :param: audio_path(String): 声音文件路径
+        :param: audio_defer(Number): 声音文件截取处（单位/秒）
+        :param: fade_duration(Number): 淡入淡出过度时长（单位/秒，默认值：1）
+        :param: crop(String): 视频剪切尺寸（1080p, 4k）。
+        :param: crop_y(Number): 视频剪切y轴偏移量。
+        :param: reverse(Boolean): 是否反转视频流。
         '''
 
         order = []
-        # filter_complex = "[1:a]afade=t=in:st=0:d=" + str(fade_duration) \
-        # + ",afade=t=out:st=" + str(float(self.duration) - 1) \
-        # + ":d=" + str(fade_duration)
 
         filter_complex = []
 
@@ -592,7 +597,7 @@ class Media(object):
     @decorator.Timekeep()
     def multi_trim(cls, files=[], callback_list=[]):
         '''多线程批量文件截取
-        :param: files(List): 待剪切文件列表。
+        :param: files(List): 待剪切文件配置组成的list。
             [
                 {
                     'path':'/Users/nut/Downloads/RS/CCAV.mp4',
@@ -602,14 +607,14 @@ class Media(object):
                     )
                 }...
             ]
-        :param: callback_list(List): 处理完文件剪切后的回调函数列表。
+        :param: callback_list(List): 处理完文件剪切后的回调函数名组成的list。
             ['compress', ...]
         '''
 
         log.warning('线程:%s, 父进程:%s, <Task (%s) start...>' % (
             threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name))
 
-        executor = BoundedExecutor(0, 5)
+        executor = BoundedExecutor(0, 4)
 
         for file in files:
             suffix_number = 0
@@ -627,35 +632,33 @@ class Media(object):
 
     @classmethod
     @decorator.Timekeep()
-    def multi_compress(cls, path='', callback_list=[]):
+    def multi_compress(cls, directory='', callback_list=[]):
         '''多线程批量文件压缩
-        :param: files(List): 
-        :param: callback_list(List): 
+        :param: directory(String): 待压缩文件所在的目录绝对地址。
+            '/usr/media/'
+        :param: callback_list(List): 处理完文件压缩后的回调函数名组成的list。
+            ['func', ...]
         '''
 
         log.warning('父进程:%s, 线程:%s, <Task (%s) start...>' % (
             os.getpid(), threading.current_thread().getName(), sys._getframe().f_code.co_name))
 
-        executor = BoundedExecutor(0, 5)
+        executor = BoundedExecutor(0, 4)
 
-        path = path.strip()
-        if os.path.isdir(path):
-            file_path_list = os.listdir(path)
+        directory = directory.strip()
+        if os.path.isdir(directory):
+            file_path_list = os.listdir(directory)
         log.info(sys._getframe().f_code.co_name,
                  'file_path_list', file_path_list)
 
         for file_path in file_path_list:
             future = executor.submit(
-                cls.compress, file_path=os.path.join(path, file_path))
+                cls.compress, file_path=os.path.join(directory, file_path))
             log.info(sys._getframe().f_code.co_name,
                      'file_path', file_path, future)
             for callback in callback_list:
                 future.add_done_callback(getattr(cls, callback))
         executor.shutdown(wait=True)
-
-    def test(self, future):
-        log.warning('test self', self, future)
-        pass
 
     @classmethod
     def thread_pool_excutor(cls, *args, callback=None, **kwargs):
@@ -677,11 +680,6 @@ class Media(object):
         # result = futures.wait(cls.__queue, return_when=futures.ALL_COMPLETED)
         log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe(
         ).f_code.co_name, threading.current_thread().getName(), os.getpid()))
-
-    def transcode(self):
-        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe(
-        ).f_code.co_name, threading.current_thread().getName(), os.getpid()))
-        pass
 
     def decode(self, format='mov'):
         '''
