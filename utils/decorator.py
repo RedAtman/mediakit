@@ -102,7 +102,7 @@ def executor(func):
     def inner(*args, **kwargs):
         order = func(*args, **kwargs)
         p = subprocess.Popen(order, shell=False, stdout=subprocess.PIPE)
-        log.debug('Executor waiting...', order)
+        log.warning('Executor waiting...', order)
         result = {
             'returncode': p.wait(),
             'result': p.communicate()[0],

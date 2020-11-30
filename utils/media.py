@@ -342,6 +342,8 @@ class Media(object):
             resolution = {
                 '1080p': '1920:1080',
                 '4k': '4096:2160',
+                # '4k': '4096:2304',
+                # '4k': '4096:2736'
             }
             # xy = ''
             xy = ':0:' + str(crop_y)
@@ -489,22 +491,12 @@ class Media(object):
 
             # 若voice copy失败
             '-c:v', 'copy',
-            '-c:a', 'copy',
+            # '-c:a', 'copy',
             # '-acodec', 'aac',
 
             # '-avoid_negative_ts', '1',
             trim_file_path])
         return {'path': trim_file_path}
-
-    def multi_trim(self, times=()):
-        '''批量截取
-        :param: times(tuple): ("00:26:56", "00:28:36")
-        '''
-        if not time:
-            return False
-        for time in times:
-            # self.trim(ss=time[0], to=time[1])
-            self.trim(time)
 
     @classmethod
     def compress(cls, *args, file_path='', bit_rate=800000):
