@@ -1,6 +1,8 @@
 # Project
 logs/
 tmp/
+main.py
+reference.md
 
 # Docker
 *.tar
