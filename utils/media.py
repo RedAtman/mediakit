@@ -679,7 +679,7 @@ class Media(object):
         log.warning('线程:%s, 父进程:%s, <Task (%s) start...>' % (
             threading.current_thread().getName(), os.getpid(), sys._getframe().f_code.co_name))
 
-        executor = BoundedExecutor(0, 4)
+        executor = BoundedExecutor()
 
         for file in files:
             suffix_number = 0
@@ -710,7 +710,7 @@ class Media(object):
         log.warning('父进程:%s, 线程:%s, <Task (%s) start...>' % (
             os.getpid(), threading.current_thread().getName(), sys._getframe().f_code.co_name))
 
-        executor = BoundedExecutor(0, 4)
+        executor = BoundedExecutor()
 
         directory = directory.strip()
         if os.path.isdir(directory):

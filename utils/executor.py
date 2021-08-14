@@ -24,14 +24,21 @@ class BoundedExecutor:
     :param max_workers: Integer - the size of the thread pool
     """
 
-    def __init__(self, bound, max_workers):
+    def __init__(self, bound=0, max_workers=multiprocessing.cpu_count()):
+        '''
+        Arguments:
+            bound {[type]} -- [description] (default: {0})
+
+        Keyword Arguments:
+            max_workers {[int]} -- [进程池worker数量 若未指定 则使用cpu个数作为默认值] (default: {multiprocessing.cpu_count()})
+        '''
         # self.executor = futures.ThreadPoolExecutor(max_workers=max_workers)
         # self.semaphore = threading.Semaphore(bound + max_workers)
         # self.lock = threading.Lock()
+
         self.executor = futures.ProcessPoolExecutor(max_workers=max_workers)
         self.semaphore = multiprocessing.Semaphore(bound + max_workers)
-        m = multiprocessing.Manager()
-        self.lock = m.Lock()
+        self.lock = multiprocessing.Manager().Lock()
 
     """See concurrent.futures.Executor#submit"""
 
