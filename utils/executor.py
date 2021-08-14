@@ -1,13 +1,19 @@
-import sys,os,time
+# import sys
+# import os
+import time
 from concurrent import futures
-import threading, multiprocessing
-from utils import log
+# import threading
+import multiprocessing
+# from utils import log
+
 
 def func(future):
     time.sleep(1)
-    print('--------------func',id(future),future.result())
+    print('--------------func', id(future), future.result())
+
+
 def func2(future):
-    print('--------------func2',id(future),future.result())
+    print('--------------func2', id(future), future.result())
 
 
 class BoundedExecutor:
@@ -17,18 +23,24 @@ class BoundedExecutor:
     :param bound: Integer - the maximum number of items in the work queue
     :param max_workers: Integer - the size of the thread pool
     """
+
     def __init__(self, bound, max_workers):
-        self.executor = futures.ThreadPoolExecutor(max_workers=max_workers)
-        self.semaphore = threading.Semaphore(bound + max_workers)
-        self.lock = threading.Lock()
+        # self.executor = futures.ThreadPoolExecutor(max_workers=max_workers)
+        # self.semaphore = threading.Semaphore(bound + max_workers)
+        # self.lock = threading.Lock()
+        self.executor = futures.ProcessPoolExecutor(max_workers=max_workers)
+        self.semaphore = multiprocessing.Semaphore(bound + max_workers)
+        m = multiprocessing.Manager()
+        self.lock = m.Lock()
 
     """See concurrent.futures.Executor#submit"""
+
     def submit(self, fn, callback_list=[], *args, **kwargs):
         self.semaphore.acquire()
         try:
             future = self.executor.submit(fn, *args, **kwargs)
             # log.info('<submit> 任务:%s, 线程:%s(%s), 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().name,threading.current_thread().ident, os.getpid()))
-        except:
+        except Exception:
             self.semaphore.release()
             raise
         else:
@@ -40,6 +52,7 @@ class BoundedExecutor:
             return future
 
     """See concurrent.futures.Executor#shutdown"""
+
     def shutdown(self, wait=True):
         # log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
         self.executor.shutdown(wait)
