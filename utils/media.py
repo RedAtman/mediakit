@@ -1,14 +1,14 @@
 import re
 import json
 import time
-import subprocess
+# import subprocess
 import copy
-import functools
+# import functools
 import os
 import sys
-from concurrent import futures
+# from concurrent import futures
 import threading
-import queue
+# import queue
 
 from utils import log, translate, decorator, BoundedExecutor
 
@@ -24,19 +24,23 @@ class Audio(object):
 
 
 class Media(object):
-    '''docstring for Media'''
+    '''媒体处理类'''
     __order_prefix = ['ffmpeg', '-y', '-loglevel', 'info']
     # __thread_pool = futures.ThreadPoolExecutor(max_workers=64)
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
 
-    def __init__(self, file_path, title=None, artist=None, category=None, camera=None, lens=None, keywords=None, loglevel='info'):
+    def __init__(self, file_path='', title=None, artist='', category=None, camera=None, lens=None, keywords=None, loglevel='info'):
         '''
-        :params
-            file_path(String): 媒体文件路径。
-            title: string, 视频标题;
-            artist(list): 视频作者;
-            keywords: dict{key:list} / list, 视频关键词;
+        Keyword Arguments:
+            file_path {str} -- [媒体文件路径] (default: {''})
+            title {[type]} -- [视频标题] (default: {None})
+            artist {str} -- [视频作者] (default: {''})
+            category {[type]} -- [description] (default: {None})
+            camera {[type]} -- [description] (default: {None})
+            lens {[type]} -- [description] (default: {None})
+            keywords {[dict{key:list} / list]} -- [视频关键词] (default: {None})
+            loglevel {str} -- [description] (default: {'info'})
         '''
         self.file_path = file_path.strip()
         self.dir, self.title, self.format = self.get_file_info(self.file_path)
@@ -80,10 +84,16 @@ class Media(object):
     def output_path(self):
         '''媒体输出路径
         '''
-        return self.get_output_path('')
+        return self.get_output_path()
 
     def get_output_path(self, suffix=''):
         '''媒体输出路径(代替 self.output_path)
+
+        Keyword Arguments:
+            suffix {str} -- [输出文件名后缀] (default: {''})
+
+        Returns:
+            [str] -- [媒体输出路径]
         '''
         caller = sys._getframe().f_back.f_code.co_name
         suffix = suffix or caller
@@ -97,17 +107,30 @@ class Media(object):
     @staticmethod
     def get_file_info(file_path):
         '''获取媒体文件三个数据: file_dir, file_title, file_format。
-        :param: file_path(str): 媒体文件路径。
+
+        Arguments:
+            file_path {[str]} -- [媒体文件路径]
+
+        Returns:
+            [tuple] -- [file_dir, file_title, file_format]
+                e,g,: ('/Volumes/mhd_01_05t/time_lapse/2021/20210801_窗台', '20210801_ProRes-422_BT2020L_4K_25_HQ_mb05', 'mov')
         '''
         return re.findall(
-            '(.*)\/([^<>/\\\|:""\?]+)\.(\w+)$', file_path)[0]
-        # return os.path.
+            """(.*)\\/([^<>/\\\\|:''\\?]+)\\.(\\w+)$""",
+            file_path,
+        )[0]
 
     @staticmethod
     def get_metadata(file_path):
-        '''获取媒体元数据。
-        :param: file_path(str): 媒体文件路径。
+        '''获取媒体元数据
+
+        Arguments:
+            file_path {[str]} -- [媒体文件路径]
+
+        Returns:
+            [type] -- [description]
         '''
+        # print('file_path', file_path)
         file_path = file_path.strip()
         # @decorator.Timekeep()
 
@@ -118,7 +141,8 @@ class Media(object):
                     '-show_streams', '-print_format', 'json', file_path]
 
         result = get_metadata(file_path)
-        log.info('get_metadata result', result.get('result'))
+        log.info('result', type(result), result)
+        # log.info('get_metadata result', result.get('result'))
         if result.get('returncode') == 0:
             metadata = json.loads(result.get('result'))
         else:
@@ -148,8 +172,18 @@ class Media(object):
     @classmethod
     def create_file_path(cls, file_path, suffix='suffix', suffix_number=1, lock=None):
         '''产生媒体剪切片段输出路径
-        :param: suffix_number(number): 1
-        :reture: str:/Users/nut/Downloads/RS/_trim/HNK91_trim_1.mp4
+
+        Arguments:
+            file_path {[type]} -- [description]
+
+        Keyword Arguments:
+            suffix {str} -- [description] (default: {'suffix'})
+            suffix_number {number} -- [description] (default: {1})
+            lock {[type]} -- [description] (default: {None})
+
+        Returns:
+            [type] -- [description]
+                e,g,: /Users/nut/Downloads/RS/_trim/HNK91_trim_1.mp4
         '''
 
         file_dir, file_title, file_format = cls.get_file_info(file_path)
@@ -157,11 +191,11 @@ class Media(object):
         if not os.path.exists(file_dir):
             try:
                 os.mkdir(file_dir)
-            except Exception as e:
+            except Exception:
                 try:
                     os.makedirs(file_dir)
                 except Exception as e:
-                    # print('mkdirs', e)
+                    print('mkdirs', e)
                     # os.makedirs(self.save_dir)
                     pass
 
@@ -169,16 +203,20 @@ class Media(object):
             lock.acquire()
         try:
             suffix_number = suffix_number or 1
-            file_path = os.path.join(file_dir, file_title + "-" + suffix + '_' +
-                                     str(suffix_number) + "." + file_format)
+            file_path = os.path.join(
+                file_dir,
+                file_title + "-" + suffix + '_' + str(suffix_number) + "." + file_format,
+            )
             while os.path.exists(file_path):
                 suffix_number += 1
-                file_path = os.path.join(file_dir, file_title + "-" + suffix + '_' +
-                                         str(suffix_number) + "." + file_format)
+                file_path = os.path.join(
+                    file_dir,
+                    file_title + '-' + suffix + '_' + str(suffix_number) + "." + file_format,
+                )
             log.info('file_path', file_path)
             open(file_path, encoding='utf-8', mode='x')
         except Exception as e:
-            raise
+            raise e
         else:
             pass
         finally:
@@ -190,7 +228,9 @@ class Media(object):
     @property
     def order_metadata(self):
         '''生成获取视频元数据的命令行执行order(List); 同时生成 keywords_list;
-        :return(List): 命令行执行order。
+
+        Returns:
+            [list] -- [命令行执行order]
         '''
         meta_key_list = ['title', 'artist', 'album_artist',
                          'category', 'camera', 'lens', 'keywords']
@@ -199,14 +239,14 @@ class Media(object):
             meta = getattr(self, key)
             if not meta:
                 continue
-            # print('order_metadata', key, meta)
+            # print('order_metadata', key, type(meta), meta)
             if isinstance(meta, str):
                 order_metadata.extend(['-metadata', str(key) + '=' + meta])
                 self.keywords_list.add(meta)
             if isinstance(meta, list):
                 order_metadata.extend(
                     ['-metadata', str(key) + '=' + ",".join(meta)])
-                # log.info('meta', type(meta), meta)
+                log.info('meta', type(meta), meta)
                 self.keywords_list.update(meta)
             # 若是dict 则拼接values
             if isinstance(meta, dict):
@@ -229,7 +269,7 @@ class Media(object):
         keywords_en_list = translate.translate.result(self.keywords_list)
         self.keywords_list.update(keywords_en_list)
         self.keywords_list = {i.strip() for i in self.keywords_list}
-        log.info('keywords_list', self.keywords_list)
+        # log.info('keywords_list', self.keywords_list)
         order_metadata.extend(
             ['-metadata', 'keywords' + '=' + ",".join(self.keywords_list)])
         log.info('order_metadata', order_metadata)
@@ -243,7 +283,7 @@ class Media(object):
         '''
         self.order = copy.deepcopy(self.order_prefix)
         metadata_path = self.dir + "/" + self.title + '_metadate' + ".txt"
-        self.order.extend(['-i', self.path,
+        self.order.extend(['-i', self.file_path,
                            '-f', 'ffmetadata', metadata_path])
 
     @decorator.Timekeep()
@@ -252,7 +292,7 @@ class Media(object):
         '''设置元数据
         '''
         self.order = copy.deepcopy(self.order_prefix)
-        self.order.extend(['-i', self.path])
+        self.order.extend(['-i', self.file_path])
         self.order.extend(self.order_metadata)
         self.order.extend(['-c:a', 'copy',
                            '-c:v', 'copy',
@@ -282,20 +322,39 @@ class Media(object):
 
     @decorator.Timekeep()
     @decorator.Executor_v2()
-    def combine(self, logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png', logo_transparent=0.3, audio_path=None, audio_defer=0, fade_duration=1, crop='1080p', crop_y=0, reverse=False, ):
-        '''视频混合处理: 
-            添加logo并设置透明度 
-            添加音频并设置淡入淡出及过度时长 
-            视频剪切尺寸及y轴偏移量 
-            反转视频流
-        :param: logo_path(String): logo文件路径。
-        :param: logo_transparent(Float): logo透明度（0-1）。
-        :param: audio_path(String): 声音文件路径
-        :param: audio_defer(Number): 声音文件截取处（单位/秒）
-        :param: fade_duration(Number): 淡入淡出过度时长（单位/秒，默认值：1）
-        :param: crop(String): 视频剪切尺寸（1080p, 4k）。
-        :param: crop_y(Number): 视频剪切y轴偏移量。
-        :param: reverse(Boolean): 是否反转视频流。
+    def combine(
+        self,
+        logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png',
+        logo_transparent=0.3,
+        audio_path=None,
+        audio_defer=0,
+        fade_duration=1,
+        crop='1080p',
+        crop_y=0,
+        reverse=False,
+    ):
+        '''视频混合处理:
+            - 添加logo并设置透明度
+            - 添加音频并设置淡入淡出及过度时长
+            - 视频剪切尺寸及y轴偏移量
+            - 反转视频流
+
+        Arguments:
+            file_path {[type]} -- [description]
+
+        Keyword Arguments:
+            logo_path {str} -- [logo文件路径] (default: {'/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png'})
+            logo_transparent {float} -- [logo透明度 范围: 0-1] (default: {0.3})
+            audio_path {str} -- [背景音频文件路径] (default: {None})
+            audio_defer {int/float} -- [背景音频文件截取处 单位:秒] (default: {0})
+            fade_duration {int/float} -- [淡入淡出过度时长 单位:秒] (default: {1})
+            crop {str} -- [视频剪切尺寸 可选: 1080p,4k] (default: {'4k'})
+            crop_y {int} -- [视频剪切y轴偏移量] (default: {0})
+            reverse {bool} -- [是否反转视频流 备注: reverse=True时真正开始处理视频流需要消耗一段时间] (default: {False})
+
+        Returns:
+            [type] -- [description]
+                e,g,:
         '''
 
         order = []
@@ -307,10 +366,9 @@ class Media(object):
                 '-i', logo_path,
             ])
             filter_complex.extend([
-                '[1:v][0:v]scale2ref=h=ow/mdar:w=iw/9[logo][video]',
-                '[logo]format=argb,colorchannelmixer=aa=' +
-                str(logo_transparent) + '[logo]',
-                '[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7',
+                '''[1:v][0:v]scale2ref=h=ow/mdar:w=iw/9[logo][video]''',
+                '''[logo]format=argb,colorchannelmixer=aa=''' + str(logo_transparent) + '[logo]',
+                '''[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7''',
             ])
         if audio_path:
             audio_defer = str(audio_defer)
@@ -322,9 +380,7 @@ class Media(object):
             ])
             filter_complex.extend([
                 # '[0:a]aeval=0:c=same[audio]',
-                '[2:a]afade=t=in:st=0:d=' + fade_duration +
-                ',afade=t=out:st=' + str(float(self.duration) - 1)
-                + ':d=' + fade_duration + ',volume=12dB',
+                '[2:a]afade=t=in:st=0:d=' + fade_duration + ',afade=t=out:st=' + str(float(self.duration) - 1) + ':d=' + fade_duration + ',volume=12dB',
                 # '[audio][music]amix=inputs=2:duration=shortest:dropout_transition=2',
             ])
 
@@ -457,8 +513,14 @@ class Media(object):
     @decorator.Executor()
     def trim(self, time=(), suffix_number=1, lock=None):
         '''截取视频指定某一段时间
-        :param: times(tuple): ("00:26:56", "00:28:36")
-        :param: suffix_number(number): 1
+
+        Keyword Arguments:
+            time {tuple} -- ("00:26:56", "00:28:36") (default: {()})
+            suffix_number {number} -- 1 (default: {1})
+            lock {[type]} -- 新建文件名时用 (default: {None})
+
+        Returns:
+            bool -- [description]
         '''
         if not time:
             return False
@@ -491,7 +553,7 @@ class Media(object):
 
             # 若voice copy失败
             '-c:v', 'copy',
-            # '-c:a', 'copy',
+            '-c:a', 'copy',
             # '-acodec', 'aac',
 
             # '-avoid_negative_ts', '1',
@@ -502,8 +564,16 @@ class Media(object):
     def compress(cls, *args, file_path='', bit_rate=800000):
         '''文件体积压缩
         :param: future(Object future): future.result()返回一个dict，其中path键对应待压缩文件路径。
-        :param: file_path(number): 压缩比特率，默认800，单位k。
-        :param: bit_rate(number): 压缩比特率，默认800，单位k。
+
+        Arguments:
+            *args {[type]} -- [description]
+
+        Keyword Arguments:
+            file_path {str} -- [description] (default: {''})
+            bit_rate {int} -- [压缩比特率 单位k] (default: {800000})
+
+        Returns:
+            [type] -- [description]
         '''
 
         @decorator.timekeep
@@ -579,7 +649,8 @@ class Media(object):
             compress_file_path = cls.create_file_path(
                 file_path, suffix='compress', lock=cls.__lock)
 
-            ret = compress()
+            res = compress()
+            print('res', res)
         else:
             return False
 
@@ -589,18 +660,20 @@ class Media(object):
     @decorator.Timekeep()
     def multi_trim(cls, files=[], callback_list=[]):
         '''多线程批量文件截取
-        :param: files(List): 待剪切文件配置组成的list。
-            [
-                {
-                    'path':'/Users/nut/Downloads/RS/CCAV.mp4',
-                    'trim_times':(
-                        ("00:50:22", "01:03:27"),
-                        ("01:19:39", "01:37:04"), ...
-                    )
-                }...
-            ]
-        :param: callback_list(List): 处理完文件剪切后的回调函数名组成的list。
-            ['compress', ...]
+
+        Keyword Arguments:
+            files {list} -- [待剪切文件配置组成的list] (default: {[]})
+                [
+                    {
+                        'path':'/Users/nut/Downloads/RS/CCAV.mp4',
+                        'trim_times':(
+                            ("00:50:22", "01:03:27"),
+                            ("01:19:39", "01:37:04"), ...
+                        )
+                    }...
+                ]
+            callback_list {list} -- [处理完文件剪切后的回调函数名组成的list] (default: {[]})
+                ['compress', ...]
         '''
 
         log.warning('线程:%s, 父进程:%s, <Task (%s) start...>' % (
@@ -610,26 +683,28 @@ class Media(object):
 
         for file in files:
             suffix_number = 0
-            for time in file.get('trim_times'):
+            for _time in file.get('trim_times'):
                 suffix_number += 1
                 log.info(sys._getframe().f_code.co_name,
                          'suffix_number', suffix_number)
                 future = executor.submit(cls(file.get(
-                    'path')).trim, time=time, suffix_number=suffix_number, lock=executor.lock)
+                    'path')).trim, time=_time, suffix_number=suffix_number, lock=executor.lock)
                 for callback in callback_list:
                     future.add_done_callback(getattr(cls, callback))
                 log.info(sys._getframe().f_code.co_name,
-                         'time, suffix_number', time, suffix_number)
-            # executor.shutdown(wait=True)
+                         'time, suffix_number', _time, suffix_number)
+            executor.shutdown(wait=True)
 
     @classmethod
     @decorator.Timekeep()
     def multi_compress(cls, directory='', callback_list=[]):
         '''多线程批量文件压缩
-        :param: directory(String): 待压缩文件所在的目录绝对地址。
-            '/usr/media/'
-        :param: callback_list(List): 处理完文件压缩后的回调函数名组成的list。
-            ['func', ...]
+
+        Keyword Arguments:
+            directory {str} -- [待压缩文件所在的目录绝对地址] (default: {''})
+                e,g,: /usr/media/
+            callback_list {list} -- [处理完文件压缩后的回调函数名组成的list] (default: {[]})
+                e,g,: ['func', ...]
         '''
 
         log.warning('父进程:%s, 线程:%s, <Task (%s) start...>' % (
@@ -651,27 +726,6 @@ class Media(object):
             for callback in callback_list:
                 future.add_done_callback(getattr(cls, callback))
         executor.shutdown(wait=True)
-
-    @classmethod
-    def thread_pool_excutor(cls, *args, callback=None, **kwargs):
-        # with cls.__thread_pool as tp:
-        #     task = tp.submit(
-        #         *args,**kwargs)
-        #     # task.add_done_callback(callback)
-
-        #     cls.__thread_pool.shutdown(wait=True)
-        #     log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
-
-        task = cls.__thread_pool.submit(
-            *args, **kwargs)
-        # task.add_done_callback(callback)
-        # cls.__queue.put(task)
-
-        cls.__thread_pool.shutdown(wait=True)
-
-        # result = futures.wait(cls.__queue, return_when=futures.ALL_COMPLETED)
-        log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe(
-        ).f_code.co_name, threading.current_thread().getName(), os.getpid()))
 
     def decode(self, format='mov'):
         '''
