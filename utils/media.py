@@ -25,7 +25,6 @@ class Audio(object):
 
 class Media(object):
     '''媒体处理类'''
-    __order_prefix = ['ffmpeg', '-y', '-loglevel', 'info']
     # __thread_pool = futures.ThreadPoolExecutor(max_workers=64)
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
@@ -54,9 +53,7 @@ class Media(object):
         self.lens = lens
         self.keywords = keywords
         self.keywords_list = set()
-        self.order_prefix = ['ffmpeg', '-y', '-loglevel', loglevel]
-        self.order_prefix_v2 = ['ffmpeg', '-y', '-loglevel',
-                                loglevel, '-i', self.file_path, ]
+        self.order_prefix = ['ffmpeg', '-y', '-loglevel', loglevel, '-i', self.file_path, ]
         # self.lock = threading.Lock()
 
     @property
@@ -281,25 +278,25 @@ class Media(object):
     def save_metadata(self):
         '''读取现有文件的元数据 并保存为txt文件
         '''
-        self.order = copy.deepcopy(self.order_prefix)
-        metadata_path = self.dir + "/" + self.title + '_metadate' + ".txt"
-        self.order.extend(['-i', self.file_path,
-                           '-f', 'ffmetadata', metadata_path])
+        return [
+            '-f', 'ffmetadata',
+            self.dir + "/" + self.title + '_metadate' + ".txt",
+        ]
 
     @decorator.Timekeep()
     @decorator.Executor()
     def set_metadata(self):
         '''设置元数据
         '''
-        self.order = copy.deepcopy(self.order_prefix)
-        self.order.extend(['-i', self.file_path])
-        self.order.extend(self.order_metadata)
-        self.order.extend(['-c:a', 'copy',
-                           '-c:v', 'copy',
-                           self.output_path])
+        return self.order_metadata.extend([
+            self.order_metadata,
+            '-c:a', 'copy',
+            '-c:v', 'copy',
+            self.get_output_path(suffix='set_metadata'),
+        ])
 
     @decorator.Timekeep()
-    @decorator.Executor_v2()
+    @decorator.Executor()
     def reverse(self):
         '''反转视频
         '''
@@ -318,10 +315,11 @@ class Media(object):
             '-colorspace', '9',
             '-color_range', '2',
             '-color_trc', '14',
+            self.get_output_path(suffix='reverse'),
         ]
 
     @decorator.Timekeep()
-    @decorator.Executor_v2()
+    @decorator.Executor()
     def combine(
         self,
         logo_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png',
@@ -461,6 +459,7 @@ class Media(object):
             '-colorspace', '9',
             '-color_range', '2',
             '-color_trc', '14',
+            self.get_output_path(suffix='combine'),
         ])
 
         # print('order', order)
@@ -469,8 +468,7 @@ class Media(object):
     @decorator.Timekeep()
     @decorator.Executor()
     def images_to_video(self, images_path, image_format, bit_rate='5000k'):
-        self.order = copy.deepcopy(self.order_prefix)
-        self.order.extend([
+        return [
             # 关闭每帧都提醒是否overwrite
             '-pattern_type', 'glob',
 
@@ -495,19 +493,19 @@ class Media(object):
 
             # 时长取最短的media
             # '-shortest',
-            images_path + '/output_' + bit_rate + '1920' + time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()) + '.mp4'])
+            images_path + '/output_' + bit_rate + '1920' + time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()) + '.mp4',
+        ]
 
     @decorator.Timekeep()
     @decorator.Executor()
     def delete_voice(self):
         '''去除声音（静音）
         '''
-        self.order = copy.deepcopy(self.order_prefix)
-        self.order.extend(['-i', self.path])
-        # order.extend(self.metadata)
-        self.order.extend(['-an',
-                           '-c:v', 'copy',
-                           self.output_path])
+        return [
+            '-an',
+            '-c:v', 'copy',
+            self.get_output_path(suffix='delete_voice'),
+        ]
 
     @decorator.Timekeep()
     @decorator.Executor()
@@ -530,9 +528,7 @@ class Media(object):
         log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread(
         ).getName(), os.getpid(), sys._getframe().f_code.co_name, trim_file_path))
 
-        self.order = copy.deepcopy(self.order_prefix)
-        self.order.extend([
-
+        return [
             # 截取时间
             '-ss', time[0],
             '-to', time[1],
@@ -540,7 +536,7 @@ class Media(object):
             # 使用copy后 避免太过于精确切割而丢失帧
             '-accurate_seek',
 
-            '-i', self.file_path,
+            # '-i', self.file_path,
 
             # 线程(设置为4效率最高，但通用性待验证)
             # '-threads', '4',
@@ -557,8 +553,8 @@ class Media(object):
             # '-acodec', 'aac',
 
             # '-avoid_negative_ts', '1',
-            trim_file_path])
-        return {'path': trim_file_path}
+            trim_file_path
+        ]
 
     @classmethod
     def compress(cls, *args, file_path='', bit_rate=800000):
@@ -583,9 +579,8 @@ class Media(object):
             log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread(
             ).getName(), os.getpid(), sys._getframe().f_code.co_name, compress_file_path))
 
-            order = copy.deepcopy(cls.__order_prefix)
+            order = copy.deepcopy(cls.order_prefix)
             order.extend([
-                '-i', file_path,
                 '-s', str(width) + 'x' + str(height),
                 '-aspect', str(width) + ':' + str(height),
                 '-threads', '0',
@@ -727,18 +722,20 @@ class Media(object):
                 future.add_done_callback(getattr(cls, callback))
         executor.shutdown(wait=True)
 
+    @decorator.Timekeep()
+    @decorator.Executor()
     def decode(self, format='mov'):
         '''
         '''
-        self.order = copy.deepcopy(self.order_prefix)
-        self.order.extend([
+        return [
             '-i', self.file_path,
 
             # 线程(待验证)
             # '-threads', '4',
 
             # '-avoid_negative_ts', '1',
-            self.dir + "/" + self.title + "_decode_." + format])
+            self.dir + "/" + self.title + "_decode_." + format,
+        ]
 
     def concat(self):
 
