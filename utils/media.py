@@ -2,7 +2,7 @@ import re
 import json
 import time
 # import subprocess
-import copy
+# import copy
 # import functools
 import os
 import sys
@@ -147,24 +147,17 @@ class Media(object):
         return metadata
 
     @classmethod
-    def get_width(cls, file_path):
+    def get_width_height(cls, file_path):
         metadata = cls.get_metadata(file_path)
-        if metadata.get('format').get('width'):
-            return metadata.get('format').get('width')
+        print('metadata', metadata)
+        _format = metadata.get('format')
+        if _format and _format.get('width') and _format.get('height'):
+            return _format.get('width'), _format.get('height')
         else:
             for i in metadata.get('streams'):
-                if i.get('width'):
-                    return i.get('width')
-
-    @classmethod
-    def get_height(cls, file_path):
-        metadata = cls.get_metadata(file_path)
-        if metadata.get('format').get('height'):
-            return metadata.get('format').get('height')
-        else:
-            for i in metadata.get('streams'):
-                if i.get('height'):
-                    return i.get('height')
+                print('i', i.get('width'), i.get('height'))
+                if i.get('width') and i.get('height'):
+                    return i.get('width'), i.get('height')
 
     @classmethod
     def create_file_path(cls, file_path, suffix='suffix', suffix_number=1, lock=None):
@@ -384,31 +377,29 @@ class Media(object):
 
         # vf = []
         video_step_one = []
-        # if reverse:
-        #     # 反转视频流
-        #     vf.extend(['reverse'])
         if crop:
+            # 画面裁剪 crop=width:height 或 # crop=width:-1
             # 画面裁剪 crop=width:height:x:y width:height表示裁剪后的尺寸
             # x:y表示裁剪区域的左上角坐标
             # '-vf', 'crop=1920:1080:0:0',
             # '-vf', 'crop=4096:2160:0:288',
             # vf.extend(['crop=1920:1080:0:200'])
             resolution = {
-                '1080p': '1920:1080',
-                '4k': '4096:2160',
+                '1080p': [1920, 1080],
+                '4k': [4096, 2160],
                 # '4k': '4096:2304',
                 # '4k': '4096:2736'
             }
-            # xy = ''
-            xy = ':0:' + str(crop_y)
+            xy = [0, crop_y]
             ret = resolution.get(crop) + xy
 
-            video_step_one.append('crop=' + ret)
+            video_step_one.append('scale=' + '4096:-1' + '[video_step_zero];[video_step_zero]' + 'crop=' + ':'.join(map(lambda x: str(x), ret)))
+            print('video_step_one', video_step_one)
         if reverse:
             video_step_one.append('reverse')
 
         if video_step_one:
-            print('filter_complex', filter_complex)
+            # print('filter_complex', filter_complex)
             filter_complex[
                 0] = '[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]'
             filter_complex.insert(
@@ -513,7 +504,8 @@ class Media(object):
         '''截取视频指定某一段时间
 
         Keyword Arguments:
-            time {tuple} -- ("00:26:56", "00:28:36") (default: {()})
+            time {tuple} -- {截取时间段} (default: {()})
+                e,g,: ("00:26:56", "00:28:36")
             suffix_number {number} -- 1 (default: {1})
             lock {[type]} -- 新建文件名时用 (default: {None})
 
@@ -521,7 +513,7 @@ class Media(object):
             bool -- [description]
         '''
         if not time:
-            return False
+            raise Exception('参数[time]必须被指定')
         trim_file_path = self.create_file_path(
             self.file_path, suffix='trim', suffix_number=suffix_number, lock=lock)
 
@@ -556,6 +548,8 @@ class Media(object):
             trim_file_path
         ]
 
+    @decorator.Timekeep()
+    @decorator.Executor()
     @classmethod
     def compress(cls, *args, file_path='', bit_rate=800000):
         '''文件体积压缩
@@ -572,14 +566,33 @@ class Media(object):
             [type] -- [description]
         '''
 
-        @decorator.timekeep
-        @decorator.executor
-        def compress():
+        if args:
+            future = args[0]
+            file_path = future.result().get('path')
+        elif file_path:
+            file_path = file_path.strip()
+        else:
+            raise
 
-            log.warning('线程:%s, 父进程:%s, <Task (%s) start...>, %s' % (threading.current_thread(
-            ).getName(), os.getpid(), sys._getframe().f_code.co_name, compress_file_path))
+        print('compress', file_path)
+        metadata = cls.get_metadata(file_path)
+        width = 640
+        origin_width, origin_height = cls.get_width_height(file_path)
+        log.warning('origin_width', width, origin_width)
+        rate = float(width / float(origin_width))
+        origin_bit_rate = metadata.get('streams')[0].get(
+            'bit_rate') or metadata.get('format').get('bit_rate')
+        origin_bit_rate = int(origin_bit_rate)
 
-            order = copy.deepcopy(cls.order_prefix)
+        # 若源文件分辨率宽度<640 或 源文件bit_rate<800000，则跳过压缩
+        if rate < 1 or bit_rate < origin_bit_rate:
+            # if True:
+            height = int(rate * float(origin_height))
+
+            log.warning('线程:%s, 父进程:%s, <Task (%s) start...>' % (threading.current_thread(
+            ).getName(), os.getpid(), sys._getframe().f_code.co_name))
+
+            order = ['ffmpeg', '-y', '-loglevel', 'info', '-i', file_path, ]
             order.extend([
                 '-s', str(width) + 'x' + str(height),
                 '-aspect', str(width) + ':' + str(height),
@@ -601,55 +614,23 @@ class Media(object):
                 '-2',
                 '-sn',
 
-                # ffmpeg can automatically determine the appropriate format
-                # from the output file name, so most users can omit the -f
-                # option.
+                # ffmpeg can automatically determine the appropriate format from the output file name, so most users can omit the -f option.
                 '-f', 'mp4',
 
                 '-map', '0:0',
-                '-map', '0:1',
+                '-map', '0:1?',
                 '-map_chapters', '0',
                 '-max_muxing_queue_size', '40000',
                 '-map_metadata', '0',
-                compress_file_path])
+                cls.create_file_path(
+                    file_path,
+                    suffix='compress',
+                    lock=cls.__lock,
+                ),
+            ])
             return order
-
-        if args:
-            future = args[0]
-            file_path = future.result().get('path')
-        elif file_path:
-            file_path = file_path.strip()
-        else:
-            raise
-
-        print('compress', file_path)
-        metadata = cls.get_metadata(file_path)
-        width = 640
-        origin_width = cls.get_width(file_path)
-        origin_height = cls.get_height(file_path)
-        # log.warning('origin_width', origin_width)
-        rate = float(width / float(origin_width))
-        origin_bit_rate = metadata.get('streams')[0].get(
-            'bit_rate') or metadata.get('format').get('bit_rate')
-        origin_bit_rate = int(origin_bit_rate)
-
-        # 若源文件分辨率宽度<640 或 源文件bit_rate<800000，则跳过压缩
-        if rate < 1 or bit_rate < origin_bit_rate:
-            # if True:
-            height = int(rate * float(origin_height))
-            log.info('compress width height', rate, metadata.get('streams')[0].get(
-                'width'), metadata.get('streams')[0].get('height'), width, height)
-
-            # file_dir, file_title, file_format = cls.get_file_info(file_path)
-            compress_file_path = cls.create_file_path(
-                file_path, suffix='compress', lock=cls.__lock)
-
-            res = compress()
-            print('res', res)
         else:
             return False
-
-        return compress_file_path
 
     @classmethod
     @decorator.Timekeep()
@@ -680,14 +661,25 @@ class Media(object):
             suffix_number = 0
             for _time in file.get('trim_times'):
                 suffix_number += 1
-                log.info(sys._getframe().f_code.co_name,
-                         'suffix_number', suffix_number)
-                future = executor.submit(cls(file.get(
-                    'path')).trim, time=_time, suffix_number=suffix_number, lock=executor.lock)
+                log.info(
+                    sys._getframe().f_code.co_name,
+                    'suffix_number',
+                    suffix_number,
+                )
+                future = executor.submit(
+                    cls(file.get('path')).trim,
+                    time=_time,
+                    suffix_number=suffix_number,
+                    lock=executor.lock,
+                )
                 for callback in callback_list:
                     future.add_done_callback(getattr(cls, callback))
-                log.info(sys._getframe().f_code.co_name,
-                         'time, suffix_number', _time, suffix_number)
+                log.info(
+                    sys._getframe().f_code.co_name,
+                    'time, suffix_number',
+                    _time,
+                    suffix_number,
+                )
             executor.shutdown(wait=True)
 
     @classmethod
@@ -715,9 +707,15 @@ class Media(object):
 
         for file_path in file_path_list:
             future = executor.submit(
-                cls.compress, file_path=os.path.join(directory, file_path))
-            log.info(sys._getframe().f_code.co_name,
-                     'file_path', file_path, future)
+                cls.compress,
+                file_path=os.path.join(directory, file_path),
+            )
+            log.info(
+                sys._getframe().f_code.co_name,
+                'file_path',
+                file_path,
+                future,
+            )
             for callback in callback_list:
                 future.add_done_callback(getattr(cls, callback))
         executor.shutdown(wait=True)
