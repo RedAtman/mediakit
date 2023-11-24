@@ -1,21 +1,17 @@
-import re
+import functools
 import json
-import time
 import os
 import sys
-import functools
 import threading
-import subprocess
+import time
 
+from base import BaseMedia
 from config import config
 from logger import logger
-from utils import decorator, exceptions, BoundedExecutor, Dict2Obj, Translator, is_media, execute
+from utils import BoundedExecutor, Dict2Obj, Translator, decorator, exceptions, execute
 
 
-lock = threading.Lock()
-
-
-class Audio(object):
+class Audio:
     '''docstring for Audio'''
 
     def __init__(self, cls):
@@ -28,58 +24,15 @@ class Audio(object):
         return command
 
 
-class BaseMedia:
-    '''docstring for BaseMedia'''
-    def __init__(self, path):
-        path = path.strip()
-        if not os.path.exists(path):
-            raise FileNotFoundError(f'File not found at path: {path}')
-        if not is_media(path):
-            raise exceptions.NotMediaException(101, f'File is not media file: {path}')
-        self.path = path
-        # self._path = os.path.basename(path)
-        _, self.format = os.path.splitext(path)
-        self.dirname = os.path.dirname(path)
-
-    @functools.cached_property
-    def metadata(self):
-        return self.get_metadata(self.path)
-
-    @classmethod
-    def get_metadata(cls, file_path):
-        '''获取媒体元数据
-
-        Arguments:
-            file_path {[str]} -- [媒体文件路径]
-
-        Returns:
-            [type] -- [description]
-        '''
-        command = [
-            'ffprobe', '-v', 'quiet', '-show_format',
-            '-show_streams', '-print_format', 'json', file_path
-        ]
-        file_path = file_path.strip()
-        try:
-            result = execute(command)
-        except subprocess.CalledProcessError as err:
-            logger.exception(err)
-            raise err
-        try:
-            metadata = json.loads(result)
-        except Exception as err:
-            raise TypeError(f'{type(result)} is not JSONable') from err
-        return metadata
-
-
 class Media(BaseMedia):
     # __thread_pool = futures.ThreadPoolExecutor(max_workers=64)
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
+    __loglevel = config.LOG_LEVEL.lower()
 
     ffmpeg_prefix = [
         'ffmpeg', '-y',
-        '-loglevel', config.LOG_LEVEL.lower(),
+        '-loglevel', __loglevel,
         # '-i', self.path,
     ]
 
@@ -105,11 +58,6 @@ class Media(BaseMedia):
             loglevel {str} -- [日志级别] (default: {'info'})
         '''
         super().__init__(*args, **kwargs)
-        self.dir, self.title, self.format = self.get_file_info(self.path)
-        self.loglevel = config.LOG_LEVEL
-        # self.audio = {
-        #     "path": {"input": ""}
-        # }
         self.artist = artist
         self.album_artist = artist
         self.category = category
@@ -117,49 +65,10 @@ class Media(BaseMedia):
         self.lens = lens
         self.keywords = keywords
         self.keywords_list = set()
-        # self.lock = threading.Lock()
-
-    @functools.cached_property
-    def width_height(self):
-        '''获取媒体文件宽高 单位:px
-        '''
-        width, height = 0, 0
-        _format = self.metadata.get('format')
-        if _format and _format.get('width') and _format.get('height'):
-            width, height = _format.get('width'), _format.get('height')
-        else:
-            for stream in self.metadata.get('streams'):
-                if stream.get('width') and stream.get('height'):
-                    width, height = stream.get('width'), stream.get('height')
-                    break
-        return width, height
-
-    @functools.cached_property
-    def bitrate(self):
-        '''获取媒体文件码率 单位:kb/s
-        '''
-        bitrate = self.metadata.get('streams')[0].get(
-            'bit_rate') or self.metadata.get('format').get('bit_rate')
-        return float(bitrate)
-
-    @functools.cached_property
-    def duration(self):
-        '''媒体时长 单位:秒
-        '''
-        # result = subprocess.run([
-        #     "ffprobe", "-v", "error", "-show_entries",
-        #     "format=duration", "-of",
-        #     "default=noprint_wrappers=1:nokey=1", self.path],
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.STDOUT)
-        # return float(result.stdout)
-
-        return self.metadata.get('streams')[0].get('duration')
 
     @functools.cached_property
     def output_path(self):
-        '''媒体输出路径
-        '''
+        '''Media output path'''
         return self.get_output_path()
 
     def get_output_path(self, suffix=''):
@@ -171,39 +80,16 @@ class Media(BaseMedia):
         Returns:
             [str] -- [媒体输出路径]
         '''
-        caller = sys._getframe().f_back.f_code.co_name
-        suffix = suffix or caller
-        suffix = suffix + '_' + time.strftime("%Y%m%d%H%M%S", time.localtime())
-
-        path = self.dir + "/_" + self.title + "_" + \
-            suffix + "." + self.format
-        return path
-
-    @staticmethod
-    def get_file_info(file_path):
-        '''获取媒体文件三个数据: file_dir, file_title, file_format。
-
-        Arguments:
-            file_path {[str]} -- [媒体文件路径]
-
-        Returns:
-            [tuple] -- [file_dir, file_title, file_format]
-                e.g.: ('/Volumes/mhd_01_05t/time_lapse/2021/20210801_窗台', '20210801_ProRes-422_BT2020L_4K_25_HQ_mb05', 'mov')
-        '''
-        file_dir = os.path.dirname(file_path)
-        file_title, file_ext = os.path.splitext(os.path.basename(file_path))
-        return file_dir, file_title, file_ext[1:]
-        return re.findall(
-            """(.*)\\/([^<>/\\\\|:''\\?]+)\\.(\\w+)$""",
-            file_path,
-        )[0]
+        # suffix or caller function name
+        suffix = suffix or sys._getframe().f_back.f_code.co_name
+        return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
 
     @classmethod
-    def create_file_path(cls, file_path, suffix='suffix', suffix_number=1, lock=None):
+    def create_file_path(cls, path, suffix='suffix', suffix_number=1, lock=None):
         '''产生媒体剪切片段输出路径
 
         Arguments:
-            file_path {[type]} -- [description]
+            path {[type]} -- [description]
 
         Keyword Arguments:
             suffix {str} -- [description] (default: {'suffix'})
@@ -214,44 +100,36 @@ class Media(BaseMedia):
             [type] -- [description]
                 e.g.: /Users/nut/Downloads/RS/_trim/VIDEO_trim_1.mp4
         '''
-
-        file_dir, file_title, file_format = cls.get_file_info(file_path)
-        file_dir = os.path.join(file_dir, '_' + suffix)
-        if not os.path.exists(file_dir):
+        dirname, title, ext = cls.get_file_info(path)
+        dirname = os.path.join(dirname, '_' + suffix)
+        if not os.path.exists(dirname):
             try:
-                os.mkdir(file_dir)
+                os.mkdir(dirname)
             except FileExistsError:
-                try:
-                    os.makedirs(file_dir)
-                except Exception as err:
-                    logger.exception(err)
+                os.makedirs(dirname)
             except OSError as err:
                 logger.exception(err)
                 # os.makedirs(self.save_dir)
+                raise err
+            except Exception as err:
+                logger.exception(err)
+                raise err
 
-        if lock:
-            lock.acquire()
+        if cls.__lock:
+            cls.__lock.acquire()
         try:
             suffix_number = suffix_number or 1
-            file_path = os.path.join(
-                file_dir,
-                file_title + "-" + suffix + '_' +
-                str(suffix_number) + "." + file_format,
-            )
+            file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
             while os.path.exists(file_path):
                 suffix_number += 1
-                file_path = os.path.join(
-                    file_dir,
-                    file_title + '-' + suffix + '_' +
-                    str(suffix_number) + "." + file_format,
-                )
+                file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
             open(file_path, encoding='utf-8', mode='x')
         except Exception as err:
             logger.exception(err)
             raise err
         finally:
-            if lock:
-                lock.release()
+            if cls.__lock:
+                cls.__lock.release()
         logger.info('create_file_path: %s', file_path)
         return file_path
 
@@ -280,14 +158,13 @@ class Media(BaseMedia):
                 self.keywords_list.update(meta)
             # 若是dict 则拼接values
             if isinstance(meta, dict):
-                from functools import reduce
 
                 def concat(a, b):
                     logger.info(('concat', type(a), type(b)))
                     a.extend(b)
                     return a
 
-                meta_concat = reduce(concat, list(meta.values()))
+                meta_concat = functools.reduce(concat, list(meta.values()))
 
                 order_metadata.extend(
                     ['-metadata', str(key) + '=' + ",".join(meta_concat)])
@@ -304,16 +181,16 @@ class Media(BaseMedia):
 
     @decorator.timer
     def save_metadata(self):
-        '''读取现有文件的元数据 并保存为txt文件
+        '''Save metadata to file(txt).
         '''
         return [
             '-f', 'ffmetadata',
-            self.dir + "/" + self.title + '_metadate' + ".txt",
+            self.dirname + "/" + self.title + '_metadate' + ".txt",
         ]
 
     @decorator.timer
     def set_metadata(self):
-        '''设置元数据
+        '''Set metadata to file.
         '''
         return self.order_metadata.extend([
             self.order_metadata,
@@ -324,7 +201,7 @@ class Media(BaseMedia):
 
     @decorator.timer
     def reverse(self):
-        '''反转视频
+        '''Reverse video stream.
         '''
         new_file_path = self.get_output_path(suffix='reverse')
         command = self.ffmpeg_prefix.copy()
@@ -390,9 +267,6 @@ class Media(BaseMedia):
             - 视频剪切尺寸及y轴偏移量
             - 反转视频流
 
-        Arguments:
-            file_path {[type]} -- [description]
-
         Keyword Arguments:
             watermark_path {str} -- [logo文件路径] (default: {'/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png'})
             watermark_transparent {float} -- [logo透明度 范围: 0-1] (default: {0.3})
@@ -455,8 +329,11 @@ class Media(BaseMedia):
             xy = [0, crop_y]
             ret = resolution.get(crop) + xy
 
+            # video_step_one.append(
+            #     'scale=' + '4096:-1' + '[video_step_zero];[video_step_zero]' + 'crop=' + ':'.join(map(lambda x: str(x), ret)))
             video_step_one.append(
-                'scale=' + '4096:-1' + '[video_step_zero];[video_step_zero]' + 'crop=' + ':'.join(map(lambda x: str(x), ret)))
+                f'scale=4096:-1[video_step_zero];[video_step_zero]crop={":".join(map(str, ret))}'
+            )
 
         if reverse:
             video_step_one.append('reverse')
@@ -539,8 +416,8 @@ class Media(BaseMedia):
 
     @decorator.timer
     def images_to_video(self, images_path, image_format, bit_rate='5000k'):
-        new_file_path = images_path + '/output_' + bit_rate + '1920' + \
-            time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()) + '.mp4'
+        create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
+        new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
         command = self.ffmpeg_prefix.copy()
         command.extend([
             # 关闭每帧都提醒是否overwrite
@@ -574,8 +451,7 @@ class Media(BaseMedia):
 
     @decorator.timer
     def delete_voice(self):
-        '''去除声音（静音）
-        '''
+        '''silence audio.'''
         return [
             '-an',
             '-c:v', 'copy',
@@ -813,7 +689,7 @@ class Media(BaseMedia):
     def decode(self, format='mov'):
         '''解码视频'''
         command = self.ffmpeg_prefix.copy()
-        new_file_path = self.dir + "/" + self.title + "_decode_." + format
+        new_file_path = self.dirname + "/" + self.title + "_decode_." + format
         command.extend([
             '-i', self.path,
 
