@@ -1,10 +1,14 @@
-# import sys
-# import os
+import sys
+import os
 import time
 from concurrent import futures
-# import threading
+import threading
+import subprocess
 import multiprocessing
-# from utils import log
+
+from logger import logger
+
+__all__ = ['BoundedExecutor', 'execute']
 
 
 def func(future):
@@ -40,16 +44,16 @@ class BoundedExecutor:
         self.semaphore = multiprocessing.Semaphore(bound + max_workers)
         self.lock = multiprocessing.Manager().Lock()
 
-    """See concurrent.futures.Executor#submit"""
-
+    # See concurrent.futures.Executor#submit
     def submit(self, fn, callback_list=[], *args, **kwargs):
         self.semaphore.acquire()
         try:
             future = self.executor.submit(fn, *args, **kwargs)
-            # log.info('<submit> 任务:%s, 线程:%s(%s), 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().name,threading.current_thread().ident, os.getpid()))
-        except Exception:
+            logger.info('<submit> 任务:%s, 线程:%s(%s), 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().name,threading.current_thread().ident, os.getpid()))
+        except Exception as err:
+            logger.error(err)
             self.semaphore.release()
-            raise
+            # raise
         else:
             future.add_done_callback(lambda x: self.semaphore.release())
             for callback in callback_list:
@@ -58,8 +62,54 @@ class BoundedExecutor:
             # future.add_done_callback(func2)
             return future
 
-    """See concurrent.futures.Executor#shutdown"""
-
+    # See concurrent.futures.Executor#shutdown
     def shutdown(self, wait=True):
-        # log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
         self.executor.shutdown(wait)
+        logger.info(
+            '<All done!!!> Task: %s, Thread: %s, Parent Process: %s',
+            sys._getframe().f_code.co_name,
+            threading.current_thread().name,
+            os.getpid()
+        )
+
+
+def execute(command: list):
+    if not isinstance(command, list):
+        raise TypeError('command must be list')
+    logger.warning(
+        'Process: %s, Thread: %s, <Caller (%s) start...>, file: %s:%s %s',
+        os.getpid(),
+        threading.current_thread().name,
+        # inspect.currentframe().f_code.co_name,
+        sys._getframe().f_back.f_code.co_name,
+        sys._getframe().f_back.f_code.co_filename,
+        sys._getframe().f_back.f_code.co_firstlineno,
+        ' '.join(command),
+    )
+    with subprocess.Popen(
+        command,
+        # shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        # universal_newlines=True,
+    ) as process:
+        # # 读取进程的标准输出和标准错误流
+        # for line in process.stdout:
+        #     logger.info(line.decode('utf-8').strip())
+
+        stdout, stderr = process.communicate()
+        # 读取进程的标准输出和标准错误流
+        # for line in stdout:
+        # logger.info(stdout.decode('utf-8').strip())
+        if process.returncode != 0:
+            logger.exception(
+                'command: %s, returncode: %s, stdout: %s',
+                command, process.returncode, stdout.decode('utf-8').strip(),
+            )
+            logger.exception(
+                'command: %s, returncode: %s, stderr: %s', ' '.join(command), process.returncode, stderr)
+            raise subprocess.CalledProcessError(
+                process.returncode, command, stderr)
+        else:
+            logger.info(stdout.decode('utf-8').strip())
+        return stdout.decode('utf-8').strip()

@@ -4,6 +4,10 @@ tmp/
 main.py
 reference.md
 
+# IDE
+.vscode/
+
+
 # Docker
 *.tar
 images/
