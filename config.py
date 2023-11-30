@@ -1,5 +1,5 @@
-import os
 import json
+import os
 
 try:
     from dotenv import load_dotenv
@@ -7,7 +7,9 @@ try:
 except ImportError:
     pass
 
-# from logger import logger
+__all__ = [
+    'CONFIG',
+]
 
 # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -47,7 +49,7 @@ class BaseConfig:
 
     # MEDIA FILE
     MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', '~/Documents/tmp/test.mp4')
-    MEDIA_FILE_DIRECTORY = os.getenv('MEDIA_FILE_DIRECTORY', '~/Documents/tmp')
+    MEDIA_FILE_FOLDER = os.getenv('MEDIA_FILE_FOLDER', '~/Documents/tmp')
 
 
 class Development(BaseConfig):
@@ -65,4 +67,4 @@ class Production(BaseConfig):
     LOG_LEVEL = 'WARNING'
 
 
-config = BaseConfig.mapping.get(os.getenv('ENV', 'development'), Development)
+CONFIG = BaseConfig.mapping.get(os.getenv('ENV', 'development'), Development)

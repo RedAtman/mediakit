@@ -4,7 +4,7 @@ from itertools import chain
 
 import requests
 
-from config import config
+from config import CONFIG
 from logger import logger
 
 
@@ -17,17 +17,17 @@ class Translator:
     ['White clouds']
     """
     if not all([
-        config.BAIDU_TRANSLATE_API,
-        config.BAIDU_TRANSLATE_APP_ID,
-        config.BAIDU_TRANSLATE_SECRET_KEY,
-        config.BAIDU_TRANSLATE_SALT,
+        CONFIG.BAIDU_TRANSLATE_API,
+        CONFIG.BAIDU_TRANSLATE_APP_ID,
+        CONFIG.BAIDU_TRANSLATE_SECRET_KEY,
+        CONFIG.BAIDU_TRANSLATE_SALT,
     ]):
         logger.info(
             'Translator api %s, %s, %s, %s',
-            config.BAIDU_TRANSLATE_API,
-            config.BAIDU_TRANSLATE_APP_ID,
-            config.BAIDU_TRANSLATE_SECRET_KEY,
-            config.BAIDU_TRANSLATE_SALT
+            CONFIG.BAIDU_TRANSLATE_API,
+            CONFIG.BAIDU_TRANSLATE_APP_ID,
+            CONFIG.BAIDU_TRANSLATE_SECRET_KEY,
+            CONFIG.BAIDU_TRANSLATE_SALT
         )
         raise ValueError('请在环境变量中配置百度翻译api')
 
@@ -37,8 +37,8 @@ class Translator:
         :param q: :String: 待翻译文字。
         :return :String: 已翻译文字。
         """
-        sign = config.BAIDU_TRANSLATE_APP_ID + q + \
-            config.BAIDU_TRANSLATE_SALT + config.BAIDU_TRANSLATE_SECRET_KEY
+        sign = CONFIG.BAIDU_TRANSLATE_APP_ID + q + \
+            CONFIG.BAIDU_TRANSLATE_SALT + CONFIG.BAIDU_TRANSLATE_SECRET_KEY
         return hashlib.md5(sign.encode()).hexdigest()
 
     @classmethod
@@ -57,14 +57,14 @@ class Translator:
             'q': text,
             'from': 'auto',
             'to': 'en',
-            'appid': config.BAIDU_TRANSLATE_APP_ID,
-            'salt': config.BAIDU_TRANSLATE_SALT,
+            'appid': CONFIG.BAIDU_TRANSLATE_APP_ID,
+            'salt': CONFIG.BAIDU_TRANSLATE_SALT,
             'sign': cls.sign(text),
         }
 
         # 获取翻译结果
-        repose = requests.post(config.BAIDU_TRANSLATE_API, data=data, timeout=10)
-        logger.info('%s %s %s %s', 'requests', data,
+        repose = requests.post(CONFIG.BAIDU_TRANSLATE_API, data=data, timeout=10)
+        logger.debug('%s %s %s %s', 'requests', data,
                     type(repose.content), repose)
         content = repose.json()
         trans_result = content.get('trans_result', [])
@@ -78,5 +78,5 @@ class Translator:
         except ValueError as err:
             logger.exception('不能进行json.loads处理: %s', err)
             result = trans_result
-        logger.info('Translate result result %s %s', type(result), result)
+        logger.debug('Translate result result %s %s', type(result), result)
         return result

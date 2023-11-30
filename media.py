@@ -6,9 +6,10 @@ import threading
 import time
 
 from base import BaseMedia
-from config import config
+from config import CONFIG
 from logger import logger
-from utils import BoundedExecutor, Dict2Obj, Translator, decorator, exceptions, execute
+from utils import Dict2Obj, Translator, decorator
+from utils.command import CommandExecutor
 
 
 class Audio:
@@ -28,18 +29,18 @@ class Media(BaseMedia):
     # __thread_pool = futures.ThreadPoolExecutor(max_workers=64)
     # __queue = queue.Queue(maxsize=0)
     __lock = threading.Lock()
-    __loglevel = config.LOG_LEVEL.lower()
+    __loglevel = CONFIG.LOG_LEVEL.lower()
 
     ffmpeg_prefix = [
         'ffmpeg', '-y',
         '-loglevel', __loglevel,
         # '-i', self.path,
+        # '-threads', '16',
     ]
 
     def __init__(
         self,
         *args,
-        title=None,
         artist='',
         category=None,
         camera=None,
@@ -49,13 +50,12 @@ class Media(BaseMedia):
     ):
         '''
         Keyword Arguments:
-            title {[type]} -- [视频标题] (default: {None})
-            artist {str} -- [视频作者] (default: {''})
+            artist {str} -- [Artist] (default: {''})
             category {[str]} -- [description] (default: {None})
             camera {[str]} -- [description] (default: {None})
             lens {[str]} -- [description] (default: {None})
-            keywords {[dict{key:list} / list]} -- [视频关键词] (default: {None})
-            loglevel {str} -- [日志级别] (default: {'info'})
+            keywords {[dict{key:list} / list]} -- [Video keywords] (default: {None})
+            loglevel {str} -- [Log level] (default: {CONFIG.LOG_LEVEL.lower()})
         '''
         super().__init__(*args, **kwargs)
         self.artist = artist
@@ -85,7 +85,7 @@ class Media(BaseMedia):
         return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
 
     @classmethod
-    def create_file_path(cls, path, suffix='suffix', suffix_number=1, lock=None):
+    def create_file_path(cls, path, suffix='', suffix_number=1):
         '''产生媒体剪切片段输出路径
 
         Arguments:
@@ -94,13 +94,13 @@ class Media(BaseMedia):
         Keyword Arguments:
             suffix {str} -- [description] (default: {'suffix'})
             suffix_number {number} -- [description] (default: {1})
-            lock {[type]} -- [description] (default: {None})
 
         Returns:
             [type] -- [description]
                 e.g.: /Users/nut/Downloads/RS/_trim/VIDEO_trim_1.mp4
         '''
         dirname, title, ext = cls.get_file_info(path)
+        suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
         dirname = os.path.join(dirname, '_' + suffix)
         if not os.path.exists(dirname):
             try:
@@ -123,14 +123,15 @@ class Media(BaseMedia):
             while os.path.exists(file_path):
                 suffix_number += 1
                 file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
-            open(file_path, encoding='utf-8', mode='x')
+            with open(file_path, encoding='utf-8', mode='x'):
+                pass
         except Exception as err:
             logger.exception(err)
             raise err
         finally:
             if cls.__lock:
                 cls.__lock.release()
-        logger.info('create_file_path: %s', file_path)
+        logger.debug('create_file_path: %s', file_path)
         return file_path
 
     @functools.cached_property
@@ -246,7 +247,7 @@ class Media(BaseMedia):
         #     '-color_trc', '14',
         #     new_file_path,
         # ])
-        execute(command)
+        CommandExecutor.execute(command)
         return Media(path=new_file_path)
 
     @decorator.timer
@@ -411,7 +412,7 @@ class Media(BaseMedia):
             new_file_path,
         ])
 
-        execute(command)
+        CommandExecutor.execute(command)
         return Media(path=new_file_path)
 
     @decorator.timer
@@ -446,7 +447,7 @@ class Media(BaseMedia):
             # '-shortest',
             new_file_path,
         ])
-        execute(command)
+        CommandExecutor.execute(command)
         return Media(path=new_file_path)
 
     @decorator.timer
@@ -459,27 +460,22 @@ class Media(BaseMedia):
         ]
 
     @decorator.timer
-    def trim(self, time=(), suffix_number=1, lock=None):
+    def trim(self, trim_time=(), suffix_number=1):
         '''截取视频指定某一段时间
 
         Keyword Arguments:
             time {tuple} -- {截取时间段} (default: {()})
                 e.g.: ("00:26:56", "00:28:36")
             suffix_number {number} -- 1 (default: {1})
-            lock {[type]} -- 新建文件名时用 (default: {None})
 
         Returns:
             bool -- [description]
         '''
-        if not isinstance(time, (tuple, list)) and len(time) != 2:
+        if not isinstance(trim_time, (tuple, list)) and len(trim_time) != 2:
             raise ValueError('参数[time]必须为长度为2的tuple或list')
-        ss, to = time
-
-        new_file_path = self.create_file_path(
-            self.path, suffix='trim', suffix_number=suffix_number, lock=lock)
-
-        command = self.ffmpeg_prefix.copy()
-        command.extend([
+        ss, to = trim_time
+        new_file_path = self.create_file_path(self.path, suffix='trim', suffix_number=suffix_number)
+        command = self.ffmpeg_prefix + [
             # 截取时间
             '-ss', ss,
             '-to', to,
@@ -505,9 +501,68 @@ class Media(BaseMedia):
 
             # '-avoid_negative_ts', '1',
             new_file_path
-        ])
-        execute(command)
+        ]
+        command = f'ffmpeg -y -loglevel debug -ss {ss} -to {to} -accurate_seek \
+            -i {self.path} -c:v copy -c:a copy {new_file_path}'
+        self.executor.run(command)
         return Media(path=new_file_path)
+
+    @decorator.timer
+    def quick_compress(self):
+        '''Push the compression lever further by increasing the CRF value — add, say, 4 or 6, 
+        since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond 
+        to higher bitrates, and hence produce higher quality videos.
+        '''
+        new_file_path = self.create_file_path(self.path, suffix='[compress.libx265.fast]')
+
+        # More smaller size, but more time, more CPU usage.
+        command = self.ffmpeg_prefix + [
+            # '-hwaccel', 'auto',
+            '-i', self.path,
+            # # To scale to half size
+            # '-vf', "scale=trunc(iw/4)*2:trunc(ih/4)*2",
+            # # To scale to One-third size
+            # '-vf', "scale=trunc(iw/6)*2:trunc(ih/6)*2",
+
+            # '-r', '24',  # Change FPS
+
+            # More faster, but more bigger size.
+            # '-vcodec', 'libx264',
+
+            # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
+            # -preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo
+            '-vcodec', 'libx265', '-preset', 'fast',
+
+            # Ensure that the output video has a preview image
+            '-tag:v', 'hvc1',
+
+            # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
+            # '-crf', '24',
+            new_file_path,
+        ]
+
+        # videotoolbox
+        # More faster, more smaller size.
+        # command = f'ffmpeg -y -loglevel {self.__loglevel} \
+        #     -i "{self.path}" \
+        #     -c:v h264_videotoolbox -acodec copy \
+        #     -q:v 50 \
+        #     "{new_file_path}"'
+
+        # videotoolbox: H.265 / HEVC (High Efficiency Video Coding), hevc_videotoolbox isn't as good as libx265, \
+        # but it is fast
+        # More faster, more smaller size.
+        # * -hwaccel videotoolbox: Use VideoToolbox hardware acceleration.
+        # Use -b:v to control quality. -crf is only for libx264, libx265, libvpx, and libvpx-vp9. It will be ignored by other encoders. It will also ignore -preset.
+        # * -q:v 50: Constant quality mode (VBR). Lower values mean better quality, The value should be 1-100, \
+        # the higher the number, the better the quality. 65 seems to be acceptable.
+        # command = f'ffmpeg -y -loglevel {self.__loglevel} \
+        #     -i "{self.path}" \
+        #     -vcodec hevc_videotoolbox -tag:v hvc1 \
+        #     -q:v 65 \
+        #     "{new_file_path}"'
+        self.executor.run(command)
+        return Media(new_file_path)
 
     @decorator.timer
     def compress(self):
@@ -517,12 +572,14 @@ class Media(BaseMedia):
         # logger.warning('bitrate: %s, self.bitrate: %s', bitrate, self.bitrate)
         if bitrate >= self.bitrate:
             logger.warning('bitrate: %s, self.bitrate: %s', bitrate, self.bitrate)
-            # bitrate = self.bitrate
+            bitrate = self.bitrate
             # raise ValueError(f'output bit_rate({bitrate}) must < origin bit_rate({self.bitrate})')
-        return self._compress(width=width, height=height, bitrate=bitrate)
+        return self._compress(self.path, width=width, height=height, bitrate=bitrate)
 
+    @classmethod
     def _compress(
-        self,
+        cls,
+        path,
         width=1280,
         height=720,
         # bitrate=1600000,
@@ -557,14 +614,9 @@ class Media(BaseMedia):
         #     sys._getframe().f_code.co_name
         # )
 
-        new_file_path = self.create_file_path(
-            self.path,
-            suffix='compress',
-            lock=self.__lock,
-        )
-        command = self.ffmpeg_prefix.copy()
-        command.extend([
-            '-i', self.path,
+        new_file_path = cls.create_file_path(path, suffix='compress')
+        command = cls.ffmpeg_prefix + [
+            '-i', path,
             '-s', str(width) + 'x' + str(height),
             '-aspect', str(width) + ':' + str(height),
             '-threads', '0',
@@ -596,94 +648,15 @@ class Media(BaseMedia):
             '-max_muxing_queue_size', '40000',
             '-map_metadata', '0',
             new_file_path,
-        ])
+        ]
         # logger.warning(
         #     'Thread: %s, Parent Process: %s, Function: %s, command: %s',
         #     threading.current_thread().name, os.getpid(),
         #     sys._getframe().f_code.co_name,
         #     command,
         # )
-        execute(command)
-        return Media(path=new_file_path)
-
-    @classmethod
-    @decorator.timer
-    def multi_trim(cls, files=[], callback_list=[]):
-        '''多线程批量文件截取
-
-        Keyword Arguments:
-            files {list} -- [待剪切文件配置组成的list] (default: {[]})
-                [
-                    {
-                        'path':'/Users/nut/Downloads/RS/CCTV.mp4',
-                        'trim_times':(
-                            ("00:50:22", "01:03:27"),
-                            ("01:19:39", "01:37:04"), ...
-                        )
-                    }...
-                ]
-            callback_list {list} -- [处理完文件剪切后的回调函数名组成的list] (default: {[]})
-                ['compress', ...]
-        '''
-        executor = BoundedExecutor()
-        for file in files:
-            suffix_number = 0
-            for _time in file.get('trim_times'):
-                suffix_number += 1
-                media = cls(file_path=file.get('path'))
-                future = executor.submit(
-                    getattr(media, 'trim'),
-                    time=_time,
-                    suffix_number=suffix_number,
-                    lock=executor.lock,
-                )
-                for _callback in callback_list:
-                    # callback = getattr(cls, _callback)
-                    # future.add_done_callback(
-                    #     lambda future: callback(future.result()))
-                    # callback = getattr(cls, _callback)
-                    future.add_done_callback(
-                        lambda future: getattr(future.result(), _callback)())
-
-        executor.shutdown(wait=True)
-
-    @classmethod
-    @decorator.timer
-    def multi_compress(cls, directory='', callback_list=[]):
-        '''多线程批量文件压缩
-
-        Keyword Arguments:
-            directory {str} -- [待压缩文件所在的目录绝对地址] (default: {''})
-                e.g.: /usr/media/
-            callback_list {list} -- [处理完文件压缩后的回调函数名组成的list] (default: {[]})
-                e.g.: ['func', ...]
-        '''
-        executor = BoundedExecutor()
-        directory = directory.strip()
-        # directory = os.path.abspath(directory)
-        if not os.path.isdir(rf'{directory}'):
-            raise TypeError(f'Directory does not exist: {directory}')
-        file_path_list = os.listdir(directory)
-        for file_path in file_path_list:
-            file_abspath = os.path.join(directory, file_path)
-            if not os.path.isfile(file_abspath):
-                continue
-            file_abspath = os.path.abspath(file_abspath)
-            try:
-                media = cls(path=file_abspath)
-            except exceptions.NotMediaException as err:
-                logger.exception(err)
-                continue
-
-            try:
-                future = executor.submit(media.compress)
-                for callback in callback_list:
-                    future.add_done_callback(getattr(cls, callback))
-                future.result()
-            except Exception as err:
-                logger.exception(err)
-        logger.info('Waiting for all subprocesses done...')
-        executor.shutdown(wait=True)
+        CommandExecutor.execute(command)
+        return cls(path=new_file_path)
 
     @decorator.timer
     def decode(self, format='mov'):
@@ -699,7 +672,7 @@ class Media(BaseMedia):
             # '-avoid_negative_ts', '1',
             new_file_path,
         ])
-        execute(command)
+        CommandExecutor.execute(command)
         return Media(path=new_file_path)
 
     def concat(self):
@@ -715,16 +688,16 @@ class MediaTool:
         self._meta = self.read_meta_json(directory)
         self.meta = Dict2Obj(self._meta)
 
-    # @decorator.classproperty
+    # @decorator.class_property
     # def meta(cls):
     #     self.read_meta_json(directory)
 
     @staticmethod
-    def read_meta_json(directory):
+    def read_meta_json(path):
         '''读取指定dir下面meta.json文件的信息
 
         Arguments:
-            directory {str} -- [文件夹地址]
+            path {str} -- [文件夹地址]
 
         Returns:
             [dict] -- [media meta]
@@ -734,8 +707,9 @@ class MediaTool:
                     "title": "20210831_中国北京天坛祈年殿",
                     "artist": "aQuantum,一枚量子",
                     "category": "time_lapse",
-                    "camera": "sony_α7r2",
-                    "lens": "laowa_12mm_f2.8"
+                    "camera": "sony_a7r2",
+                    "lens": "laowa_12mm_f2.8",
+                    "keywords": "天坛,祈年殿,北京,中国,中国北京,中国"
                 },
                 "resolution": "4k",
                 "reverse": False,
@@ -756,15 +730,15 @@ class MediaTool:
                 }
             }
         '''
-        directory = directory.strip()
-        if not os.path.exists(directory):
-            raise FileNotFoundError('Directory not found')
-        if not os.path.isdir(directory):
-            raise NotADirectoryError('Not a directory')
-        if not os.listdir(directory).count('meta.json'):
-            raise FileNotFoundError('meta.json not found')
+        path = path.strip()
+        if not os.path.exists(path):
+            raise FileNotFoundError(f'Path not found: {path}')
+        if not os.path.isdir(path):
+            raise NotADirectoryError(f'Not a directory: {path}')
+        if not os.listdir(path).count('meta.json'):
+            raise FileNotFoundError(f'File not found: {path}/meta.json')
         try:
-            with open(os.path.join(directory, 'meta.json'), 'r', encoding='utf-8') as fd:
+            with open(os.path.join(path, 'meta.json'), 'r', encoding='utf-8') as fd:
                 meta = json.loads(fd.read()).get('video', {})
         except Exception as err:
             logger.exception(err)
@@ -772,7 +746,7 @@ class MediaTool:
         return meta
 
     def combine(self, ):
-        media = Media(**self.meta.video._dict())
+        media = Media(**self.meta.video.__dict__)
         return media.combine(
             watermark_path=self.meta.watermark.path,
             watermark_transparent=self.meta.watermark.transparent,
@@ -785,5 +759,5 @@ class MediaTool:
         )
 
     def trim(self, time=()):
-        media = Media(**self.meta.video._dict())
+        media = Media(**self.meta.video.__dict__)
         return media.trim(time=time)

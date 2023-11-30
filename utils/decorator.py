@@ -1,9 +1,16 @@
 import functools
-import time
 import os
-import threading
 import subprocess
+import threading
+import time
+
 from logger import logger
+
+__all__ = [
+    'timer',
+    'execute_shell_command',
+    'class_property',
+]
 
 
 def timer(func):
@@ -12,7 +19,7 @@ def timer(func):
         start_time = time.time()
         logger.debug('Task start(%s): %s', func.__name__, start_time)
         result = func(self, *args, **kwargs)
-        logger.debug(
+        logger.info(
             '线程:%s, 父进程:%s, <Task (%s) finished!!!>. 耗时:%s.',
             threading.current_thread().name,
             os.getpid(),
@@ -60,7 +67,7 @@ def execute_shell_command(func):
     return wrapper
 
 
-class classproperty(object):
+class class_property:   # pylint: disable=invalid-name
     def __init__(self, f):
         self.f = f
 

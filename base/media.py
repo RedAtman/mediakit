@@ -1,11 +1,11 @@
 import functools
 import json
 import os
-import re
 import subprocess
 
 from logger import logger
-from utils import exceptions, execute, is_media
+from utils import exceptions, is_media
+from utils.command import CommandExecutor
 
 __all__ = [
     'BaseMedia',
@@ -18,10 +18,64 @@ class BaseMedia:
         path = path.strip()
         if not os.path.exists(path):
             raise FileNotFoundError(f'File not found at path: {path}')
+        if not os.path.isfile(path):
+            raise exceptions.NotMediaException(101, f'Path is not a file: {path}')
         if not is_media(path):
             raise exceptions.NotMediaException(101, f'File is not media file: {path}')
         self.path = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
+        self.executor = CommandExecutor(total=self.frames_count, title=self.path)
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.path})'
+
+    @functools.cached_property
+    def frames_count(self):
+        '''Get media file frames count.
+
+        e.g.:
+            # More speed and if nb_frames is reliable enough, simplify as: but nb_frames is not always reliable.
+            # Problem: Often returns N/A, not reliable.
+            ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames \
+                -of default=nokey=1:noprint_wrappers=1 input.mp4
+            ffprobe -select_streams v -show_streams input.mp4 2>/dev/null | grep nb_frames | sed -e 's/nb_frames=//'
+            ffprobe -v error -select_streams v -show_streams input.mp4 | grep nb_frames | sed -e s/nb_frames=//
+            ffprobe -v error -show_streams -hide_banner input.mp4 | grep "nb_frames" | sed -e s/nb_frames=//
+            ffprobe -v error -show_streams -hide_banner input.mp4 | grep "nb_frames" | head -n1 | cut -d"=" -f2
+
+            # More reliable. but slower.
+            ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
+                -of default=nokey=1:noprint_wrappers=1 input.mp4
+            ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets \
+                -of csv=p=0 input.mp4
+
+            # Unverified.
+            ffmpeg -i input.mp4 -vcodec copy -acodec copy -f null /dev/null 2>&1 | grep 'frame=' | cut -f 2 -d ' '
+            ffprobe -i input.mp4 -print_format json -loglevel fatal -show_streams -count_frames -select_streams v
+            ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate \
+                -of default=noprint_wrappers=1:nokey=1 input.mp4
+            ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
+
+        '''
+        try:
+            result = CommandExecutor.execute(
+                f'ffprobe -v error -select_streams v -show_streams "{self.path}" | \
+                    grep nb_frames | sed -e s/nb_frames=//'
+            )
+            return int(result)
+        except ValueError as err:
+            logger.exception(err)
+            result = CommandExecutor.execute(
+                f'ffprobe -v error -hwaccel auto -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
+                    -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
+            )
+            return int(result)
+        except subprocess.CalledProcessError as err:
+            logger.exception(err)
+            raise err
+        except Exception as err:
+            logger.exception(err)
+            raise err
 
     @functools.cached_property
     def metadata(self):
@@ -41,8 +95,9 @@ class BaseMedia:
             'ffprobe', '-v', 'quiet', '-show_format',
             '-show_streams', '-print_format', 'json', path.strip()
         ]
+        command = f'ffprobe -v quiet -show_format -show_streams -print_format json {path.strip()}'
         try:
-            result = execute(command)
+            result = CommandExecutor.execute(command)
         except subprocess.CalledProcessError as err:
             logger.exception(err)
             raise err
@@ -90,7 +145,7 @@ class BaseMedia:
     @staticmethod
     def get_file_info(path):
         '''Get file info.: dirname, title, ext.
-        
+
         Arguments:
             path {[str]} -- [File path]
 
@@ -99,4 +154,3 @@ class BaseMedia:
         '''
         title, ext = os.path.splitext(os.path.basename(path))
         return os.path.dirname(path), title, ext[1:]
-        return re.findall("""(.*)\\/([^<>/\\\\|:''\\?]+)\\.(\\w+)$""", path)[0]

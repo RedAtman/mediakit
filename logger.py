@@ -4,7 +4,11 @@ import os
 import sys
 from enum import Enum
 
-from config import config
+from config import CONFIG
+
+__all__ = [
+    'logger',
+]
 
 
 # class _ColorfulFormatter(logging.Formatter):
@@ -141,7 +145,7 @@ LOGGING_CONFIG = {
             # 'stream': 'ext://sys.stdout',
             # 'class': 'logging.StreamHandler',
             'class': 'logging.handlers.TimedRotatingFileHandler',
-            'filename': f'{config.LOG_DIR}/default.log',
+            'filename': f'{CONFIG.LOG_DIR}/default.log',
             'when': 'midnight',
             'backupCount': 7,
             'encoding': 'utf8',
@@ -162,7 +166,7 @@ LOGGING_CONFIG = {
             'stream': 'ext://sys.stdout',
             'class': 'logging.StreamHandler',
             # 'class': 'logging.handlers.TimedRotatingFileHandler',
-            # 'filename': f'{config.LOG_DIR}/info.log',
+            # 'filename': f'{CONFIG.LOG_DIR}/info.log',
             # 'when': 'midnight',
             # 'backupCount': 2,
             # 'encoding': 'utf8',
@@ -176,7 +180,7 @@ LOGGING_CONFIG = {
             'stream': 'ext://sys.stdout',
             'class': 'logging.StreamHandler',
             # 'class': 'logging.handlers.TimedRotatingFileHandler',
-            # 'filename': f'{config.LOG_DIR}/warning.log',
+            # 'filename': f'{CONFIG.LOG_DIR}/warning.log',
             # 'when': 'midnight',
             # 'backupCount': 7,
             # 'encoding': 'utf8',
@@ -188,7 +192,7 @@ LOGGING_CONFIG = {
             'class': 'logging.handlers.TimedRotatingFileHandler',
             # Default is stderr
             # 'stream': 'ext://sys.stdout',
-            'filename': f'{config.LOG_DIR}/critical.log',
+            'filename': f'{CONFIG.LOG_DIR}/critical.log',
             'when': 'midnight',
             'backupCount': 7,
             'encoding': 'utf8',
@@ -199,7 +203,7 @@ LOGGING_CONFIG = {
             'class': 'logging.handlers.TimedRotatingFileHandler',
             # Default is stderr
             # 'stream': 'ext://sys.stdout',
-            'filename': f'{config.LOG_DIR}/error.log',
+            'filename': f'{CONFIG.LOG_DIR}/error.log',
             'when': 'midnight',
             'backupCount': 7,
             'encoding': 'utf8',
@@ -227,7 +231,7 @@ LOGGING_CONFIG = {
                 # 'critical',
                 # 'error',
             ],
-            'level': config.LOG_LEVEL,
+            'level': CONFIG.LOG_LEVEL,
             'propagate': False
         },
         'script': {
