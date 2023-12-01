@@ -51,6 +51,19 @@ class BaseConfig:
     MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', '~/Documents/tmp/test.mp4')
     MEDIA_FILE_FOLDER = os.getenv('MEDIA_FILE_FOLDER', '~/Documents/tmp')
 
+    # WHISPER
+    WHISPER_LIB = 'Whisper'
+    # WHISPER_LIB = 'FasterWhisper'
+    # WHISPER_LIB = 'WhisperCPP'
+    WHISPER_MODEL = 'small'
+    WHISPER_MODEL = 'tiny'
+    WHISPER_MODEL = 'base'
+    WHISPER_MODEL = 'medium'
+    WHISPER_MODEL = 'large'
+
+    # LLAMA
+    LLAMA_MODEL = './models/llama-2-7b-chat.Q2_K.gguf'
+
 
 class Development(BaseConfig):
     '''Development environment configuration'''

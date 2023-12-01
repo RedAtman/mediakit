@@ -1,9 +1,10 @@
 import functools
+import json
 import os
 
-from base.media import BaseMedia
+from base.video import Video
 from logger import logger
-from utils import exceptions
+from utils import Dict2Obj, decorator, exceptions
 
 __all__ = [
     'BaseFolder',
@@ -11,7 +12,7 @@ __all__ = [
 
 
 class BaseFolder:
-    MEDIA_CLS = BaseMedia
+    MEDIA_CLS = Video
 
     def __init__(self, path):
         path = path.strip()
@@ -44,3 +45,17 @@ class BaseFolder:
             except Exception as err:
                 logger.exception(err)
                 continue
+
+    @decorator.timer
+    def get_texts(self):
+        return (self.MEDIA_CLS(file).speech_to_text() for file in self.files)
+
+    def save_texts(self, ext='txt'):
+        try:
+            while True:
+                media = next(self.medias)
+                media.save_text(ext=ext)
+                # break
+        except StopIteration:
+            logger.info("All media have been processed.")
+        # return 'Done'

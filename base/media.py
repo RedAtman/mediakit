@@ -1,4 +1,4 @@
-import functools
+from functools import cached_property
 import json
 import os
 import subprocess
@@ -15,6 +15,7 @@ __all__ = [
 class BaseMedia:
     '''docstring for BaseMedia'''
     def __init__(self, path):
+        super().__init__()
         path = path.strip()
         if not os.path.exists(path):
             raise FileNotFoundError(f'File not found at path: {path}')
@@ -24,12 +25,15 @@ class BaseMedia:
             raise exceptions.NotMediaException(101, f'File is not media file: {path}')
         self.path = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
-        self.executor = CommandExecutor(total=self.frames_count, title=self.path)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.path})'
 
-    @functools.cached_property
+    @cached_property
+    def executor(self):
+        return CommandExecutor(total=self.frames_count, title=self.path)
+
+    @cached_property
     def frames_count(self):
         '''Get media file frames count.
 
@@ -77,7 +81,7 @@ class BaseMedia:
             logger.exception(err)
             raise err
 
-    @functools.cached_property
+    @cached_property
     def metadata(self):
         return self.get_metadata(self.path)
 
@@ -107,7 +111,7 @@ class BaseMedia:
             raise TypeError(f'{type(result)} is not JSONable') from err
         return metadata
 
-    @functools.cached_property
+    @cached_property
     def width_height(self):
         '''Get media file width and height. Unit:pixel
         '''
@@ -122,14 +126,14 @@ class BaseMedia:
                     break
         return width, height
 
-    @functools.cached_property
+    @cached_property
     def bitrate(self):
         '''Get media file bitrate. Unit:kb/s'''
         bitrate = self.metadata.get('streams')[0].get(
             'bit_rate') or self.metadata.get('format').get('bit_rate')
         return float(bitrate)
 
-    @functools.cached_property
+    @cached_property
     def duration(self):
         '''Get media file duration. Unit:second'''
         # result = subprocess.run([

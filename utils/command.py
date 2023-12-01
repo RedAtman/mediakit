@@ -73,5 +73,5 @@ class CommandExecutor:
                 )
                 raise subprocess.CalledProcessError(process.returncode, command, _stderr)
 
-            logger.info(stdout)
+            logger.debug(stdout)
             return stdout

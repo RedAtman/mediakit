@@ -1,14 +1,14 @@
 import time
 
-from base import BaseFolder
+from base.folder import BaseFolder
+from base.video import Video
 from logger import logger
-from media import Media
 from utils import TaskManager, decorator, exceptions
 from utils.command import CommandExecutor
 
 
 class Folder(BaseFolder):
-    MEDIA_CLS = Media
+    MEDIA_CLS = Video
 
     @decorator.timer
     def compress(self, callback_list=None):
