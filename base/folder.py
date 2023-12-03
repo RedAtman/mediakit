@@ -51,11 +51,76 @@ class BaseFolder:
         return (self.MEDIA_CLS(file).speech_to_text() for file in self.files)
 
     def save_texts(self, ext='txt'):
+        '''Save media text to file.
+
+        Arguments:
+            ext {str} -- [file extension]
+
+        Returns:
+            [None] -- [None]
+        '''
+        for media in self.medias:
+            media.save_text(ext=ext)
+        # try:
+        #     while True:
+        #         media = next(self.medias)
+        #         media.save_text(ext=ext)
+        #         # break
+        # except StopIteration:
+        #     logger.info("All media have been processed.")
+        #     return None
+        # except Exception as err:
+        #     logger.exception(err)
+        #     raise err
+
+    @property
+    def meta(self):
+        return Dict2Obj(self.read_meta(self.path))
+
+    @staticmethod
+    def read_meta(path):
+        '''Read media meta from meta.json under the folder.
+
+        Arguments:
+            path {str} -- [folder path]
+
+        Returns:
+            [dict] -- [media meta]
+            e.g.: {
+                "video": {
+                    "path": "20210831_ProRes-444_BT2020L_OriRes_25_UHQ_mb05.mov",
+                    "title": "20210831_中国北京天坛祈年殿",
+                    "artist": "aQuantum,一枚量子",
+                    "category": "time_lapse",
+                    "camera": "sony_a7r2",
+                    "lens": "laowa_12mm_f2.8",
+                    "keywords": "天坛,祈年殿,北京,中国,中国北京,中国"
+                },
+                "resolution": "4k",
+                "reverse": False,
+                "crop": {
+                    "w": 4096,
+                    "h": 2160,
+                    "x": 0,
+                    "y": 100
+                },
+                "audio": {
+                    "path": "/Users/nut/Downloads/Illuminate (Trailer Music) - Dirk Leupolz.mp3",
+                    "defer": 15.3,
+                    "fade_duration": 1
+                },
+                "watermark": {
+                    "path": "/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png",
+                    "transparent": 0.3
+                }
+            }
+        '''
+        if not os.listdir(path).count('meta.json'):
+            raise FileNotFoundError(f'File not found: {path}/meta.json')
         try:
-            while True:
-                media = next(self.medias)
-                media.save_text(ext=ext)
-                # break
-        except StopIteration:
-            logger.info("All media have been processed.")
-        # return 'Done'
+            with open(os.path.join(path, 'meta.json'), 'r', encoding='utf-8') as fd:
+                meta = json.loads(fd.read()).get('video', {})
+        except Exception as err:
+            logger.exception(err)
+            raise err
+        return meta

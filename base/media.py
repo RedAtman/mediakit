@@ -1,10 +1,12 @@
-from functools import cached_property
 import json
 import os
-import subprocess
+import sys
+import threading
+import time
+from functools import cached_property, partial
 
 from logger import logger
-from utils import exceptions, is_media
+from utils import exceptions, is_media, decorator
 from utils.command import CommandExecutor
 
 __all__ = [
@@ -14,6 +16,9 @@ __all__ = [
 
 class BaseMedia:
     '''docstring for BaseMedia'''
+    __lock = threading.Lock()
+    _executor = partial(CommandExecutor)
+
     def __init__(self, path):
         super().__init__()
         path = path.strip()
@@ -23,15 +28,16 @@ class BaseMedia:
             raise exceptions.NotMediaException(101, f'Path is not a file: {path}')
         if not is_media(path):
             raise exceptions.NotMediaException(101, f'File is not media file: {path}')
+        logger.debug('BaseMedia: %s', path)
         self.path = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.path})'
 
-    @cached_property
+    @property
     def executor(self):
-        return CommandExecutor(total=self.frames_count, title=self.path)
+        return self._executor(total=self.frames_count, title=self.path)
 
     @cached_property
     def frames_count(self):
@@ -67,16 +73,13 @@ class BaseMedia:
                     grep nb_frames | sed -e s/nb_frames=//'
             )
             return int(result)
-        except ValueError as err:
-            logger.exception(err)
+        except ValueError:
+            # logger.exception(err)
             result = CommandExecutor.execute(
-                f'ffprobe -v error -hwaccel auto -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
+                f'ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
                     -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
             )
             return int(result)
-        except subprocess.CalledProcessError as err:
-            logger.exception(err)
-            raise err
         except Exception as err:
             logger.exception(err)
             raise err
@@ -100,16 +103,11 @@ class BaseMedia:
             '-show_streams', '-print_format', 'json', path.strip()
         ]
         command = f'ffprobe -v quiet -show_format -show_streams -print_format json {path.strip()}'
+        metadata = CommandExecutor.execute(command)
         try:
-            result = CommandExecutor.execute(command)
-        except subprocess.CalledProcessError as err:
-            logger.exception(err)
-            raise err
-        try:
-            metadata = json.loads(result)
+            return json.loads(metadata)
         except Exception as err:
-            raise TypeError(f'{type(result)} is not JSONable') from err
-        return metadata
+            raise TypeError(f'Not a json string: {metadata}') from err
 
     @cached_property
     def width_height(self):
@@ -158,3 +156,71 @@ class BaseMedia:
         '''
         title, ext = os.path.splitext(os.path.basename(path))
         return os.path.dirname(path), title, ext[1:]
+
+    @cached_property
+    def output_path(self):
+        '''Media output path'''
+        return self.get_output_path()
+
+    def get_output_path(self, suffix=''):
+        '''媒体输出路径(代替 self.output_path)
+
+        Keyword Arguments:
+            suffix {str} -- [输出文件名后缀] (default: {''})
+
+        Returns:
+            [str] -- [媒体输出路径]
+        '''
+        # suffix or caller function name
+        suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
+        return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
+
+    @classmethod
+    def create_file_path(cls, path, suffix='', suffix_number=1):
+        '''产生媒体剪切片段输出路径
+
+        Arguments:
+            path {[type]} -- [description]
+
+        Keyword Arguments:
+            suffix {str} -- [description] (default: {'suffix'})
+            suffix_number {number} -- [description] (default: {1})
+
+        Returns:
+            [type] -- [description]
+                e.g.: /Users/nut/Downloads/RS/_trim/VIDEO_trim_1.mp4
+        '''
+        dirname, title, ext = cls.get_file_info(path)
+        suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
+        dirname = os.path.join(dirname, '_' + suffix)
+        if not os.path.exists(dirname):
+            try:
+                os.mkdir(dirname)
+            except FileExistsError:
+                os.makedirs(dirname)
+            except OSError as err:
+                logger.exception(err)
+                # os.makedirs(self.save_dir)
+                raise err
+            except Exception as err:
+                logger.exception(err)
+                raise err
+
+        if cls.__lock:
+            cls.__lock.acquire()
+        try:
+            suffix_number = suffix_number or 1
+            file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
+            while os.path.exists(file_path):
+                suffix_number += 1
+                file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
+            with open(file_path, encoding='utf-8', mode='x'):
+                pass
+        except Exception as err:
+            logger.exception(err)
+            raise err
+        finally:
+            if cls.__lock:
+                cls.__lock.release()
+        logger.debug('create_file_path: %s', file_path)
+        return file_path

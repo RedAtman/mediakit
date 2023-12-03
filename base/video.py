@@ -1,7 +1,4 @@
 import functools
-import os
-import sys
-import threading
 import time
 
 from base.media import BaseMedia
@@ -20,7 +17,6 @@ class Video(
     whispers.MixinMediaFasterWhisper,
     # whispers.MixinMediaWhisperCPP,
 ):
-    __lock = threading.Lock()
     __loglevel = CONFIG.LOG_LEVEL.lower()
 
     ffmpeg_prefix = [
@@ -57,74 +53,6 @@ class Video(
         self.lens = lens
         self.keywords = keywords
         self.keywords_list = set()
-
-    @functools.cached_property
-    def output_path(self):
-        '''Media output path'''
-        return self.get_output_path()
-
-    def get_output_path(self, suffix=''):
-        '''媒体输出路径(代替 self.output_path)
-
-        Keyword Arguments:
-            suffix {str} -- [输出文件名后缀] (default: {''})
-
-        Returns:
-            [str] -- [媒体输出路径]
-        '''
-        # suffix or caller function name
-        suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
-        return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
-
-    @classmethod
-    def create_file_path(cls, path, suffix='', suffix_number=1):
-        '''产生媒体剪切片段输出路径
-
-        Arguments:
-            path {[type]} -- [description]
-
-        Keyword Arguments:
-            suffix {str} -- [description] (default: {'suffix'})
-            suffix_number {number} -- [description] (default: {1})
-
-        Returns:
-            [type] -- [description]
-                e.g.: /Users/nut/Downloads/RS/_trim/VIDEO_trim_1.mp4
-        '''
-        dirname, title, ext = cls.get_file_info(path)
-        suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
-        dirname = os.path.join(dirname, '_' + suffix)
-        if not os.path.exists(dirname):
-            try:
-                os.mkdir(dirname)
-            except FileExistsError:
-                os.makedirs(dirname)
-            except OSError as err:
-                logger.exception(err)
-                # os.makedirs(self.save_dir)
-                raise err
-            except Exception as err:
-                logger.exception(err)
-                raise err
-
-        if cls.__lock:
-            cls.__lock.acquire()
-        try:
-            suffix_number = suffix_number or 1
-            file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
-            while os.path.exists(file_path):
-                suffix_number += 1
-                file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
-            with open(file_path, encoding='utf-8', mode='x'):
-                pass
-        except Exception as err:
-            logger.exception(err)
-            raise err
-        finally:
-            if cls.__lock:
-                cls.__lock.release()
-        logger.debug('create_file_path: %s', file_path)
-        return file_path
 
     @functools.cached_property
     def order_metadata(self):
@@ -505,7 +433,8 @@ class Video(
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond 
         to higher bitrates, and hence produce higher quality videos.
         '''
-        new_file_path = self.create_file_path(self.path, suffix='[compress.libx265.fast]')
+        suffix, vcodec, preset = 'compress', 'libx265', 'medium'
+        new_file_path = self.create_file_path(self.path, suffix=f'[{suffix}.{vcodec}.{preset}]')
 
         # More smaller size, but more time, more CPU usage.
         command = self.ffmpeg_prefix + [
@@ -522,8 +451,8 @@ class Video(
             # '-vcodec', 'libx264',
 
             # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
-            # -preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo
-            '-vcodec', 'libx265', '-preset', 'fast',
+            # -preset: ultrafast, superfast, veryfast, faster, fast, medium(default), slow, slower, veryslow, placebo
+            '-vcodec', vcodec, '-preset', preset,
 
             # Ensure that the output video has a preview image
             '-tag:v', 'hvc1',
@@ -668,5 +597,4 @@ class Video(
         return self.__class__(path=new_file_path)
 
     def concat(self):
-
         return 'ffmpeg -f concat -i concat.txt -c copy concat.mov'
