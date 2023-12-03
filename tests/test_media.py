@@ -1,57 +1,55 @@
 from unittest import TestCase, main, mock
 
+from _pytest.monkeypatch import V
+
 from config import CONFIG
 from logger import logger
-from media import Media, MediaTool
+from base.media import BaseMedia
+from base.video import Video
 
 
-class TestMedia(TestCase):
+class TestVideo(TestCase):
 
-    @mock.patch.object(CONFIG, 'MEDIA_FILE_PATH', '/Users/nut/Downloads/rs/202311/_/_compress/BOB-122-compress_1.mp4')
+    @mock.patch.object(CONFIG, 'MEDIA_FILE_PATH', 'samples/zh.mp4')
     def setUp(self) -> None:
-        self.media = Media(path=CONFIG.MEDIA_FILE_PATH)
+        self.video = Video(path=CONFIG.MEDIA_FILE_PATH)
         return super().setUp()
 
     def test_class_methods(self):
-        result = Media.get_file_info(CONFIG.MEDIA_FILE_PATH)
-        result = MediaTool.read_meta_json(CONFIG.MEDIA_FILE_FOLDER)
+        result = Video.get_file_info(CONFIG.MEDIA_FILE_PATH)
         self.assertIsInstance(result, dict)
 
     def test_methods(self):
-        result = self.media.metadata
+        result = self.video.metadata
         logger.info(result)
         self.assertIsInstance(result, dict)
-        result = self.media.metadata.get('format').get('width')
+        result = self.video.metadata.get('format').get('width')
         logger.info(result)
         self.assertIsInstance(result, (int, float))
-        result = self.media.save_metadata()
-        result = self.media.order_metadata
+        result = self.video.save_metadata()
+        result = self.video.order_metadata
         logger.info(result)
         self.assertIsInstance(result, dict)
-        result = self.media.set_metadata()
-        result = self.media.decode()
-        self.assertIsInstance(result, Media)
+        result = self.video.set_metadata()
+        result = self.video.decode()
+        self.assertIsInstance(result, Video)
 
     def test_frames_count(self):
-        # command = filter(lambda x: x != '', f'ffprobe -v error -select_streams v -show_streams \
-        #                  {CONFIG.MEDIA_FILE_PATH} | grep nb_frames | sed -e s/nb_frames=//'.split(' '))
-        # logger.info(command)
-        # logger.info(list(command))
-        result = self.media.frames_count
+        result = self.video.frames_count
         logger.info(result)
         self.assertIsInstance(result, int)
 
     def test_metadata(self):
-        result = self.media.metadata
+        result = self.video.metadata
         logger.info(result)
         self.assertIsInstance(result, dict)
 
     def test_reverse(self):
-        result = self.media.reverse()
+        result = self.video.reverse()
         self.assertIsInstance(result, dict)
 
     def test_combine(self):
-        media = Media(
+        media = Video(
             # path=CONFIG.MEDIA_FILE_PATH,
             path='/Volumes/ssd2t/lrt/_20231029_北京市华丰胡同_H265-444_Rec.2020F_4K_25_UHQ_mb05_reverse_20231029235455.mov',
             # **MediaTool.read_meta_json(CONFIG.MEDIA_FILE_FOLDER),
@@ -70,11 +68,15 @@ class TestMedia(TestCase):
         self.assertIsInstance(result, dict)
 
     def test_trim(self):
-        result = self.media.trim(time=("00:00:00", "00:30:03"))
-        self.assertIsInstance(result, Media)
+        result = self.video.trim(trim_time=("00:00:00", "00:00:03"))
+        self.assertIsInstance(result, BaseMedia)
 
     def test_compress(self):
-        result = self.media.compress()
+        result = self.video.compress()
+        self.assertIsInstance(result, dict)
+
+    def test_save_text(self):
+        result = self.video.save_text()
         self.assertIsInstance(result, dict)
 
 
