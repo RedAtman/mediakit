@@ -22,14 +22,14 @@ class Translator:
         CONFIG.BAIDU_TRANSLATE_SECRET_KEY,
         CONFIG.BAIDU_TRANSLATE_SALT,
     ]):
-        logger.info(
+        logger.error(
             'Translator api %s, %s, %s, %s',
             CONFIG.BAIDU_TRANSLATE_API,
             CONFIG.BAIDU_TRANSLATE_APP_ID,
             CONFIG.BAIDU_TRANSLATE_SECRET_KEY,
             CONFIG.BAIDU_TRANSLATE_SALT
         )
-        raise ValueError('请在环境变量中配置百度翻译api')
+        raise ValueError('Translator api is not set')
 
     @classmethod
     def sign(cls, q):
@@ -76,7 +76,7 @@ class Translator:
             result = json.loads(json.dumps(_))
             result = list(chain(*result))
         except ValueError as err:
-            logger.exception('不能进行json.loads处理: %s', err)
-            result = trans_result
+            logger.exception(err)
+            raise err
         logger.debug('Translate result result %s %s', type(result), result)
         return result
