@@ -74,8 +74,9 @@ class BoundedExecutor:
 
 
 class TaskManager:
-    def __init__(self, max_workers=multiprocessing.cpu_count()):
-        logger.info('TaskManager init, max_workers: %s', max_workers)
+    def __init__(self, max_workers=2):
+        max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
+        logger.debug('TaskManager init, max_workers: %s', max_workers)
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = ProcessPoolExecutor(max_workers=max_workers)
@@ -83,29 +84,15 @@ class TaskManager:
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
-    # def submit(self, fn, *args, callback_list: list = None, **kwargs):
-    #     """Start a new task, blocks if queue is full."""
-    #     callback_list = callback_list or []
-    #     self.semaphore.acquire()
-    #     _future = self.executor.submit(fn, *args, **kwargs)
-    #     self.futures.append(_future)
-    #     for _callback in callback_list:
-    #         _future.add_done_callback(_callback)
-    #     _future.add_done_callback(self._task_done)
-    #     return _future
-
     def submit(self, fn, *args, callback_list: list = None, **kwargs):
         """Start a new task, blocks if queue is full."""
         callback_list = callback_list or []
-        # with self.semaphore:
-            
-        self.semaphore.acquire()
-        _future = self.executor.submit(fn, *args, **kwargs)
-        self.futures.append(_future)
-        for _callback in callback_list:
-            _future.add_done_callback(_callback)
-        _future.add_done_callback(self._task_done)
-        return _future
+        with self.semaphore:
+            _future = self.executor.submit(fn, *args, **kwargs)
+            self.futures.append(_future)
+            for _callback in callback_list:
+                _future.add_done_callback(_callback)
+            _future.add_done_callback(self._task_done)
 
     def _task_done(self, _future):
         """Called once task is done, releases the queue if blocked."""
@@ -121,4 +108,3 @@ class TaskManager:
         #     threading.current_thread().name,
         #     os.getpid()
         # )
-

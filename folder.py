@@ -25,7 +25,7 @@ class Folder(BaseFolder):
                 e.g.: ['func', ...]
         '''
         callback_list = callback_list or []
-        task_manager = TaskManager(max_workers=1)
+        task_manager = TaskManager()
         with task_manager.executor:
             for media in cls.get_medias(path):
                 try:

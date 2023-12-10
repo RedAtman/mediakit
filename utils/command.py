@@ -57,6 +57,7 @@ class CommandExecutor:
                 while process.stdout.readable():
                     line = process.stdout.readline()
                     if not line:
+                        progress_bar.done()
                         break
                     # logger.debug(line)
                     # sys.stdout.write(line)
