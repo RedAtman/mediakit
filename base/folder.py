@@ -111,8 +111,7 @@ class BaseFolder:
         Returns:
             [None] -- [None]
         '''
-        for media in self.medias:
-            media.save_text(ext=ext)
+        return {media.path: media.save_text(ext=ext) for media in self.medias}
         # try:
         #     while True:
         #         media = next(self.medias)
@@ -124,3 +123,14 @@ class BaseFolder:
         # except Exception as err:
         #     logger.exception(err)
         #     raise err
+
+    def convert_format(self, ext='mp4'):
+        '''Convert media format.
+
+        Keyword Arguments:
+            ext {str} -- [output file extension] (default: {'mp4'})
+
+        Returns:
+            [dict] -- [media info]
+        '''
+        return {media.path: media.convert_format(ext=ext) for media in self.medias}

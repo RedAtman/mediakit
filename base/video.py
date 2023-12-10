@@ -602,3 +602,17 @@ class Video(
 
     def concat(self):
         return 'ffmpeg -f concat -i concat.txt -c copy concat.mov'
+
+    # @decorator.execute_shell_command
+    def convert_format(self, ext='mp4'):
+        '''转换视频格式'''
+        new_file_path = self.create_file_path(self.path, suffix=f'[convert.{ext}]', ext=ext)
+        command = self.ffmpeg_prefix + [
+            '-i', self.path,
+            # '-map', '0', '-c', 'copy',
+            '-c:v', 'copy', '-c:a', 'copy',
+            # '-avoid_negative_ts', '1',
+            new_file_path,
+        ]
+        self.executor.run(command)
+        return self.__class__(path=new_file_path)
