@@ -3,9 +3,13 @@ import os
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
 except ImportError:
-    pass
+    import subprocess
+    subprocess.run(['pip', 'install', 'python-dotenv'], check=True)
+    from dotenv import load_dotenv
+    load_dotenv()
+else:
+    load_dotenv()
 
 __all__ = [
     'CONFIG',
