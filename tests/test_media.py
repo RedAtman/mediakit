@@ -1,11 +1,9 @@
 from unittest import TestCase, main, mock
 
-from _pytest.monkeypatch import V
-
-from config import CONFIG
-from logger import logger
 from base.media import BaseMedia
 from base.video import Video
+from config import CONFIG
+from logger import logger
 
 
 class TestVideo(TestCase):
@@ -73,10 +71,14 @@ class TestVideo(TestCase):
 
     def test_compress(self):
         result = self.video.compress()
-        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result, BaseMedia)
 
     def test_save_text(self):
         result = self.video.save_text()
+        self.assertIsInstance(result, dict)
+
+    def test_convert_format(self):
+        result = self.video.convert_format(ext='mov')
         self.assertIsInstance(result, dict)
 
 

@@ -27,6 +27,11 @@ class TestFolder(TestCase):
         result = self.folder.medias
         self.assertIsInstance(result, Generator)
 
+    def test_get_files(self):
+        result = self.folder.get_files(CONFIG.MEDIA_FILE_FOLDER)
+        logger.debug(result)
+        self.assertIsInstance(result, Iterable)
+
     def test_trim(self):
         result = self.folder.trim(
             files=files,
@@ -51,7 +56,11 @@ class TestFolder(TestCase):
 
     def test_save_texts(self):
         result = self.folder.save_texts()
-        self.assertEqual(result, None)
+        self.assertEqual(result, dict)
+
+    def test_convert_format(self):
+        result = self.folder.convert_format()
+        self.assertEqual(result, dict)
 
 if __name__ == '__main__':
     main(verbosity=2)
