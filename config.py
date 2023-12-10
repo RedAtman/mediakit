@@ -39,6 +39,9 @@ class BaseConfig:
     PROJECT_DESCRIPTION = 'Media Handler'
     # PROJECT_AUTHOR = 'media_handler'
 
+    # FFMPEG
+    FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '/opt/homebrew/bin/ffmpeg')
+
     # BAIDU_TRANSLATE
     BAIDU_TRANSLATE_API = os.getenv('BAIDU_TRANSLATE_API')
     BAIDU_TRANSLATE_APP_ID = os.getenv('BAIDU_TRANSLATE_APP_ID')
