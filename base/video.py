@@ -2,7 +2,6 @@ import functools
 import time
 
 from base.media import BaseMedia
-from config import CONFIG
 from logger import logger
 from mixins import whispers
 from utils import Translator, decorator
@@ -13,15 +12,14 @@ from .media import BaseMedia
 
 class Video(
     BaseMedia,
-    # whispers.MixinMediaWhisper,
-    whispers.MixinMediaFasterWhisper,
+    whispers.MixinMediaWhisper,
+    # whispers.MixinMediaFasterWhisper,
     # whispers.MixinMediaWhisperCPP,
 ):
-    __loglevel = CONFIG.LOG_LEVEL.lower()
 
     ffmpeg_prefix = [
-        'ffmpeg', '-y',
-        '-loglevel', __loglevel,
+        BaseMedia._FFMPEG_BIN, '-y',
+        '-loglevel', BaseMedia._LOG_LEVEL,
         # '-i', self.path,
         # '-threads', '16',
     ]
@@ -125,8 +123,7 @@ class Video(
         '''Reverse video stream.
         '''
         new_file_path = self.get_output_path(suffix='reverse')
-        command = self.ffmpeg_prefix.copy()
-        command.extend([
+        command = self.ffmpeg_prefix + [
             '-i', self.path,
             '-vf', 'reverse',
             # '-aspect', '3:2',
@@ -145,7 +142,7 @@ class Video(
             # '-color_range', '2',
             # '-color_trc', '14',
             new_file_path,
-        ])
+        ]
         # command.extend([
         #     '-i', self.path,
         #     '-vf', 'reverse',
@@ -339,8 +336,7 @@ class Video(
     def images_to_video(self, images_path, image_format, bit_rate='5000k'):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
-        command = self.ffmpeg_prefix.copy()
-        command.extend([
+        command = self.ffmpeg_prefix + [
             # 关闭每帧都提醒是否overwrite
             '-pattern_type', 'glob',
 
@@ -366,7 +362,7 @@ class Video(
             # 时长取最短的media
             # '-shortest',
             new_file_path,
-        ])
+        ]
         CommandExecutor.execute(command)
         return self.__class__(path=new_file_path)
 
@@ -422,7 +418,7 @@ class Video(
             # '-avoid_negative_ts', '1',
             new_file_path
         ]
-        command = f'ffmpeg -y -loglevel debug -ss {ss} -to {to} -accurate_seek \
+        command = f'{" ".join(self.ffmpeg_prefix)} -ss {ss} -to {to} -accurate_seek \
             -i {self.path} -c:v copy -c:a copy {new_file_path}'
         self.executor.run(command)
         return self.__class__(path=new_file_path)
@@ -432,6 +428,8 @@ class Video(
         '''Push the compression lever further by increasing the CRF value — add, say, 4 or 6, 
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond 
         to higher bitrates, and hence produce higher quality videos.
+
+        -c:v: libx264, libx265, qtrle, libvpx, libvpx-vp9
         '''
         suffix, vcodec, preset = 'compress', 'libx265', 'medium'
         new_file_path = self.create_file_path(self.path, suffix=f'[{suffix}.{vcodec}.{preset}]')
@@ -452,13 +450,20 @@ class Video(
 
             # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
             # -preset: ultrafast, superfast, veryfast, faster, fast, medium(default), slow, slower, veryslow, placebo
-            '-vcodec', vcodec, '-preset', preset,
+            # '-vcodec', vcodec,
+            '-c:v', vcodec,
+            '-preset', preset,
+
+            # Use RGBA pixel format to keep transparency
+            # '-pix_fmt', 'rgba',
 
             # Ensure that the output video has a preview image
             '-tag:v', 'hvc1',
 
             # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
             # '-crf', '24',
+
+            # '-avoid_negative_ts', 'make_zero',
             new_file_path,
         ]
 
@@ -580,11 +585,10 @@ class Video(
         return cls(path=new_file_path)
 
     @decorator.timer
-    def decode(self, format='mov'):
+    def decode(self, ext='mp4'):
         '''解码视频'''
-        command = self.ffmpeg_prefix.copy()
-        new_file_path = self.dirname + "/" + self.title + "_decode_." + format
-        command.extend([
+        new_file_path = self.dirname + "/" + self.title + "_decode_." + ext
+        command = self.ffmpeg_prefix + [
             '-i', self.path,
 
             # 线程(待验证)
@@ -592,7 +596,7 @@ class Video(
 
             # '-avoid_negative_ts', '1',
             new_file_path,
-        ])
+        ]
         CommandExecutor.execute(command)
         return self.__class__(path=new_file_path)
 

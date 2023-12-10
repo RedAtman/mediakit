@@ -22,57 +22,6 @@ class BaseFolder:
             raise TypeError(f'Path is not a folder: {path}')
         self.path = path
 
-    @functools.cached_property
-    def files(self):
-        return self.get_files(self.path)
-
-    @functools.cached_property
-    def medias(self):
-        return self.get_medias(self.path)
-
-    @classmethod
-    def get_files(cls, path):
-        return (os.path.abspath(os.path.join(path, file)) for file in os.listdir(path))
-
-    @classmethod
-    def get_medias(cls, path):
-        for file in cls.get_files(path):
-            try:
-                media = cls.MEDIA_CLS(file)
-                yield media
-            except exceptions.NotMediaException:
-                continue
-            except Exception as err:
-                logger.exception(err)
-                continue
-
-    @decorator.timer
-    def get_texts(self):
-        return (self.MEDIA_CLS(file).speech_to_text() for file in self.files)
-
-    def save_texts(self, ext='txt'):
-        '''Save media text to file.
-
-        Arguments:
-            ext {str} -- [file extension]
-
-        Returns:
-            [None] -- [None]
-        '''
-        for media in self.medias:
-            media.save_text(ext=ext)
-        # try:
-        #     while True:
-        #         media = next(self.medias)
-        #         media.save_text(ext=ext)
-        #         # break
-        # except StopIteration:
-        #     logger.info("All media have been processed.")
-        #     return None
-        # except Exception as err:
-        #     logger.exception(err)
-        #     raise err
-
     @property
     def meta(self):
         return Dict2Obj(self.read_meta(self.path))
@@ -124,3 +73,54 @@ class BaseFolder:
             logger.exception(err)
             raise err
         return meta
+
+    @functools.cached_property
+    def files(self):
+        return self.get_files(self.path)
+
+    @functools.cached_property
+    def medias(self):
+        return self.get_medias(self.path)
+
+    @staticmethod
+    def get_files(path):
+        return (os.path.abspath(os.path.join(path, file)) for file in os.listdir(path))
+
+    @classmethod
+    def get_medias(cls, path):
+        for file in cls.get_files(path):
+            try:
+                media = cls.MEDIA_CLS(file)
+                yield media
+            except exceptions.NotMediaException:
+                continue
+            except Exception as err:
+                logger.exception(err)
+                continue
+
+    @decorator.timer
+    def get_texts(self):
+        return (self.MEDIA_CLS(file).speech_to_text() for file in self.files)
+
+    def save_texts(self, ext='txt'):
+        '''Save media text to file.
+
+        Arguments:
+            ext {str} -- [file extension]
+
+        Returns:
+            [None] -- [None]
+        '''
+        for media in self.medias:
+            media.save_text(ext=ext)
+        # try:
+        #     while True:
+        #         media = next(self.medias)
+        #         media.save_text(ext=ext)
+        #         # break
+        # except StopIteration:
+        #     logger.info("All media have been processed.")
+        #     return None
+        # except Exception as err:
+        #     logger.exception(err)
+        #     raise err

@@ -1,4 +1,4 @@
-import concurrent.futures
+from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 import os
 import sys
@@ -32,12 +32,14 @@ class BoundedExecutor:
         # self.semaphore = threading.Semaphore(bound + max_workers)
         # self.lock = threading.Lock()
 
-        self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
+        self.executor = ProcessPoolExecutor(max_workers=max_workers)
         self.semaphore = multiprocessing.Semaphore(bound + max_workers)
         self.lock = multiprocessing.Manager().Lock()
 
     # See concurrent.futures.Executor#submit
-    def submit(self, fn, callback_list=[], *args, **kwargs):
+    def submit(self, fn, *args, callback_list: list=None, **kwargs):
+        """Start a new task, blocks if queue is full."""
+        callback_list = callback_list or []
         self.semaphore.acquire()
         try:
             future = self.executor.submit(fn, *args, **kwargs)
@@ -54,19 +56,18 @@ class BoundedExecutor:
         except Exception as err:
             logger.exception(err)
             self.semaphore.release()
-            # raise
-        else:
-            future.add_done_callback(lambda x: self.semaphore.release())
-            for callback in callback_list:
-                future.add_done_callback(callback)
-            return future
+            raise err
+        future.add_done_callback(lambda x: self.semaphore.release())
+        for callback in callback_list:
+            future.add_done_callback(callback)
+        return future
 
     # See concurrent.futures.Executor#shutdown
     def shutdown(self, wait=True):
         self.executor.shutdown(wait)
         logger.info(
             '<All done!!!> Task: %s, Thread: %s, Parent Process: %s',
-            sys._getframe().f_code.co_name,
+            sys._getframe().f_code.co_name,   # pylint: disable=protected-access
             threading.current_thread().name,
             os.getpid()
         )
@@ -75,15 +76,29 @@ class BoundedExecutor:
 class TaskManager:
     def __init__(self, max_workers=multiprocessing.cpu_count()):
         logger.info('TaskManager init, max_workers: %s', max_workers)
+        # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
-        self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
+        self.executor = ProcessPoolExecutor(max_workers=max_workers)
         self.futures = []
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
+    # def submit(self, fn, *args, callback_list: list = None, **kwargs):
+    #     """Start a new task, blocks if queue is full."""
+    #     callback_list = callback_list or []
+    #     self.semaphore.acquire()
+    #     _future = self.executor.submit(fn, *args, **kwargs)
+    #     self.futures.append(_future)
+    #     for _callback in callback_list:
+    #         _future.add_done_callback(_callback)
+    #     _future.add_done_callback(self._task_done)
+    #     return _future
+
     def submit(self, fn, *args, callback_list: list = None, **kwargs):
         """Start a new task, blocks if queue is full."""
         callback_list = callback_list or []
+        # with self.semaphore:
+            
         self.semaphore.acquire()
         _future = self.executor.submit(fn, *args, **kwargs)
         self.futures.append(_future)

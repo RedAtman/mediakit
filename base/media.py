@@ -5,8 +5,9 @@ import threading
 import time
 from functools import cached_property, partial
 
+from config import CONFIG
 from logger import logger
-from utils import exceptions, is_media, decorator
+from utils import exceptions, is_media
 from utils.command import CommandExecutor
 
 __all__ = [
@@ -16,10 +17,16 @@ __all__ = [
 
 class BaseMedia:
     '''docstring for BaseMedia'''
-    __lock = threading.Lock()
+    _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
+    _LOCK = threading.Lock()
     _executor = partial(CommandExecutor)
+    _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffmpeg')
+    _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffprobe')
+    # logger.warning('_FFMPEG_BIN: %s', _FFMPEG_BIN)
+    # logger.warning('_FFPROBE_BIN: %s', _FFPROBE_BIN)
 
     def __init__(self, path):
+        logger.debug('BaseMedia: %s', path)
         super().__init__()
         path = path.strip()
         if not os.path.exists(path):
@@ -37,7 +44,12 @@ class BaseMedia:
 
     @property
     def executor(self):
-        return self._executor(total=self.frames_count, title=self.path)
+        try:
+            frames_count = self.frames_count
+            title=self.path
+            return self._executor(total=frames_count, title=title)
+        except Exception:
+            return self._executor()
 
     @cached_property
     def frames_count(self):
@@ -69,14 +81,14 @@ class BaseMedia:
         '''
         try:
             result = CommandExecutor.execute(
-                f'ffprobe -v error -select_streams v -show_streams "{self.path}" | \
+                f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | \
                     grep nb_frames | sed -e s/nb_frames=//'
             )
             return int(result)
         except ValueError:
             # logger.exception(err)
             result = CommandExecutor.execute(
-                f'ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
+                f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
                     -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
             )
             return int(result)
@@ -99,10 +111,10 @@ class BaseMedia:
             [type] -- [description]
         '''
         command = [
-            'ffprobe', '-v', 'quiet', '-show_format',
+            cls._FFPROBE_BIN, '-v', 'quiet', '-show_format',
             '-show_streams', '-print_format', 'json', path.strip()
         ]
-        command = f'ffprobe -v quiet -show_format -show_streams -print_format json {path.strip()}'
+        command = f'{cls._FFPROBE_BIN} -v quiet -show_format -show_streams -print_format json {path.strip()}'
         metadata = CommandExecutor.execute(command)
         try:
             return json.loads(metadata)
@@ -176,7 +188,7 @@ class BaseMedia:
         return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
 
     @classmethod
-    def create_file_path(cls, path, suffix='', suffix_number=1):
+    def create_file_path(cls, path, suffix='', suffix_number=1, ext=None):
         '''产生媒体剪切片段输出路径
 
         Arguments:
@@ -190,7 +202,8 @@ class BaseMedia:
             [type] -- [description]
                 e.g.: /Users/nut/Downloads/RS/_trim/VIDEO_trim_1.mp4
         '''
-        dirname, title, ext = cls.get_file_info(path)
+        dirname, title, _ext = cls.get_file_info(path)
+        ext = ext or _ext
         suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
         dirname = os.path.join(dirname, '_' + suffix)
         if not os.path.exists(dirname):
@@ -206,8 +219,8 @@ class BaseMedia:
                 logger.exception(err)
                 raise err
 
-        if cls.__lock:
-            cls.__lock.acquire()
+        if cls._LOCK:
+            cls._LOCK.acquire()
         try:
             suffix_number = suffix_number or 1
             file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
@@ -220,7 +233,7 @@ class BaseMedia:
             logger.exception(err)
             raise err
         finally:
-            if cls.__lock:
-                cls.__lock.release()
+            if cls._LOCK:
+                cls._LOCK.release()
         logger.debug('create_file_path: %s', file_path)
         return file_path
