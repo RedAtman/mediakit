@@ -1,6 +1,7 @@
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import multiprocessing
 import os
+from queue import Queue
 import sys
 import threading
 
@@ -74,13 +75,16 @@ class BoundedExecutor:
 
 
 class TaskManager:
+    PoolExecutor = ThreadPoolExecutor
+    # PoolExecutor = ProcessPoolExecutor
     def __init__(self, max_workers=2):
         max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
         logger.debug('TaskManager init, max_workers: %s', max_workers)
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
-        self.executor = ProcessPoolExecutor(max_workers=max_workers)
+        self.executor = self.PoolExecutor(max_workers=max_workers)
         self.futures = []
+        self.queue = Queue()
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
@@ -96,8 +100,10 @@ class TaskManager:
 
     def _task_done(self, _future):
         """Called once task is done, releases the queue if blocked."""
+        result = _future.result()
+        self.queue.put(result)
         self.shutdown(False)
-        return _future.result()
+        return result
 
     def shutdown(self, wait=True):
         self.semaphore.release()
