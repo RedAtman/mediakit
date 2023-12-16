@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Type
 
 try:
     from dotenv import load_dotenv
@@ -15,13 +16,10 @@ __all__ = [
     'CONFIG',
 ]
 
-# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-
-class BaseConfig:
+class _BaseConfig:
     # All subclasses of BaseConfig will be added to this mapping.
-    mapping = {}
+    mapping: dict[str, type] = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -29,7 +27,8 @@ class BaseConfig:
 
     DEBUG = False
     TESTING = False
-    BASE_DIR = BASE_DIR
+    # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     LOG_DIR = os.path.join(BASE_DIR, "logs")
     os.makedirs(LOG_DIR, exist_ok=True)
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
@@ -72,19 +71,20 @@ class BaseConfig:
     LLAMA_MODEL = './models/llama-2-7b-chat.Q2_K.gguf'
 
 
-class Development(BaseConfig):
+class Development(_BaseConfig):
     '''Development environment configuration'''
     DEBUG = True
 
 
-class Testing(BaseConfig):
+class Testing(_BaseConfig):
     '''Testing environment configuration'''
     TESTING = True
 
 
-class Production(BaseConfig):
+class Production(_BaseConfig):
     '''Production environment configuration'''
     LOG_LEVEL = 'WARNING'
 
 
-CONFIG = BaseConfig.mapping.get(os.getenv('ENV', 'development'), Development)
+env: str = os.getenv('ENV', 'development')
+CONFIG: Type[_BaseConfig] = _BaseConfig.mapping.get(env, Development)
