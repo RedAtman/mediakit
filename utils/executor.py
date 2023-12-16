@@ -1,9 +1,11 @@
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 import multiprocessing
 import os
 from queue import Queue
 import sys
 import threading
+from types import FunctionType, MethodType
+from typing import Any, Callable, List, Union
 
 from logger import logger
 
@@ -38,9 +40,8 @@ class BoundedExecutor:
         self.lock = multiprocessing.Manager().Lock()
 
     # See concurrent.futures.Executor#submit
-    def submit(self, fn, *args, callback_list: list=None, **kwargs):
+    def submit(self, fn, *args, callback_list: List[FunctionType|MethodType]=[], **kwargs):
         """Start a new task, blocks if queue is full."""
-        callback_list = callback_list or []
         self.semaphore.acquire()
         try:
             future = self.executor.submit(fn, *args, **kwargs)
@@ -77,20 +78,19 @@ class BoundedExecutor:
 class TaskManager:
     PoolExecutor = ThreadPoolExecutor
     # PoolExecutor = ProcessPoolExecutor
-    def __init__(self, max_workers=2):
+    def __init__(self, max_workers: int=2):
         max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
         logger.debug('TaskManager init, max_workers: %s', max_workers)
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
-        self.futures = []
-        self.queue = Queue()
+        self.futures: List[Future[int]] = []
+        self.queue: Queue[List[Any]]  = Queue()
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
-    def submit(self, fn, *args, callback_list: list = None, **kwargs):
+    def submit(self, fn: Callable[..., Any], *args: Any, callback_list: List[Union[FunctionType, MethodType]] = [], **kwargs: Any):
         """Start a new task, blocks if queue is full."""
-        callback_list = callback_list or []
         with self.semaphore:
             _future = self.executor.submit(fn, *args, **kwargs)
             self.futures.append(_future)
@@ -98,9 +98,10 @@ class TaskManager:
                 _future.add_done_callback(_callback)
             _future.add_done_callback(self._task_done)
 
-    def _task_done(self, _future):
+    def _task_done(self, _future: Future[Any]):
         """Called once task is done, releases the queue if blocked."""
         result = _future.result()
+        logger.debug('TaskManager._task_done: %s', result)
         self.queue.put(result)
         self.shutdown(False)
         return result
