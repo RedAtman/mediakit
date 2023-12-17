@@ -5,7 +5,7 @@ from queue import Queue
 import sys
 import threading
 from types import FunctionType, MethodType
-from typing import Any, Callable, List, Union
+from typing import Any, Callable, List
 
 from logger import logger
 
@@ -89,7 +89,13 @@ class TaskManager:
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
-    def submit(self, fn: Callable[..., Any], *args: Any, callback_list: List[Union[FunctionType, MethodType]] = [], **kwargs: Any):
+    def submit(
+        self, 
+        fn: Callable[..., Any], 
+        *args: Any, 
+        callback_list: List[Callable[..., Any]] = [], 
+        **kwargs: Any
+    ):
         """Start a new task, blocks if queue is full."""
         with self.semaphore:
             _future = self.executor.submit(fn, *args, **kwargs)

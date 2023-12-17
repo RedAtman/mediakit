@@ -1,5 +1,6 @@
 import functools
 import time
+from typing import List, Optional, Set, Union
 
 from base.media import BaseMedia
 from logger import logger
@@ -27,11 +28,11 @@ class Video(
     def __init__(
         self,
         *args,
-        artist='',
-        category=None,
-        camera=None,
-        lens=None,
-        keywords=None,
+        artist: str = '',
+        category: List[str] = [],
+        camera: List[str] = [],
+        lens: List[str] = [],
+        keywords: List[str] = [],
         **kwargs
     ):
         '''
@@ -44,16 +45,16 @@ class Video(
             loglevel {str} -- [Log level] (default: {CONFIG.LOG_LEVEL.lower()})
         '''
         super().__init__(*args, **kwargs)
-        self.artist = artist
-        self.album_artist = artist
-        self.category = category
-        self.camera = camera
-        self.lens = lens
-        self.keywords = keywords
-        self.keywords_list = set()
+        self.artist: str = artist
+        self.album_artist: str = artist
+        self.category: List[str] = category
+        self.camera: List[str] = camera
+        self.lens: List[str] = lens
+        self.keywords: List[str] = keywords
+        self.keywords_list: Set[str] = set()
 
     @functools.cached_property
-    def order_metadata(self):
+    def order_metadata(self) -> List[str]:
         '''生成获取视频元数据的命令行执行order(List); 同时生成 keywords_list;
 
         Returns:
@@ -62,9 +63,9 @@ class Video(
         meta_key_list = [
             'title', 'artist', 'album_artist', 'category', 'camera', 'lens', 'keywords'
         ]
-        order_metadata = []
+        order_metadata: List[str] = []
         for key in meta_key_list:
-            meta = getattr(self, key)
+            meta: Union[str, list] = getattr(self, key)
             if not meta:
                 continue
 
@@ -112,7 +113,6 @@ class Video(
         '''Set metadata to file.
         '''
         return self.order_metadata.extend([
-            self.order_metadata,
             '-c:a', 'copy',
             '-c:v', 'copy',
             self.get_output_path(suffix='set_metadata'),
@@ -172,12 +172,12 @@ class Video(
         self,
         watermark_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png',
         watermark_transparent=0.3,
-        audio_path=None,
+        audio_path: Optional[str]=None,
         audio_defer: float = 0,
         fade_duration: float = 1,
-        crop='1080p',
-        crop_y=0,
-        reverse=False,
+        crop: str='1080p',
+        crop_y: int=0,
+        reverse: bool=False,
     ):
         '''视频混合处理:
             - 添加logo并设置透明度
@@ -201,7 +201,7 @@ class Video(
         '''
 
         command = self.ffmpeg_prefix.copy()
-        filter_complex = []
+        filter_complex: List[str] = []
 
         if watermark_path:
             command.extend([
@@ -213,39 +213,39 @@ class Video(
                 str(watermark_transparent) + '[logo]',
                 '''[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7''',
             ])
-        if audio_path:
-            audio_defer = str(audio_defer)
-            fade_duration = str(fade_duration)
+        if not audio_path is None:
             command.extend([
-                '-ss', audio_defer,
+                '-ss', str(audio_defer),
                 '-t', str(float(self.duration)),
                 '-i', audio_path,
             ])
             filter_complex.extend([
                 # '[0:a]aeval=0:c=same[audio]',
-                '[2:a]afade=t=in:st=0:d=' + fade_duration + ',afade=t=out:st=' + \
+                '[2:a]afade=t=in:st=0:d=' + str(fade_duration) + ',afade=t=out:st=' + \
                 str(float(self.duration) - 1) + ':d=' + \
-                fade_duration + ',volume=12dB',
+                str(fade_duration) + ',volume=12dB',
                 # '[audio][music]amix=inputs=2:duration=shortest:dropout_transition=2',
             ])
 
         # vf = []
-        video_step_one = []
-        if crop:
+        video_step_one: List[str] = []
+
+        resolution_mapper = {
+            '1080p': [1920, 1080],
+            '4k': [4096, 2160],
+            # '4k': '4096:2304',
+            # '4k': '4096:2736'
+        }
+        resolution = resolution_mapper.get(crop)
+        if resolution:
             # 画面裁剪 crop=width:height 或 # crop=width:-1
             # 画面裁剪 crop=width:height:x:y width:height表示裁剪后的尺寸
             # x:y表示裁剪区域的左上角坐标
             # '-vf', 'crop=1920:1080:0:0',
             # '-vf', 'crop=4096:2160:0:288',
             # vf.extend(['crop=1920:1080:0:200'])
-            resolution = {
-                '1080p': [1920, 1080],
-                '4k': [4096, 2160],
-                # '4k': '4096:2304',
-                # '4k': '4096:2736'
-            }
             xy = [0, crop_y]
-            ret = resolution.get(crop) + xy
+            ret = resolution + xy
 
             # video_step_one.append(
             #     'scale=' + '4096:-1' + '[video_step_zero];[video_step_zero]' + 'crop=' + ':'.join(map(lambda x: str(x), ret)))
@@ -333,7 +333,7 @@ class Video(
         return self.__class__(path=new_file_path)
 
     @decorator.timer
-    def images_to_video(self, images_path, image_format, bit_rate='5000k'):
+    def images_to_video(self, images_path: str, image_format: str, bit_rate: str='5000k'):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
         command = self.ffmpeg_prefix + [
@@ -376,7 +376,7 @@ class Video(
         ]
 
     @decorator.timer
-    def trim(self, trim_time=(), suffix_number=1):
+    def trim(self, trim_time=(), suffix_number: int=1):
         '''截取视频指定某一段时间
 
         Keyword Arguments:
@@ -505,11 +505,11 @@ class Video(
     @classmethod
     def _compress(
         cls,
-        path,
-        width=1280,
-        height=720,
+        path: str,
+        width: int=1280,
+        height: int=720,
         # bitrate=1600000,
-        bitrate=3200000.00,
+        bitrate: float=3200000.00,
     ):
         '''压缩视频
 
@@ -585,7 +585,7 @@ class Video(
         return cls(path=new_file_path)
 
     @decorator.timer
-    def decode(self, ext='mp4'):
+    def decode(self, ext: str='mp4'):
         '''解码视频'''
         new_file_path = self.dirname + "/" + self.title + "_decode_." + ext
         command = self.ffmpeg_prefix + [
@@ -604,7 +604,7 @@ class Video(
         return 'ffmpeg -f concat -i concat.txt -c copy concat.mov'
 
     # @decorator.execute_shell_command
-    def convert_format(self, ext='mp4'):
+    def convert_format(self, ext: str='mp4'):
         '''转换视频格式'''
         new_file_path = self.create_file_path(self.path, suffix=f'[convert.{ext}]', ext=ext)
         command = self.ffmpeg_prefix + [

@@ -1,6 +1,7 @@
 import functools
 import json
 import os
+from typing import Dict
 
 from base.video import Video
 from logger import logger
@@ -14,7 +15,7 @@ __all__ = [
 class BaseFolder:
     MEDIA_CLS = Video
 
-    def __init__(self, path):
+    def __init__(self, path: str):
         path = path.strip()
         if not os.path.exists(path):
             raise FileNotFoundError(f'File not found at path: {path}')
@@ -27,7 +28,7 @@ class BaseFolder:
         return Dict2Obj(self.read_meta(self.path))
 
     @staticmethod
-    def read_meta(path):
+    def read_meta(path: str) -> Dict[str, str]:
         '''Read media meta from meta.json under the folder.
 
         Arguments:
@@ -68,11 +69,12 @@ class BaseFolder:
             raise FileNotFoundError(f'File not found: {path}/meta.json')
         try:
             with open(os.path.join(path, 'meta.json'), 'r', encoding='utf-8') as fd:
-                meta = json.loads(fd.read()).get('video', {})
+                content = fd.read()
+                meta = json.loads(content).get('video', {})
+                return meta
         except Exception as err:
             logger.exception(err)
             raise err
-        return meta
 
     @functools.cached_property
     def files(self):
@@ -83,11 +85,11 @@ class BaseFolder:
         return self.get_medias(self.path)
 
     @staticmethod
-    def get_files(path):
+    def get_files(path: str):
         return (os.path.abspath(os.path.join(path, file)) for file in os.listdir(path))
 
     @classmethod
-    def get_medias(cls, path):
+    def get_medias(cls, path: str):
         for file in cls.get_files(path):
             try:
                 media = cls.MEDIA_CLS(file)

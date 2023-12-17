@@ -1,8 +1,9 @@
+from functools import partial
 import os
 import subprocess
 import sys
 import threading
-from functools import partial
+from typing import List, Optional, Union
 
 from logger import logger  # pylint: disable=W0611
 
@@ -21,13 +22,27 @@ class CommandExecutor:
             self.progress_bar = partial(ProgressBar, total, title, fmt=ProgressBar.FULL)
         # logger.info((total, title, self.progress_bar))
 
-    def run(self, command: list, progress_bar=True):
+    def run(self, command: List[str], progress_bar=True):
         if progress_bar and self.progress_bar:
             return self.execute(command, progress_bar=self.progress_bar())
         return self.execute(command)
 
     @staticmethod
-    def execute(command: list, progress_bar=None):
+    def execute(command: Union[List[str], str], progress_bar: Optional[ProgressBar]=None):
+        """Execute shell command.
+
+        Args:
+            command (Union[List[str], str]): [description]
+            TODO: Constraint command type to List[str] or str
+            progress_bar (Optional[ProgressBar], optional): [description]. Defaults to None.
+
+        Raises:
+            TypeError: [description]
+            subprocess.CalledProcessError: [description]
+
+        Returns:
+            [type]: [description]
+        """
         # logger.debug(progress_bar)
         if not isinstance(command, (list, str)):
             raise TypeError(f'command must be list or str. but got {type(command)}')
@@ -53,7 +68,7 @@ class CommandExecutor:
             encoding='utf-8',
             # text=True,
         ) as process:
-            if progress_bar:
+            if progress_bar and process.stdout:
                 while process.stdout.readable():
                     line = process.stdout.readline()
                     if not line:

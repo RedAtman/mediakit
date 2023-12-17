@@ -46,10 +46,10 @@ class _BaseConfig:
     FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '/opt/homebrew/bin/ffmpeg')
 
     # BAIDU_TRANSLATE
-    BAIDU_TRANSLATE_API = os.getenv('BAIDU_TRANSLATE_API')
-    BAIDU_TRANSLATE_APP_ID = os.getenv('BAIDU_TRANSLATE_APP_ID')
-    BAIDU_TRANSLATE_SECRET_KEY = os.getenv('BAIDU_TRANSLATE_SECRET_KEY')
-    BAIDU_TRANSLATE_SALT = os.getenv('BAIDU_TRANSLATE_SALT')
+    BAIDU_TRANSLATE_API = os.getenv('BAIDU_TRANSLATE_API', '')
+    BAIDU_TRANSLATE_APP_ID = os.getenv('BAIDU_TRANSLATE_APP_ID', '')
+    BAIDU_TRANSLATE_SECRET_KEY = os.getenv('BAIDU_TRANSLATE_SECRET_KEY', '')
+    BAIDU_TRANSLATE_SALT = os.getenv('BAIDU_TRANSLATE_SALT', '')
 
     # MEDIA METADATA
     ARTIST = os.getenv('ARTIST', 'media_helper').split(',')
@@ -58,21 +58,15 @@ class _BaseConfig:
     LENS = json.loads(os.getenv('LENS', '{}'))
 
     # MEDIA FILE
-    MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', '~/Documents/tmp/test.mp4')
-    MEDIA_FILE_FOLDER = os.getenv('MEDIA_FILE_FOLDER', '~/Documents/tmp')
+    MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', 'samples/zh.mp4')
+    MEDIA_FILE_FOLDER = os.getenv('MEDIA_FILE_FOLDER', 'samples')
 
     # WHISPER
-    WHISPER_LIB = 'Whisper'
-    # WHISPER_LIB = 'FasterWhisper'
-    # WHISPER_LIB = 'WhisperCPP'
-    WHISPER_MODEL = 'small'
-    WHISPER_MODEL = 'tiny'
-    WHISPER_MODEL = 'base'
-    WHISPER_MODEL = 'medium'
-    WHISPER_MODEL = 'large'
+    WHISPER_LIB = os.getenv('WHISPER_LIB', 'Whisper')
+    WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'base')
 
     # LLAMA
-    LLAMA_MODEL = './models/llama-2-7b-chat.Q2_K.gguf'
+    LLAMA_MODEL = os.getenv('LLAMA_MODEL', 'base')
 
 
 class Development(_BaseConfig):

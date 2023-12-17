@@ -1,6 +1,6 @@
 import hashlib
-import json
 from itertools import chain
+import json
 
 import requests
 
@@ -32,7 +32,7 @@ class Translator:
         raise ValueError('Translator api is not set')
 
     @classmethod
-    def sign(cls, q):
+    def sign(cls, q: str):
         """ 生成百度翻译api要求的sign(md5值)。
         :param q: :String: 待翻译文字。
         :return :String: 已翻译文字。
@@ -42,7 +42,7 @@ class Translator:
         return hashlib.md5(sign.encode()).hexdigest()
 
     @classmethod
-    def translate(cls, text):
+    def translate(cls, text: str):
         """ 发送翻译请求、解析翻译结果。输入默认检测语种，输出英文。
         :param: text(String & List & Set): 待翻译文字。
         :return(List): 已翻译文字。

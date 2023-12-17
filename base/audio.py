@@ -1,6 +1,6 @@
+from typing import Sequence
+
 from base.media import BaseMedia
-from config import CONFIG
-from logger import logger
 from mixins import whispers
 
 
@@ -18,7 +18,7 @@ class Audio(
         return self._trim(self.path, trim_time=trim_time)
 
     @classmethod
-    def _trim(cls, path, trim_time):
+    def _trim(cls, path: str, trim_time: Sequence[str] = ()):
         '''Trim media file.
 
         Arguments:

@@ -52,7 +52,7 @@ class SQLiteDB:
             cursor.close()
             self.release_connection(connection)
 
-    def execute_insert_update_delete(self, query, params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None):
+    def execute_insert_update_delete(self, query: str, params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None):
         connection = self.get_connection()
         cursor = connection.cursor()
         try:

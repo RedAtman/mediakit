@@ -1,4 +1,5 @@
 import time
+from typing import Any, Callable, Dict, List
 
 from base.folder import BaseFolder
 from base.video import Video
@@ -11,11 +12,11 @@ class Folder(BaseFolder):
     MEDIA_CLS = Video
 
     @decorator.timer
-    def compress(self, callback_list=None):
+    def compress(self, callback_list: List[Callable[..., Any]]=[]):
         self._compress(path=self.path, callback_list=callback_list)
 
     @classmethod
-    def _compress(cls, path='', callback_list=None):
+    def _compress(cls, path: str='', callback_list: List[Callable[..., Any]]=[]):
         '''Multi-process batch file compression.
 
         Keyword Arguments:
@@ -38,11 +39,11 @@ class Folder(BaseFolder):
             logger.info('Waiting for all subprocesses done...')
 
     @decorator.timer
-    def trim(self, files, callback_list=None):
+    def trim(self, files: List[Dict[str, Any]], callback_list: List[Callable[..., Any]]=[]):
         self._trim(files, callback_list)
 
     @classmethod
-    def _trim(cls, files=None, callback_list=None):
+    def _trim(cls, files: List[Dict[str, Any]]=[], callback_list: List[Callable[..., Any]]=[]):
         '''Multi-process batch file trim.
 
         Arguments:
@@ -81,7 +82,7 @@ class Folder(BaseFolder):
             logger.info('Waiting for all subprocesses done...')
 
     @decorator.timer
-    def convert_images_to_video(self, image_format, bit_rate='5000k'):
+    def convert_images_to_video(self, image_format: str, bit_rate='5000k'):
         '''Convert images to video.
 
         Arguments:
@@ -95,7 +96,7 @@ class Folder(BaseFolder):
         self._convert_images_to_video(self.path, image_format, bit_rate)
 
     @classmethod
-    def _convert_images_to_video(cls, images_path, image_format, bit_rate='5000k'):
+    def _convert_images_to_video(cls, images_path: str, image_format: str, bit_rate='5000k'):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
         command = cls.MEDIA_CLS.ffmpeg_prefix + [

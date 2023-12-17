@@ -1,9 +1,10 @@
+from functools import cached_property, partial
 import json
 import os
 import sys
 import threading
 import time
-from functools import cached_property, partial
+from typing import Optional
 
 from config import CONFIG
 from logger import logger
@@ -25,7 +26,7 @@ class BaseMedia:
     # logger.warning('_FFMPEG_BIN: %s', _FFMPEG_BIN)
     # logger.warning('_FFPROBE_BIN: %s', _FFPROBE_BIN)
 
-    def __init__(self, path):
+    def __init__(self, path: str):
         logger.debug('BaseMedia: %s', path)
         super().__init__()
         path = path.strip()
@@ -35,7 +36,6 @@ class BaseMedia:
             raise exceptions.NotMediaException(101, f'Path is not a file: {path}')
         if not is_media(path):
             raise exceptions.NotMediaException(101, f'File is not media file: {path}')
-        logger.debug('BaseMedia: %s', path)
         self.path = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
 
@@ -43,7 +43,7 @@ class BaseMedia:
         return f'{self.__class__.__name__}({self.path})'
 
     @property
-    def executor(self):
+    def executor(self) -> CommandExecutor:
         try:
             frames_count = self.frames_count
             title=self.path
@@ -101,7 +101,7 @@ class BaseMedia:
         return self.get_metadata(self.path)
 
     @classmethod
-    def get_metadata(cls, path):
+    def get_metadata(cls, path: str):
         '''Get media file metadata.
 
         Arguments:
@@ -157,7 +157,7 @@ class BaseMedia:
         return self.metadata.get('streams')[0].get('duration')
 
     @staticmethod
-    def get_file_info(path):
+    def get_file_info(path: str):
         '''Get file info.: dirname, title, ext.
 
         Arguments:
@@ -188,7 +188,7 @@ class BaseMedia:
         return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
 
     @classmethod
-    def create_file_path(cls, path, suffix='', suffix_number=1, ext=None):
+    def create_file_path(cls, path: str, suffix: str='', suffix_number: int=1, ext: Optional[str]=None):
         '''产生媒体剪切片段输出路径
 
         Arguments:
