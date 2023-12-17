@@ -1,11 +1,13 @@
+from datetime import datetime
 import functools
 import json
 import os
-from typing import Dict
+from typing import Any, Dict, List
 
 from base.video import Video
+from config import CONFIG
 from logger import logger
-from utils import Dict2Obj, decorator, exceptions
+from utils import Dict2Obj, calculate_md5, db, decorator, exceptions
 
 __all__ = [
     'BaseFolder',
@@ -136,3 +138,50 @@ class BaseFolder:
             [dict] -- [media info]
         '''
         return {media.path: media.convert_format(ext=ext) for media in self.medias}
+
+    @classmethod
+    @property
+    @functools.cache
+    def db(cls) -> db.SQLiteDB:
+        '''Get db.
+
+        Returns:
+            [SQLiteDB] -- [SQLiteDB instance]
+        '''
+        return db.SQLiteDB(CONFIG.SQLITE_DATABASE)
+
+    def scan(self):
+        '''Scan media.
+
+        Returns:
+            [list] -- [SQL execute result]
+        '''
+        return self._scan(self.path)
+
+    @classmethod
+    def _scan(cls, path: str=CONFIG.MEDIA_FILE_FOLDER):
+        cls.db.execute_query(
+            "CREATE TABLE IF NOT EXISTS media (title TEXT UNIQUE, \
+                md5 TEXT NOT NULL UNIQUE, dirname TEXT, created_date TIMESTAMP, finished_date TIMESTAMP)"
+        )
+        result_list: List[Any] = []
+        for media in cls.get_medias(path):
+            md5 = calculate_md5(media.path)
+            result = cls.db.execute_insert_update_delete(
+                "INSERT OR IGNORE INTO media (title, md5, dirname, created_date) VALUES (?, ?, ?, ?)",
+                (media.title, md5, media.dirname, datetime.now()),
+            )
+            result_list.append(result)
+        return result_list
+
+    def unfinished(self):
+        '''Scan unfinished media.
+
+        Returns:
+            [list] -- [media info]
+        '''
+        return self._unfinished()
+
+    @classmethod
+    def _unfinished(cls):
+        return cls.db.execute_query("SELECT * FROM media WHERE finished_date IS NULL")
