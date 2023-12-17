@@ -1,8 +1,7 @@
+import hashlib
 import mimetypes
 import re
 import sys
-
-from logger import logger  # pylint: disable=unused-import
 
 __all__ = [
     'Dict2Obj',
@@ -10,6 +9,7 @@ __all__ = [
     'ProgressBar',
     'loading_bar',
     'progressbar',
+    'calculate_md5',
 ]
 
 
@@ -151,7 +151,7 @@ def loading_bar(count, total, size):
     )
 
 
-def progressbar(count: int) -> None:
+def progressbar(count: int):
     '''Use `sys.stdout.write` to print the progress bar.
 
     Arguments:
@@ -167,3 +167,11 @@ def progressbar(count: int) -> None:
         print(f"[{current * '#'}{(count - 1 - current)*' '}] - {current + current}/{count}", end="\r")
         yield current
     print('\n')
+
+
+def calculate_md5(file_path: str):
+    """Calculate the MD5 sum of a file."""
+    with open(file_path, "rb") as file:
+        data = file.read()
+        md5 = hashlib.md5(data).hexdigest()
+    return md5
