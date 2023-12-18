@@ -2,6 +2,7 @@ import hashlib
 import mimetypes
 import re
 import sys
+from typing import List
 
 __all__ = [
     'Dict2Obj',
@@ -38,15 +39,12 @@ class Dict2Obj(dict):
 mimetypes.init()
 
 
-def is_media(file):
+def is_media(file: str, include_type: List[str]=['image', 'audio', 'video']):
     '''Check if the file is a media file.'''
     mime_start = mimetypes.guess_type(file)[0]
     if mime_start is not None:
         mime_start = mime_start.split('/')[0]
-        if mime_start in [
-            # 'audio',
-            'video',
-        ]:
+        if mime_start in include_type:
             return True
     return False
 
