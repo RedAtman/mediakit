@@ -1,6 +1,5 @@
 import functools
 import os
-from re import L
 import threading
 import time
 from typing import Any, Callable, List, Type
@@ -51,7 +50,6 @@ class class_property:   # pylint: disable=invalid-name
 
     def __get__(self, obj, owner):
         return self.f(owner)
-
 
 
 # class class_property:

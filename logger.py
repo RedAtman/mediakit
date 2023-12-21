@@ -1,8 +1,8 @@
+from enum import Enum
 import logging
 import logging.config
 import os
 import sys
-from enum import Enum
 
 from config import CONFIG
 
@@ -49,7 +49,7 @@ class ColorFormatter(logging.Formatter):
         WHITE = 37  # 白色
 
     COLOR_MAPPING = {
-        logging.DEBUG: Color.WHITE.value,
+        logging.DEBUG: Color.CYAN.value,
         logging.INFO: Color.GREEN.value,
         logging.WARNING: Color.YELLOW.value,
         logging.ERROR: Color.RED.value,
@@ -121,21 +121,21 @@ LOGGING_CONFIG = {
         'default': {
             '()': 'logger.RelativePathFilter'
         },
-        'debug': {
-            '()': 'logger.RelativePathFilter'
-        },
-        'info': {
-            '()': 'logger.RelativePathFilter'
-        },
-        'warning': {
-            '()': 'logger.RelativePathFilter'
-        },
-        'error': {
-            '()': 'logger.RelativePathFilter'
-        },
-        'critical': {
-            '()': 'logger.RelativePathFilter'
-        },
+        # 'debug': {
+        #     '()': 'logger.RelativePathFilter'
+        # },
+        # 'info': {
+        #     '()': 'logger.RelativePathFilter'
+        # },
+        # 'warning': {
+        #     '()': 'logger.RelativePathFilter'
+        # },
+        # 'error': {
+        #     '()': 'logger.RelativePathFilter'
+        # },
+        # 'critical': {
+        #     '()': 'logger.RelativePathFilter'
+        # },
     },
     'handlers': {
         'default': {

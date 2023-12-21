@@ -78,7 +78,7 @@ class BoundedExecutor:
 class TaskManager:
     PoolExecutor = ThreadPoolExecutor
     # PoolExecutor = ProcessPoolExecutor
-    def __init__(self, max_workers: int=2):
+    def __init__(self, max_workers: int=1):
         max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
         logger.debug('TaskManager init, max_workers: %s', max_workers)
         # self.semaphore = multiprocessing.Semaphore(max_workers)

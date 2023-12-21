@@ -44,6 +44,7 @@ class _BaseConfig:
 
     # FFMPEG
     FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '/opt/homebrew/bin/ffmpeg')
+    MAX_WORKERS = int(os.getenv('MAX_WORKERS', 1))
 
     # BAIDU_TRANSLATE
     BAIDU_TRANSLATE_API = os.getenv('BAIDU_TRANSLATE_API', '')
