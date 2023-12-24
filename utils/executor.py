@@ -1,4 +1,4 @@
-from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ALL_COMPLETED, Future, ProcessPoolExecutor, ThreadPoolExecutor, wait
 import multiprocessing
 import os
 from queue import Queue
@@ -84,16 +84,24 @@ class TaskManager:
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
-        self.futures: List[Future[int]] = []
+        self.futures: List[Future[str]] = []
         self.queue: Queue[List[Any]]  = Queue()
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
+    def submit_all(self, tasks: List[Callable[[], str]], is_wait: bool=True, *args: Any, **kwargs: Any):
+        with self.executor:
+            futures = [self.executor.submit(task, *args, **kwargs) for task in tasks]
+            self.futures.extend(futures)
+            logger.warning("All media have been processed.")
+            if is_wait:
+                wait(self.futures, return_when=ALL_COMPLETED)
+
     def submit(
-        self, 
-        fn: Callable[..., Any], 
-        *args: Any, 
-        callback_list: List[Callable[..., Any]] = [], 
+        self,
+        fn: Callable[..., Any],
+        *args: Any,
+        callback_list: List[Callable[..., Any]] = [],
         **kwargs: Any
     ):
         """Start a new task, blocks if queue is full."""
@@ -107,7 +115,7 @@ class TaskManager:
     def _task_done(self, _future: Future[Any]):
         """Called once task is done, releases the queue if blocked."""
         result = _future.result()
-        logger.debug('TaskManager._task_done: %s', result)
+        logger.warning('TaskManager._task_done: %s', result)
         self.queue.put(result)
         self.shutdown(False)
         return result
