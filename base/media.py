@@ -4,12 +4,13 @@ import os
 import sys
 import threading
 import time
-from typing import Optional
+from typing import Optional, Self, Type
 
 from config import CONFIG
 from logger import logger
-from utils import exceptions, is_media
+from utils import exceptions
 from utils.command import CommandExecutor
+from utils.tools import calculate_md5, is_media
 
 __all__ = [
     'BaseMedia',
@@ -18,6 +19,11 @@ __all__ = [
 
 class BaseMedia:
     '''docstring for BaseMedia'''
+    _INCLUDE_TYPE = [
+        'image',
+        'audio',
+        'video',
+    ]
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
     _executor = partial(CommandExecutor)
@@ -25,22 +31,44 @@ class BaseMedia:
     _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffprobe')
     # logger.warning('_FFMPEG_BIN: %s', _FFMPEG_BIN)
     # logger.warning('_FFPROBE_BIN: %s', _FFPROBE_BIN)
+    # TODO: Type[super]?
+    _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
+    _FFMPEG_PREFIX: list[str] = [
+        _FFMPEG_BIN,
+        '-y',
+        '-loglevel', _LOG_LEVEL,
+        # '-i', self.path,
+        # '-threads', '16',
+    ]
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._SUBCLASS_MAPPER[cls.__name__.lower()] = cls
 
     def __init__(self, path: str):
-        logger.debug('BaseMedia: %s', path)
         super().__init__()
-        path = path.strip()
+        path: str = path.strip()
         if not os.path.exists(path):
             raise FileNotFoundError(f'File not found at path: {path}')
         if not os.path.isfile(path):
             raise exceptions.NotMediaException(101, f'Path is not a file: {path}')
-        if not is_media(path):
+        if not is_media(path, include_type=self._INCLUDE_TYPE):
             raise exceptions.NotMediaException(101, f'File is not media file: {path}')
-        self.path = path
+        logger.debug('BaseMedia: %s', path)
+        self.path: str = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.path})'
+    
+    @cached_property
+    def md5(self):
+        '''Get media file md5.
+
+        Returns:
+            [str] -- [md5]
+        '''
+        return calculate_md5(self.path)
 
     @property
     def executor(self) -> CommandExecutor:
