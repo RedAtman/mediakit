@@ -7,17 +7,17 @@ from config import CONFIG
 from logger import logger
 
 __all__ = [
-    'SQLiteDB',
+    'Engine',
 ]
 
 
-class SQLiteDB:
+class Engine:
     def __init__(self, database: str = CONFIG.SQLITE_DATABASE):
         self.database = database
         self.connection_pool: Queue[sqlite3.Connection] = Queue()
         self.lock = threading.Lock()
         self.create_connection_pool()
-        logger.debug("SQLiteDB: %s", self)
+        logger.debug("Engine: %s", self)
 
     def create_connection_pool(self, pool_size: int=CONFIG.SQLITE_CONNECTION_POOL_SIZE):
         with self.lock:
@@ -72,17 +72,20 @@ class SQLiteDB:
                 connection = self.connection_pool.get()
                 connection.close()
 
+    def get_cursor(self):
+        return self.get_connection().cursor()
+
     def tables(self):
         return self.execute_query("SELECT name FROM sqlite_master WHERE type='table';")
 
 
-def worker(db: SQLiteDB):
+def worker(db: Engine):
     result = db.execute_query("SELECT * FROM media")
     logger.debug(result)
     return result
 
 if __name__ == "__main__":
-    db = SQLiteDB("sqlite.db")
+    db = Engine("sqlite.db")
 
     num_threads = 5
     # threads = []

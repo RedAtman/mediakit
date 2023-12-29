@@ -1,4 +1,7 @@
 from functools import lru_cache
+from typing import Any, Protocol
+
+from whisper import Whisper
 
 from config import CONFIG
 from logger import logger
@@ -10,15 +13,27 @@ __all__ = [
 ]
 
 
-class MixinMediaWhisper:
+class MixinMediaWhisperProtocol(Protocol):
+    path: str
+    dirname: str
+    def whisper_model(self) -> Whisper: ...
+    def _speech_to_text(self) -> dict: ...
+    def speech_to_text(self) -> Any: ...
+    def save_text(self, ext: str = 'txt') -> Any: ...
+
+
+class MixinMediaWhisper(MixinMediaWhisperProtocol):
+    path: str
+    # transcribe_kwargs: dict
+    # _speech_to_text: Callable
 
     @property
-    def whisper_model(self):
+    def whisper_model(self) -> Whisper:
         import whisper  # pylint: disable=import-outside-toplevel
         return whisper.load_model(CONFIG.WHISPER_MODEL)
 
     @property
-    def transcribe_kwargs(self):
+    def transcribe_kwargs(self) -> dict[str, str]:
         return {
             'initial_prompt': '两条商业金句,条条扎心:\
                 1. 商业最大的问题不在商业本身,商业是靠人性打仗的哲学,靠人性脱颖而出的艺术.\
@@ -46,13 +61,17 @@ class MixinMediaWhisper:
 
     # @lru_cache(maxsize=9)
     def speech_to_text(self):
-        return self._speech_to_text().get('text', '')
+        result = self._speech_to_text()
+        if isinstance(result, dict):
+            return result.get('text', '')
+        return result
 
-    def save_text(self, ext='txt'):
+    def save_text(self, ext: str='txt'):
+        result = self._speech_to_text()
+        # with open(self.path, 'w') as file:
         # get srt writer for the current directory
         from whisper.utils import get_writer  # pylint: disable=import-outside-toplevel
         writer = get_writer(ext, self.dirname)
-        result = self._speech_to_text()
         writer(result, self.path, {
             # "max_line_width": 50, "max_line_count": 1, "highlight_words": False
         })  # add empty dictionary for 'options'
