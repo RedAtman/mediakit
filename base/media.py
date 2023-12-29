@@ -47,7 +47,7 @@ class BaseMedia:
 
     def __init__(self, path: str):
         super().__init__()
-        path: str = path.strip()
+        path = path.strip()
         if not os.path.exists(path):
             raise FileNotFoundError(f'File not found at path: {path}')
         if not os.path.isfile(path):
@@ -60,7 +60,7 @@ class BaseMedia:
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.path})'
-    
+
     @cached_property
     def md5(self):
         '''Get media file md5.
@@ -99,7 +99,7 @@ class BaseMedia:
             ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets \
                 -of csv=p=0 input.mp4
 
-            # Unverified.
+            # TODO: Unverified.
             ffmpeg -i input.mp4 -vcodec copy -acodec copy -f null /dev/null 2>&1 | grep 'frame=' | cut -f 2 -d ' '
             ffprobe -i input.mp4 -print_format json -loglevel fatal -show_streams -count_frames -select_streams v
             ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate \
@@ -263,5 +263,5 @@ class BaseMedia:
         finally:
             if cls._LOCK:
                 cls._LOCK.release()
-        logger.debug('create_file_path: %s', file_path)
+        # logger.debug('create_file_path: %s', file_path)
         return file_path

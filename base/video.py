@@ -1,14 +1,20 @@
 import functools
+from pickle import FALSE
+import re
 import time
 from typing import List, Optional, Set, Union
 
 from base.media import BaseMedia
 from logger import logger
-from mixins import whispers
+from src.mixins import whispers
 from utils import Translator, decorator
 from utils.command import CommandExecutor
 
 from .media import BaseMedia
+
+__all__ = [
+    'Video',
+]
 
 
 class Video(
@@ -17,12 +23,8 @@ class Video(
     # whispers.MixinMediaFasterWhisper,
     # whispers.MixinMediaWhisperCPP,
 ):
-
-    ffmpeg_prefix = [
-        BaseMedia._FFMPEG_BIN, '-y',
-        '-loglevel', BaseMedia._LOG_LEVEL,
-        # '-i', self.path,
-        # '-threads', '16',
+    _INCLUDE_TYPE = [
+        'video',
     ]
 
     def __init__(
@@ -123,7 +125,7 @@ class Video(
         '''Reverse video stream.
         '''
         new_file_path = self.get_output_path(suffix='reverse')
-        command = self.ffmpeg_prefix + [
+        command = self._FFMPEG_PREFIX + [
             '-i', self.path,
             '-vf', 'reverse',
             # '-aspect', '3:2',
@@ -200,7 +202,7 @@ class Video(
                 e.g.:
         '''
 
-        command = self.ffmpeg_prefix.copy()
+        command = self._FFMPEG_PREFIX.copy()
         filter_complex: List[str] = []
 
         if watermark_path:
@@ -336,7 +338,7 @@ class Video(
     def images_to_video(self, images_path: str, image_format: str, bit_rate: str='5000k'):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
-        command = self.ffmpeg_prefix + [
+        command = self._FFMPEG_PREFIX + [
             # 关闭每帧都提醒是否overwrite
             '-pattern_type', 'glob',
 
@@ -391,7 +393,7 @@ class Video(
             raise ValueError('参数[time]必须为长度为2的tuple或list')
         ss, to = trim_time
         new_file_path = self.create_file_path(self.path, suffix='trim', suffix_number=suffix_number)
-        command = self.ffmpeg_prefix + [
+        command = self._FFMPEG_PREFIX + [
             # 截取时间
             '-ss', ss,
             '-to', to,
@@ -418,15 +420,15 @@ class Video(
             # '-avoid_negative_ts', '1',
             new_file_path
         ]
-        command = f'{" ".join(self.ffmpeg_prefix)} -ss {ss} -to {to} -accurate_seek \
+        command = f'{" ".join(self._FFMPEG_PREFIX)} -ss {ss} -to {to} -accurate_seek \
             -i {self.path} -c:v copy -c:a copy {new_file_path}'
         self.executor.run(command)
         return self.__class__(path=new_file_path)
 
     @decorator.timer
     def quick_compress(self):
-        '''Push the compression lever further by increasing the CRF value — add, say, 4 or 6, 
-        since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond 
+        '''Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
+        since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
 
         -c:v: libx264, libx265, qtrle, libvpx, libvpx-vp9
@@ -435,7 +437,7 @@ class Video(
         new_file_path = self.create_file_path(self.path, suffix=f'[{suffix}.{vcodec}.{preset}]')
 
         # More smaller size, but more time, more CPU usage.
-        command = self.ffmpeg_prefix + [
+        command = self._FFMPEG_PREFIX + [
             # '-hwaccel', 'auto',
             '-i', self.path,
             # # To scale to half size
@@ -487,8 +489,12 @@ class Video(
         #     -vcodec hevc_videotoolbox -tag:v hvc1 \
         #     -q:v 65 \
         #     "{new_file_path}"'
-        self.executor.run(command)
-        return self.__class__(new_file_path)
+        try:
+            self.executor.run(command)
+        except Exception as err:
+            # logger.exception(err)
+            return False, err
+        return True, self.__class__(new_file_path)
 
     @decorator.timer
     def compress(self):
@@ -541,7 +547,7 @@ class Video(
         # )
 
         new_file_path = cls.create_file_path(path, suffix='compress')
-        command = cls.ffmpeg_prefix + [
+        command = cls._FFMPEG_PREFIX + [
             '-i', path,
             '-s', str(width) + 'x' + str(height),
             '-aspect', str(width) + ':' + str(height),
@@ -588,7 +594,7 @@ class Video(
     def decode(self, ext: str='mp4'):
         '''解码视频'''
         new_file_path = self.dirname + "/" + self.title + "_decode_." + ext
-        command = self.ffmpeg_prefix + [
+        command = self._FFMPEG_PREFIX + [
             '-i', self.path,
 
             # 线程(待验证)
@@ -607,7 +613,7 @@ class Video(
     def convert_format(self, ext: str='mp4'):
         '''转换视频格式'''
         new_file_path = self.create_file_path(self.path, suffix=f'[convert.{ext}]', ext=ext)
-        command = self.ffmpeg_prefix + [
+        command = self._FFMPEG_PREFIX + [
             '-i', self.path,
             # '-map', '0', '-c', 'copy',
             '-c:v', 'copy', '-c:a', 'copy',

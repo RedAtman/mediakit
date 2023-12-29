@@ -1,7 +1,12 @@
 from typing import Sequence
 
-from base.media import BaseMedia
-from mixins import whispers
+from src.mixins import whispers
+
+from .media import BaseMedia
+
+__all__ = [
+    'Audio',
+]
 
 
 class Audio(
@@ -10,6 +15,9 @@ class Audio(
     whispers.MixinMediaFasterWhisper,
     # whispers.MixinMediaWhisperCPP,
 ):
+    _INCLUDE_TYPE = [
+        'audio',
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
