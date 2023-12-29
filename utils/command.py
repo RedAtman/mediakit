@@ -5,7 +5,7 @@ import sys
 import threading
 from typing import List, Optional, Union
 
-from logger import logger  # pylint: disable=W0611
+from logger import logger
 
 from .tools import ProgressBar
 
@@ -84,10 +84,10 @@ class CommandExecutor:
 
             if process.returncode != 0:
                 logger.exception(
-                    'command: %s, returncode: %s, stdout: %s, _stderr: %s',
+                    'returncode: %s, command: %s, stdout: %s, _stderr: %s',
                     command, process.returncode, stdout, _stderr,
                 )
-                raise subprocess.CalledProcessError(process.returncode, command, _stderr)
+                raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=_stderr)
 
-            logger.debug(stdout)
+            # logger.debug(stdout)
             return stdout
