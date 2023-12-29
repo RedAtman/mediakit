@@ -91,11 +91,11 @@ class TaskManager:
 
     def submit_all(self, tasks: List[Callable[[], str]], is_wait: bool=True, *args: Any, **kwargs: Any):
         with self.executor:
-            futures = [self.executor.submit(task, *args, **kwargs) for task in tasks]
-            self.futures.extend(futures)
-            logger.warning("All media have been processed.")
+            futures = [self.submit(task, *args, **kwargs) for task in tasks]
+            logger.debug("All media have been processed.")
             if is_wait:
                 wait(self.futures, return_when=ALL_COMPLETED)
+                logger.debug(("ALL_COMPLETED", self.futures))
 
     def submit(
         self,
