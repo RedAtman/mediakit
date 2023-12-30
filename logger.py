@@ -1,8 +1,11 @@
 from enum import Enum
 import logging
+from logging import LogRecord, StreamHandler
 import logging.config
 import os
+from pprint import pprint
 import sys
+from typing import Any, Callable
 
 from config import CONFIG
 
@@ -96,6 +99,21 @@ class LevelColorFilter(logging.Filter):
         if self.__class__.__name__.upper().startswith(record.levelname):
             return True
         return False
+
+
+# TODO: undone
+class JsonHandler(StreamHandler):
+
+    def emit(self, record: LogRecord) -> None:
+        msg = self.format(record)
+        stream = self.stream
+        # print('msg', msg)
+        # print('stream', stream)
+        _dict = {}
+        for attr in filter(lambda attr: not attr.endswith("__"), dir(record)):
+            _dict[attr] = record.__getattribute__(attr)
+        del _dict["getMessage"]
+        pprint(_dict)
 
 
 LOGGING_CONFIG = {
@@ -249,9 +267,71 @@ LOGGING_CONFIG = {
 }
 
 
+import functools
+from pprint import pformat, pprint
+
+from pygments import formatters, highlight, lexers
+
+
+def wrap(fuc):
+    @functools.wraps(fuc)
+    def inner(msg, *args, **kwargs):
+        # Get the previous frame in the stack, which is the caller of this function.
+        frame = sys._getframe(0)
+        f = frame.f_code.co_filename
+        while frame and frame.f_code.co_filename == f:
+            frame = frame.f_back
+        filename = frame.f_code.co_filename # type: ignore
+        lineno = frame.f_lineno # type: ignore
+        name = frame.f_code.co_name # type: ignore
+
+        # Print the stack trace
+        BOLD = '\033[1m'
+        GRAY = '\033[90m'
+        WARNING = '\033[93m'
+        END = '\033[0m'
+        print(f'[{BOLD}{WARNING}JSON{END}]: {GRAY}{filename}:{lineno}: {name}{END}')
+
+        # Print incoming message.
+        print(
+            highlight(
+                pformat(msg, indent=1, width=80, depth=9),
+                lexers.JsonnetLexer(),
+                # lexers.JsonLexer(),
+                # lexers.PythonTracebackLexer(),
+                formatters.TerminalTrueColorFormatter(
+                    style='algol',
+                    # style='dracula',
+                    # style='friendly',
+                    # style='github-dark',
+                    # style='gruvbox-dark',
+                    # style='gruvbox-light',
+                    # style='native',
+                    # style='rrt',
+                    # style='stata-light',
+                    # style='tango',
+                    # style='trac',
+                    # style='xcode',
+                ),
+                # formatters.TerminalFormatter(),
+                # formatters.Terminal256Formatter(bg='dark', colorscheme='colorful'),
+                # formatters.TerminalFormatter(bg='dark'),
+                # formatters.TerminalFormatter(bg='light'),
+            ),
+            # end='',
+        )
+    return inner
+
+
+class _Logger(logging.Logger):
+    '''Add json type hit to logger.'''
+    json: Callable[..., Any]
+
+
 logging.config.dictConfig(LOGGING_CONFIG)
-logger = logging.getLogger(__name__)
+logger: _Logger = logging.getLogger(__name__)   # type: ignore
 # logger.setLevel(logging.DEBUG)
+setattr(logger, 'json', wrap(getattr(logger, 'debug')))
 logger.debug("Logging is configured.")
 
 if __name__ == '__main__':
@@ -265,3 +345,4 @@ if __name__ == '__main__':
     # logger.error('log level: error')
     # logger.exception('log level: exception')
     # logger.critical('log level: critical')
+    logger.json({'a': 1, 'b': '-' * 80, 'c': {'d': 3, 'e': 4, 'f': {'g': 5, 'h': 6}}})
