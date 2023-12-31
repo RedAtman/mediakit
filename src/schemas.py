@@ -17,6 +17,8 @@ class State(BaseModel):
     class Config:
         from_attributes = True
 
+    def __getitem__(self, key):
+        return self.__dict__.get(key)
 
     # @validator('compress')
 
