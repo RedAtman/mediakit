@@ -16,7 +16,7 @@ class State(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
 
     # @validator('compress')
 

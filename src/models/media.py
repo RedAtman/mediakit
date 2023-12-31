@@ -27,7 +27,11 @@ class Media(SQLModel, table=True):
     )
     # state: schemas.State = Field(Column(MutableDict.as_mutable(JSON)))
 
-    __tablename__ = 'media'
+    # __tablename__ = 'media'
+    @classmethod
+    def __tablename__(cls):
+        return 'media'
+
     __table_args__ = (
         # UniqueConstraint('id', 'name', name='uix_id_name'),
         # Index('ix_id_name', 'name', 'email'),
@@ -47,9 +51,7 @@ class Media(SQLModel, table=True):
 
     @validates('state')
     def validate_state(cls, key: str, value: dict):
-        logger.warning('-' * 80)
         # logger.info(('key', key, set(schemas.State.model_fields.keys())))
-        logger.info(('value', type(value), value, set(value.keys())))
         invalid_keys = set(value.keys()) - set(schemas.State.model_fields.keys())
         if invalid_keys:
             raise TypeError(f"Field state does not allow keys: {invalid_keys}")
