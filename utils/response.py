@@ -42,7 +42,7 @@ class BaseResponse(dict):
     def __init__(
         self, *args: Any,
         code: int=200,
-        msg: Optional[str]=None,
+        msg: Optional[Union[str, Exception]]=None,
         data: Optional[Any]=None, **kwargs: Any,
     ):
         code, msg, data = self.check_kwargs(code, msg, data)
