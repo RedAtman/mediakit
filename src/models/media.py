@@ -1,45 +1,69 @@
 from datetime import datetime
-from typing import Optional
 
-from pydantic import validator
-from sqlalchemy import Column
+from sqlalchemy import Column, DateTime, String
+from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import validates
-from sqlmodel import JSON, Field, SQLModel
 
 from config import CONFIG
 from logger import logger
 from src import schemas
 
 __all__ = [
+    'Base',
     'Media',
 ]
 
+Base = declarative_base()
 
-class Media(SQLModel, table=True):
-    md5: str = Field(index=True, unique=True, primary_key=True)
-    title: str = Field(nullable=False)
-    dirname: str = Field(nullable=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    updated_at: Optional[datetime] = Field(default=None, nullable=True)
-    state: schemas.State = Field(
-        default_factory=dict,
-        sa_column=Column(JSON),
-    )
-    # state: schemas.State = Field(Column(MutableDict.as_mutable(JSON)))
+class Media(Base):
+    md5 = Column(String, primary_key=True, nullable=False)
+    title = Column(String, nullable=False)
+    dirname = Column(String, nullable=False)
+    # created_at = Column(DateTime, default=datetime.utcnow, read_only=True)
+    _created_at = Column('created_at', DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=None, nullable=True)
+    state = Column(JSON, default=schemas.State().model_dump(), nullable=False)
 
-    # __tablename__ = 'media'
-    @classmethod
-    def __tablename__(cls):
-        return 'media'
+    @hybrid_property
+    def created_at(self):
+        '''Make created_at read-only'''
+        return self._created_at
+
+    # @created_at.setter
+    # def created_at(self, value):
+    #     self._created_at = value
+
+    __tablename__ = 'media'
+    # @classmethod
+    # def __tablename__(cls):
+    #     return 'media'
 
     __table_args__ = (
         # UniqueConstraint('id', 'name', name='uix_id_name'),
         # Index('ix_id_name', 'name', 'email'),
     )
 
-    # TODO: Needed for Column(JSON)?
-    class Config:
-        arbitrary_types_allowed = True
+    # def __repr__(self):
+    #     return f"<Media(md5={self.md5}, title={self.title}, dirname={self.dirname}, created_at={self.created_at}, updated_at={self.updated_at}, state={self.state})>"
+
+    def __str__(self) -> str:
+        return f"<{self.__class__.__name__}({self.__dict__})>"
+
+
+    def model_dump(self):
+        return {
+            'md5': self.md5,
+            'title': self.title,
+            'dirname': self.dirname,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'state': self.state,
+        }
+
+    # def model_dump_json(self):
+    #     return schemas.Media(**self.model_dump()).json()
 
     # TODO: untested
     # def as_dict(self):
@@ -49,29 +73,33 @@ class Media(SQLModel, table=True):
     def path(self):
         return f"{self.dirname}/{self.title}"
 
-    @validates('state')
-    def validate_state(cls, key: str, value: dict):
-        # logger.info(('key', key, set(schemas.State.model_fields.keys())))
-        invalid_keys = set(value.keys()) - set(schemas.State.model_fields.keys())
-        if invalid_keys:
-            raise TypeError(f"Field state does not allow keys: {invalid_keys}")
-        return value
+    # @hybrid_property
+    # def compress(self) -> Any:
+    #     return self.state.get('compress')
 
-    # @validator('state')
-    # def validate_state(cls, val: schemas.State, values: dict, **kwargs):
-    #     # fields = Media.metadata.tables.get('media').columns.keys()
-    #     # fields = schemas.State.model_fields.keys()
-    #     # logger.debug(('values', values.keys()))
-    #     # logger.debug(('kwargs', kwargs))
-    #     logger.info(('val', type(val), val.dict()))
-    #     fields = val.model_fields.keys()
-    #     logger.info(('fields', fields))
-    #     # logger.info(('val.model_fields.keys()', val.model_fields.keys()))
-    #     for key in val.model_fields.keys():
-    #         if key not in fields:
-    #             raise ValueError(f"Field {key} is not allowed.")
-    #             raise ValueError("Please ensure that the state provided has all the necessary fields.")
-    #     return val
+    # @compress.setter
+    # def compress(self, value):
+    #     self.state['compress'] = value
+
+    # @compress.expression
+    # def compress(cls):
+    #     return func.json_extract(cls.state, '$.compress')
+
+    # @compress.update_expression
+    # def compress(cls, value):
+    #     return [
+    #         (cls.state, func.json_set(cls.state, '$.compress', value))
+    #     ]
+
+    @validates('state')
+    def validate_state(cls, key: str, state: dict):
+        # logger.info(('key', key, state, set(schemas.State.model_fields.keys())))
+        # invalid_keys = set(state.keys()) - set(schemas.State.model_fields.keys())
+        # if invalid_keys:
+        #     raise TypeError(f"Field state does not allow keys: {invalid_keys}")
+        state = schemas.State(**state).model_dump()
+        return state
+
 
 
 # Signal
@@ -80,8 +108,9 @@ from sqlalchemy import event
 
 @event.listens_for(Media, 'before_update')
 def on_media_before_update(mapper, connection, target):
+    # target.state = schemas.State(**target.state).model_dump()
     target.updated_at = datetime.utcnow()
-    # logger.warning(('on_media_before_update', mapper, connection, target, ))
+    logger.warning(('on_media_before_update', mapper, connection, target, ))
 
 
 if __name__ == "__main__":
