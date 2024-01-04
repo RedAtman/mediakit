@@ -30,7 +30,7 @@ class Engine(BaseEngine):
             pool_timeout=30,  # 池中没有线程最多等待的时间 否则报错
             pool_recycle=-1  # 多久之后对线程池中的线程进行一次连接的回收（重置）
         )
-        SQLModel.metadata.create_all(engine, checkfirst=True)
+        return SQLModel.metadata.create_all(engine, checkfirst=True)
 
     def drop_tables(self):
         engine = create_engine(self.database, echo=True)
@@ -55,10 +55,10 @@ class Engine(BaseEngine):
         session = self.SessionLocal()
         try:
             yield session
-        except Exception as err:
-            session.rollback()
-            logger.error(err)
-            raise err
+        # except Exception as err:
+        #     session.rollback()
+        #     logger.error(err)
+        #     raise err
         finally:
             session.close()
 
@@ -70,7 +70,7 @@ class Engine(BaseEngine):
 
 if __name__ == "__main__":
     engine = Engine("sqlite:///sqlite.db")
-    from src.models.media import Media
+    from models.media import Media
 
     # synchronous usage
     with engine.get_session() as session:
