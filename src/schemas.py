@@ -1,21 +1,28 @@
 
 from enum import IntEnum
-from typing import Optional
 
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, ValidationError
+
+from logger import logger
 
 
-class StateKeyEnum(IntEnum):
+class StateChoices(IntEnum):
+    undo = 0
     running = 1
     finished = 2
 
 
 class State(BaseModel):
-    compress: Optional[StateKeyEnum] = Field(None, description="Error messages if any")
-    trim: Optional[StateKeyEnum] = Field(None, description="Error messages if any")
+    compress: StateChoices = StateChoices.undo
+    trim: StateChoices = StateChoices.undo
+    # compress: StateChoices = Field(StateChoices.undo, description="Error messages if any")
+    # trim: StateChoices = Field(StateChoices.undo, description="Error messages if any")
 
     class Config:
         from_attributes = True
+
+    def __str__(self) -> str:
+        return f"<{self.__class__.__name__}({self.__dict__})>"
 
     def __getitem__(self, key):
         return self.__dict__.get(key)
@@ -24,5 +31,13 @@ class State(BaseModel):
 
 
 if __name__ == '__main__':
-    print(State.model_fields.keys())
-    print('compress' in State.model_fields.keys())
+    logger.debug(State.model_fields.keys())
+    logger.debug('compress' in State.model_fields.keys())
+
+    try:
+        # result = State()
+        # result = State(compress=2, trim=3)
+        result = State(compress=3)
+        logger.json(result)
+    except ValidationError as err:
+        logger.json(err)
