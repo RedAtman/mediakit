@@ -4,11 +4,10 @@ from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import validates
 
 from config import CONFIG
 from logger import logger
-from src import schemas
+from src import db, schemas
 
 __all__ = [
     'Base',
@@ -52,15 +51,15 @@ class Media(Base):
         return f"<{self.__class__.__name__}({self.__dict__})>"
 
 
-    def model_dump(self):
-        return {
-            'md5': self.md5,
-            'title': self.title,
-            'dirname': self.dirname,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at,
-            'state': self.state,
-        }
+    # def model_dump(self):
+    #     return {
+    #         'md5': self.md5,
+    #         'title': self.title,
+    #         'dirname': self.dirname,
+    #         'created_at': self.created_at,
+    #         'updated_at': self.updated_at,
+    #         'state': self.state,
+    #     }
 
     # def model_dump_json(self):
     #     return schemas.Media(**self.model_dump()).json()
@@ -91,15 +90,36 @@ class Media(Base):
     #         (cls.state, func.json_set(cls.state, '$.compress', value))
     #     ]
 
-    @validates('state')
-    def validate_state(cls, key: str, state: dict):
-        # logger.info(('key', key, state, set(schemas.State.model_fields.keys())))
-        # invalid_keys = set(state.keys()) - set(schemas.State.model_fields.keys())
-        # if invalid_keys:
-        #     raise TypeError(f"Field state does not allow keys: {invalid_keys}")
-        state = schemas.State(**state).model_dump()
-        return state
+    # @validates('state')
+    # def validate_state(cls, key: str, state: dict):
+    #     # logger.info(('key', key, state, set(schemas.State.model_fields.keys())))
+    #     # invalid_keys = set(state.keys()) - set(schemas.State.model_fields.keys())
+    #     # if invalid_keys:
+    #     #     raise TypeError(f"Field state does not allow keys: {invalid_keys}")
+    #     logger.debug(('validate_state', key, state, type(state), schemas.State(**state).model_dump()))
+    #     state = schemas.State(**state).model_dump()
+    #     return state
 
+    @classmethod
+    def get_or_create(cls, **kwargs: dict[str, str]):
+        with db.DatabaseEngine.engine.get_session() as session:
+            instance = session.query(cls).filter_by(**kwargs).first()
+            if not instance:
+                instance = cls(**kwargs)
+                session.add(instance)
+                session.commit()
+                return instance
+            return instance
+
+    def update_state(self, key: str, val: int):
+        with db.DatabaseEngine.engine.get_session() as session:
+            state: dict = self.state.copy() # type: ignore
+            # state = dict(self.state)
+            state[key] = val
+            self.state = schemas.State(**state).model_dump()
+            session.add(self)
+            session.commit()
+            return self
 
 
 # Signal
@@ -116,16 +136,17 @@ def on_media_before_update(mapper, connection, target):
 if __name__ == "__main__":
     from utils.db import _sqlmodel
     engine = _sqlmodel.Engine(CONFIG.SQLITE_DATABASE)
-    engine.create_db_and_tables()
+    # engine.create_db_and_tables()
     company: Media = Media(
         md5='md5',
         title='title',
         dirname='dirname',
         # state={'compress': 'compress', 'trim': 'trim'},
-        state = schemas.State(compress='compress', trim='trim')
+        state = schemas.State(
+            compress=schemas.StateChoices.undo,
+            trim=schemas.StateChoices.undo,
+        )
     )
-    logger.info(company)
-    logger.info(company.model_dump())
-    logger.info(company.model_dump_json())
-    logger.info(company.state)
-    # company = Company
+    logger.json(company)
+    logger.json(company.__dict__)
+    logger.json(company.state)
