@@ -56,7 +56,7 @@ class BaseResponse(dict):
         super().__setitem__(key, val)
 
     def __eq__(self, __value: object) -> bool:
-        return self.code == __value
+        return __value in self.values()
 
     def check_kwargs(self,
         code: Union[int, ResultStatus]=200,
