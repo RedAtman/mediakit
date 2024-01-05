@@ -1,8 +1,7 @@
-from contextlib import contextmanager
-from typing import Generator
+from functools import cached_property
 
 import sqlalchemy as db
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from logger import logger
 from src import models
@@ -14,11 +13,6 @@ class Engine(BaseEngine):
         super().__init__(database)
         # e.g. sqlite:///sqlite.db | sqlite+aiosqlite:///sqlite.db | postgresql://user:password@localhost:5432/dbname
         self.database: str = f'sqlite:///{self.database}'
-        self.engine = db.create_engine(
-            self.database, echo=True,
-            # json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
-        )
-        # self.metadata = db.MetaData()
         self.metadata = models.Base.metadata
 
     def create_db_and_tables(self):
@@ -28,28 +22,23 @@ class Engine(BaseEngine):
     def drop_tables(self):
         self.metadata.drop_all(self.engine)
 
-    @property
+    @cached_property
+    def engine(self):
+        return db.create_engine(
+            self.database, echo=True,
+            isolation_level="READ UNCOMMITTED",
+            # json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
+        )
+
+    @cached_property
     def session(self):
         return sessionmaker(
             self.engine,
             # bind=self.engine,
+            expire_on_commit=False,
             # autocommit=False,
             # autoflush=False,
         )
-
-    @contextmanager
-    def get_session(self) -> Generator[Session, None, None]:
-        # return self.session
-        session = self.session()
-        try:
-            yield session
-        # except Exception as err:
-        #     session.rollback()
-        #     logger.error(err)
-        #     return response.Result(code=400, msg=err)
-        #     raise err
-        finally:
-            session.close()
 
 
 if __name__ == '__main__':
