@@ -167,9 +167,9 @@ def progressbar(count: int):
     print('\n')
 
 
-def calculate_md5(file_path: str):
+def calculate_md5(file_path: str) -> str:
     """Calculate the MD5 sum of a file."""
     with open(file_path, "rb") as file:
         data = file.read()
-        md5 = hashlib.md5(data).hexdigest()
+        md5: str = hashlib.md5(data).hexdigest()
     return md5
