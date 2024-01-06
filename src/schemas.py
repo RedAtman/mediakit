@@ -31,6 +31,15 @@ class State(BaseModel):
 
 
 if __name__ == '__main__':
+    state = State()
+    logger.info(('state', type(state), state, state.dict()))
+    setattr(state, 'key', 'value')
+    logger.info(('state', type(state), state, state.dict()))
+    _dict = {
+        'key': 'value',
+    }
+    logger.info(('dict', type(_dict), _dict, _dict.keys(), 'key' in _dict, _dict['key'], hasattr(dict, 'key'), getattr(_dict, 'key', '233')))
+
     logger.debug(State.model_fields.keys())
     logger.debug('compress' in State.model_fields.keys())
 
