@@ -1,49 +1,176 @@
+import functools
+import json
+import os
 import time
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, Generator, List, Optional, Type
 
-from base.folder import BaseFolder
-from base.video import Video
+from base import BaseFolder, BaseMedia
+from config import CONFIG
 from logger import logger
-from utils import TaskManager, decorator, exceptions
+from src.mixins.db import SqlAlchemyFolderMixin
+from utils import Dict2Obj, TaskManager, decorator, exceptions
 from utils.command import CommandExecutor
 
 
-class Folder(BaseFolder):
-    MEDIA_CLS = Video
+class Folder(
+    BaseFolder,
+    SqlAlchemyFolderMixin,
+):
+    def __init__(self, path: str, media_type: str='video'):
+        super().__init__(path)
+        self.MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
 
-    @decorator.timer
-    def compress(self, callback_list: List[Callable[..., Any]]=[]):
-        self._compress(path=self.path, callback_list=callback_list)
+    @functools.cached_property
+    def medias(self):
+        return self.medias_(self.path, media_type=self.MEDIA_CLS.__name__.lower())
 
     @classmethod
-    def _compress(cls, path: str='', callback_list: List[Callable[..., Any]]=[]):
-        '''Multi-process batch file compression.
+    # @functools.cache
+    def medias_(cls, path: str, media_type: str='video') -> Generator[BaseMedia, Any, None]:
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        for file in cls.get_files(path):
+            try:
+                media = MEDIA_CLS(file)
+                yield media
+            except exceptions.NotMediaException:
+                continue
+            except Exception as err:
+                logger.exception(err)
+                continue
+        # try:
+        #     while True:
+        #         file = next(cls.get_files(path))
+        #         try:
+        #             media = MEDIA_CLS(file)
+        #             logger.warning(media, file)
+        #             yield media
+        #         except exceptions.NotMediaException:
+        #             continue
+        #         except Exception as err:
+        #             logger.exception(err)
+        #             continue
+        # except StopIteration:
+        #     pass
 
-        Keyword Arguments:
-            path {str} -- [Wait for the folder path to be compressed] (default: {''})
-                e.g.: /usr/media/
-            callback_list {list} -- [A list of callback function name after the file is compressed] (default: {None})
-                e.g.: ['func', ...]
+    def run(self, media_method: str):
+        return self.run_(
+            media_method,
+            path=self.path,
+            media_type=self.MEDIA_CLS.__name__.lower(),
+        )
+
+    @classmethod
+    def run_(
+        cls, media_method: str,
+        *args: Any,
+        path: str=CONFIG.MEDIA_FILE_FOLDER,
+        media_type: str='video',
+        max_workers: int=CONFIG.MAX_WORKERS,
+        callback_list: List[Callable[..., Any]]=[],
+        **kwargs: Any,
+    ):
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        _media_method = getattr(MEDIA_CLS, media_method, None)
+        if _media_method is None:
+            logger.warning('Unimplemented method: %s', media_method)
+            raise NotImplementedError
+        if not isinstance(_media_method, Callable):
+            logger.warning(f'{MEDIA_CLS} has not implemented {_media_method} method.')
+            raise TypeError
+        medias = cls.medias_(path, media_type)
+        logger.debug(('run_', MEDIA_CLS, medias, type(medias), path, media_type, callback_list))
+        return cls.run__(
+            media_method, *args,
+            medias=medias,
+            max_workers=max_workers,
+            callback_list=callback_list,
+            **kwargs,
+        )
+
+    @staticmethod
+    def run__(
+        media_method: str,
+        *args: Any,
+        medias: Optional[Generator[BaseMedia, None, None]]=None,
+        max_workers: int=CONFIG.MAX_WORKERS,
+        callback_list: List[Callable[..., Any]]=[],
+        **kwargs: Any,
+    ):
+        '''Run all media's method.
         '''
-        callback_list = callback_list or []
-        task_manager = TaskManager()
-        with task_manager.executor:
-            for media in cls.get_medias(path):
-                try:
-                    task_manager.submit(getattr(media, 'quick_compress'), callback_list=callback_list)
-                except exceptions.NotMediaException as err:
-                    logger.error(err)
-                    continue
-                except Exception as err:
-                    logger.exception(err)
-            logger.info('Waiting for all subprocesses done...')
+        # logger.warning(('run__, *args, **kwargs', media_method, args, kwargs, callback_list))
+        if medias is None:
+            logger.warning('medias is None.')
+            raise TypeError
+        tasks = [getattr(media, media_method) for media in medias]
+        task_manager = TaskManager(max_workers)
+        task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
+        return [future.result() for future in task_manager.futures]
+
+    @property
+    def meta(self):
+        return Dict2Obj(self.read_meta(self.path))
+
+    @staticmethod
+    def read_meta(path: str) -> Dict[str, str]:
+        '''Read media meta from meta.json under the folder.
+
+        Arguments:
+            path {str} -- [folder path]
+
+        Returns:
+            [dict] -- [media meta]
+            e.g.: {
+                "video": {
+                    "path": "20210831_ProRes-444_BT2020L_OriRes_25_UHQ_mb05.mov",
+                    "title": "20210831_中国北京天坛祈年殿",
+                    "artist": "aQuantum,一枚量子",
+                    "category": "time_lapse",
+                    "camera": "sony_a7r2",
+                    "lens": "laowa_12mm_f2.8",
+                    "keywords": "天坛,祈年殿,北京,中国,中国北京,中国"
+                },
+                "resolution": "4k",
+                "reverse": False,
+                "crop": {
+                    "w": 4096,
+                    "h": 2160,
+                    "x": 0,
+                    "y": 100
+                },
+                "audio": {
+                    "path": "/Users/nut/Downloads/Illuminate (Trailer Music) - Dirk Leupolz.mp3",
+                    "defer": 15.3,
+                    "fade_duration": 1
+                },
+                "watermark": {
+                    "path": "/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png",
+                    "transparent": 0.3
+                }
+            }
+        '''
+        if not os.listdir(path).count('meta.json'):
+            raise FileNotFoundError(f'File not found: {path}/meta.json')
+        try:
+            with open(os.path.join(path, 'meta.json'), 'r', encoding='utf-8') as fd:
+                content = fd.read()
+                return json.loads(content).get('video', {})
+        except Exception as err:
+            logger.exception(err)
+            raise err
 
     @decorator.timer
-    def trim(self, files: List[Dict[str, Any]], callback_list: List[Callable[..., Any]]=[]):
-        self._trim(files, callback_list)
+    def trim(
+        self, files: List[Dict[str, Any]],
+        callback_list: List[Callable[..., Any]]=[],
+        max_workers: int=CONFIG.MAX_WORKERS):
+        self._trim(files, callback_list, max_workers)
 
     @classmethod
-    def _trim(cls, files: List[Dict[str, Any]]=[], callback_list: List[Callable[..., Any]]=[]):
+    def _trim(
+        cls, files: List[Dict[str, Any]]=[],
+        callback_list: List[Callable[..., Any]]=[],
+        max_workers: int=CONFIG.MAX_WORKERS):
         '''Multi-process batch file trim.
 
         Arguments:
@@ -59,9 +186,9 @@ class Folder(BaseFolder):
                 ]
             callback_list {[list]} -- [A list of callback function names after the file is trimmed] (default: {None})
         '''
-        files = files or []
         callback_list = callback_list or []
-        task_manager = TaskManager()
+        task_manager = TaskManager(max_workers)
+        # TODO: use task_manager.submit_all
         with task_manager.executor:
             for file in files:
                 suffix_number = 0
@@ -96,10 +223,11 @@ class Folder(BaseFolder):
         self._convert_images_to_video(self.path, image_format, bit_rate)
 
     @classmethod
-    def _convert_images_to_video(cls, images_path: str, image_format: str, bit_rate='5000k'):
+    def _convert_images_to_video(cls, images_path: str, image_format: str, bit_rate='5000k', media_type='image'):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
-        command = cls.MEDIA_CLS.ffmpeg_prefix + [
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        command = MEDIA_CLS._FFMPEG_PREFIX + [
             # 关闭每帧都提醒是否overwrite
             '-pattern_type', 'glob',
 
@@ -127,4 +255,4 @@ class Folder(BaseFolder):
             new_file_path,
         ]
         CommandExecutor.execute(command)
-        return cls.MEDIA_CLS(path=new_file_path)
+        return MEDIA_CLS(path=new_file_path)
