@@ -32,7 +32,7 @@ class BaseFolderMixin:
         ...
 
     @staticmethod
-    def query__(engine: base.BaseEngine, statement: Select|Update|str|TextClause, params: dict[str, Any]):
+    def query__(engine: base.BaseEngine, statement: Select|Update|str|TextClause, params: dict[str, Any]={}):
         ...
 
     # _DB_TABLE = 'media'
@@ -43,7 +43,7 @@ class BaseFolderMixin:
         MAPPER_QUERY_STATEMENT = {
             'QUERY_UN_COMPRESS': select(models.Media) \
                 .where(models.Media.dirname == self.abspath) \
-                .where(models.Media.state.op("->>")("compress").cast(Integer) == 0),
+                .where(models.Media.state.op("->>")("compress").cast(Integer) == 0),    # type: ignore
         }
         return MAPPER_QUERY_STATEMENT.get(key, None)
 
@@ -125,6 +125,8 @@ class SqlAlchemyFolderMixin(BaseFolderMixin):
                     result = _result.__dict__
                     if result.get('rowcount') is 0:
                         return response.Result(code=404)
+                elif isinstance(statement, TextClause):
+                    result = session.execute(statement, params)
                 else:
                     result = {}
                 session.commit()
@@ -141,7 +143,7 @@ class SqlModelFolderMixin(BaseFolderMixin):
     _DB_ENGINE_CLS = _sqlmodel.Engine
 
     @staticmethod
-    def query__(engine: _DB_ENGINE_CLS, query: str, params: dict[str, Any]):
+    def query__(engine: _DB_ENGINE_CLS, query: str, params: dict[str, Any]={}):
         # statement = select(models.Media).where(
         #     models.Media.dirname == self.abspath,
         #     # cast(models.Media.state['trim'], String) == 2,
