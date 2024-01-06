@@ -1,138 +1,170 @@
 from datetime import datetime
-import functools
 from typing import Any, Generator, List, Optional, Type
 
+from sqlalchemy import Integer, TextClause, select, text
 import sqlalchemy.exc
 import sqlalchemy.orm.exc
-from sqlmodel import select
+from sqlalchemy.sql.expression import Update
+from sqlalchemy.sql.selectable import Select
 
 from base import BaseMedia
 from config import CONFIG
 from logger import logger
-from src import models, schemas
-from utils.db import _sqlite, _sqlmodel
+from src import models
+from src.db import DatabaseEngine
+from utils import response
+from utils.db import _sqlalchemy, _sqlite, _sqlmodel, base
 
 __all__ = [
+    'SqlAlchemyFolderMixin',
+    'SqlModelFolderMixin',
     'SqliteFolderMixin',
 ]
 
+
 class BaseFolderMixin:
     path: str
+    abspath: str
+    engine: base.BaseEngine = DatabaseEngine.engine
 
     @classmethod
-    def _medias(cls, path: str, media_type: str='video') -> Generator[BaseMedia, Any, None]:
+    def medias_(cls, path: str, media_type: str='video') -> Generator[BaseMedia, Any, None]:
         ...
 
-    @classmethod
-    def scan_media__(cls, medias: Optional[Generator[BaseMedia, Any, None]]=None):
+    @staticmethod
+    def query__(engine: base.BaseEngine, statement: Select|Update|str|TextClause, params: dict[str, Any]):
         ...
 
-    @classmethod
-    def update_state_(cls, path: str, key: str, value: Any):
-        ...
+    # _DB_TABLE = 'media'
+    _DB_MODEL: models.Base = models.Media
+    _DB_TABLE = _DB_MODEL.__tablename__
 
-    _DB_TABLE = 'media'
-    _ENGINE_CLS = _sqlmodel.Engine
-
-    @classmethod
-    @property
-    @functools.cache
-    def engine(cls) -> _ENGINE_CLS:
-        return cls._ENGINE_CLS(CONFIG.SQLITE_DATABASE)
+    def get_query_statement(self, key: str):
+        MAPPER_QUERY_STATEMENT = {
+            'QUERY_UN_COMPRESS': select(models.Media) \
+                .where(models.Media.dirname == self.abspath) \
+                .where(models.Media.state.op("->>")("compress").cast(Integer) == 0),
+        }
+        return MAPPER_QUERY_STATEMENT.get(key, None)
 
     @staticmethod
     def media__(path: str, media_type: str='video'):
         MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         media = MEDIA_CLS(path)
-        logger.info(('media', media, media.title, media.ext, media.md5))
         return media
 
-    def scan_media(self):
-        return self.scan_media_(self.path)
+    def query(self, statement: Select|Update|str|TextClause, params: dict[str, Any] = {}):
+        return self.query__(self.engine, statement, params)
+
+    def scan_media(self, media_type: str='video',):
+        medias = self.medias_(self.path, media_type)
+        return self.scan_media_(self.path, medias, media_type)
 
     @classmethod
     def scan_media_(
-        cls, path: str=CONFIG.MEDIA_FILE_FOLDER,
+        cls,
+        path: str=CONFIG.MEDIA_FILE_FOLDER,
+        medias: Optional[Generator[BaseMedia, None, None]]=None,
         media_type: str='video',
     ):
-        medias = cls._medias(path, media_type)
-        try:
-            return cls.scan_media__(medias)
-        except sqlalchemy.exc.IntegrityError as err:
-            return [{
-                'msg': err.orig,
-                'params': err.params,
-            }]
-        except Exception as err:
-            return [{
-                'msg': err,
-            }]
-
-    def update_state(self, media: BaseMedia, key: str, value: Any):
-        '''Update media state.
-        '''
-        try:
-            return self.update_state_(media.path, key, value)
-        except Exception as err:
-            logger.error(err)
-            return {
-                'msg': err,
-            }
-
-
-class SqlModelFolderMixin(BaseFolderMixin):
+        medias = cls.medias_(path, media_type)
+        # try:
+        #     result = cls.scan_media__(medias)
+        #     return response.Result(code=200, data=result)
+        # except Exception as err:
+        #     logger.error(err)
+        #     return response.Result(code=400, msg=err)
+        return cls.scan_media__(medias)
 
     @classmethod
     def scan_media__(
         cls,
         medias: Optional[Generator[BaseMedia, None, None]]=None,
     ):
-        logger.debug('scan_media__ medias: %s', medias)
         if medias is None:
             logger.warning('medias is None.')
-            raise TypeError
+            raise TypeError(f'medias is None.')
         with cls.engine.get_session() as session:
+            media_list: list[models.Base] = []
             for media in medias:
-                _media = models.Media(
+                _media = cls._DB_MODEL(
                     title=media.title + '.' + media.ext,
                     md5=media.md5,
                     dirname=media.dirname,
                 )
                 session.add(_media)
-            session.commit()
-            return session.execute(select(models.Media)).all()
-
-    @classmethod
-    def update_state_(cls, path: str, key: str, value: Any):
-        media: BaseMedia = cls.media__(path)
-        with cls.engine.get_session() as session:
-            # session.query(models.Media).filter(models.Media.md5 == media.md5).update({'created_at': datetime.now()})
-
-            # statement = select(models.Media).where(models.Media.md5 == media.md5)
-            # _media = session.execute(statement).first()
-
-            _media: Optional[models.Media] = session.get(models.Media, media.md5)
-            if _media is None:
-                raise sqlalchemy.exc.NoResultFound(
-                    f'No media with this md5 value was found in the database: {media.md5}')
-
-            # Check has invalid keys.
-            if key not in schemas.State.model_fields.keys():
-                raise ValueError(f'Field state does not allow key: {key}.')
-
-            _media.state[key] = value
-            # logger.info(('media.state', type(_media.state), _media.state, _media.state.keys()))
-            _media.state = schemas.State(**_media.state).model_dump()
-            # logger.info(('media.path', type(_media.path), _media.path, key, _media.state.get(key)))
-
-            # _media = models.Media.model_validate(_media)
-            session.commit()
-            return _media
+                media_list.append(_media)
+            try:
+                result = session.commit()
+                return response.Result(code=200, data=media_list)
+            except Exception as err:
+                # raise err
+                logger.error(err)
+                # session.rollback()
+                return response.Result(code=400, msg=err)
 
 
+class SqlAlchemyFolderMixin(BaseFolderMixin):
+    _DB_ENGINE_CLS = _sqlalchemy.Engine
+
+    @staticmethod
+    def query__(engine: _DB_ENGINE_CLS, statement: Select|Update|str|TextClause, params: dict[str, Any]={}):
+        if isinstance(statement, str):
+            statement = text(statement)
+        with engine.get_session() as session:
+            try:
+                # session.exec(statement, params)
+                if isinstance(statement, Select):
+                    result = session.execute(statement, params).scalars().all()
+                elif isinstance(statement, Update):
+                    # result = session.query(models.Media).filter(models.Media.md5 == '3a51af5d5e4d3c8b84185729e91e0170').update(
+                    #     {'state': func.json_set(models.Media.state, "$.compress", 0)},
+                    #     synchronize_session='fetch'
+                    # )
+                    _result = session.execute(statement, params)
+                    result = _result.__dict__
+                    if result.get('rowcount') is 0:
+                        return response.Result(code=404)
+                else:
+                    result = {}
+                session.commit()
+            except sqlalchemy.exc.NoResultFound as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            except Exception as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            return response.Result(code=200, data=result)
+
+
+class SqlModelFolderMixin(BaseFolderMixin):
+    _DB_ENGINE_CLS = _sqlmodel.Engine
+
+    @staticmethod
+    def query__(engine: _DB_ENGINE_CLS, query: str, params: dict[str, Any]):
+        # statement = select(models.Media).where(
+        #     models.Media.dirname == self.abspath,
+        #     # cast(models.Media.state['trim'], String) == 2,
+        #     text("state->>'trim' IS NULL")
+        # )
+        stmt = sqlalchemy.text(query)
+        with engine.get_session() as session:
+            try:
+                # session.exec(stmt, params)
+                medias = session.execute(stmt, params)
+                # medias = session.execute(statement).all()
+            except sqlalchemy.exc.NoResultFound as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            except Exception as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            return response.Result(code=200, data=medias)
+
+
+# TODO: maybe need refactor.
 class SqliteFolderMixin(BaseFolderMixin):
-    _ENGINE_CLS = _sqlite.Engine
-    engine: _ENGINE_CLS
+    _DB_ENGINE_CLS = _sqlite.Engine
 
     @classmethod
     def scan_media__(
@@ -161,6 +193,7 @@ class SqliteFolderMixin(BaseFolderMixin):
             result_list.append(result)
         return result_list
 
+    # TODO: remove all update_state method.
     @classmethod
     def update_state_(cls, media: BaseMedia, key: str, value: Any):
         result = cls.engine.execute_query(f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5, ))
@@ -181,14 +214,3 @@ class SqliteFolderMixin(BaseFolderMixin):
         logger.info(('result', type(result), result, result[0][0], media.title + '.' + media.ext, media.md5))
         return cls.engine.execute_query(
             f"SELECT title, json(state) FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5, ))
-
-
-if __name__ == "__main__":
-    # state = schemas.State()
-    # logger.info(('state', type(state), state, state.dict()))
-    # setattr(state, 'key', 'value')
-    # logger.info(('state', type(state), state, state.dict()))
-    _dict = {
-        'key': 'value',
-    }
-    logger.info(('dict', type(_dict), _dict, _dict.keys(), 'key' in _dict, _dict['key'], hasattr(dict, 'key'), getattr(_dict, 'key', '233')))
