@@ -1,12 +1,15 @@
 from contextlib import contextmanager
-from typing import AsyncGenerator, Iterator
+from typing import Any, AsyncGenerator, Iterator
 
-from sqlalchemy import text
+from sqlalchemy import select, text
+import sqlalchemy.exc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
+import sqlalchemy.orm.exc
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from logger import logger
+from utils import response
 
 from .base import BaseEngine
 
@@ -66,6 +69,26 @@ class Engine(BaseEngine):
     async def get_async_session(self) -> AsyncGenerator[AsyncSession, None]:
         async with self.AsyncSessionLocal() as session:
             yield session
+
+    def query__(self, query: str, params: dict[str, Any]={}):
+        # statement = select(models.Media).where(
+        #     models.Media.dirname == self.abspath,
+        #     # cast(models.Media.state['trim'], String) == 2,
+        #     text("state->>'trim' IS NULL")
+        # )
+        stmt = sqlalchemy.text(query)
+        with self.get_session() as session:
+            try:
+                # session.exec(stmt, params)
+                medias = session.execute(stmt, params)
+                # medias = session.execute(statement).all()
+            except sqlalchemy.exc.NoResultFound as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            except Exception as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            return response.Result(code=200, data=medias)
 
 
 if __name__ == "__main__":

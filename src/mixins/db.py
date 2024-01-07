@@ -1,9 +1,7 @@
 from datetime import datetime
 from typing import Any, Generator, List, Optional, Type
 
-from sqlalchemy import Integer, TextClause, select, text
-import sqlalchemy.exc
-import sqlalchemy.orm.exc
+from sqlalchemy import Integer, TextClause, select
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
 
@@ -54,7 +52,7 @@ class BaseFolderMixin:
         return media
 
     def query(self, statement: Select|Update|str|TextClause, params: dict[str, Any] = {}):
-        return self.query__(self.engine, statement, params)
+        return self.engine.query(statement, params)
 
     def scan_media(self, media_type: str='video',):
         medias = self.medias_(self.path, media_type)
@@ -107,61 +105,9 @@ class BaseFolderMixin:
 class SqlAlchemyFolderMixin(BaseFolderMixin):
     _DB_ENGINE_CLS = _sqlalchemy.Engine
 
-    @staticmethod
-    def query__(engine: _DB_ENGINE_CLS, statement: Select|Update|str|TextClause, params: dict[str, Any]={}):
-        if isinstance(statement, str):
-            statement = text(statement)
-        with engine.get_session() as session:
-            try:
-                # session.exec(statement, params)
-                if isinstance(statement, Select):
-                    result = session.execute(statement, params).scalars().all()
-                elif isinstance(statement, Update):
-                    # result = session.query(models.Media).filter(models.Media.md5 == '3a51af5d5e4d3c8b84185729e91e0170').update(
-                    #     {'state': func.json_set(models.Media.state, "$.compress", 0)},
-                    #     synchronize_session='fetch'
-                    # )
-                    _result = session.execute(statement, params)
-                    result = _result.__dict__
-                    if result.get('rowcount') is 0:
-                        return response.Result(code=404)
-                elif isinstance(statement, TextClause):
-                    result = session.execute(statement, params)
-                else:
-                    result = {}
-                session.commit()
-            except sqlalchemy.exc.NoResultFound as err:
-                logger.error(err)
-                return response.Result(code=400, msg=err)
-            except Exception as err:
-                logger.error(err)
-                return response.Result(code=400, msg=err)
-            return response.Result(code=200, data=result)
-
 
 class SqlModelFolderMixin(BaseFolderMixin):
     _DB_ENGINE_CLS = _sqlmodel.Engine
-
-    @staticmethod
-    def query__(engine: _DB_ENGINE_CLS, query: str, params: dict[str, Any]={}):
-        # statement = select(models.Media).where(
-        #     models.Media.dirname == self.abspath,
-        #     # cast(models.Media.state['trim'], String) == 2,
-        #     text("state->>'trim' IS NULL")
-        # )
-        stmt = sqlalchemy.text(query)
-        with engine.get_session() as session:
-            try:
-                # session.exec(stmt, params)
-                medias = session.execute(stmt, params)
-                # medias = session.execute(statement).all()
-            except sqlalchemy.exc.NoResultFound as err:
-                logger.error(err)
-                return response.Result(code=400, msg=err)
-            except Exception as err:
-                logger.error(err)
-                return response.Result(code=400, msg=err)
-            return response.Result(code=200, data=medias)
 
 
 # TODO: maybe need refactor.

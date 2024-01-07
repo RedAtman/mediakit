@@ -1,20 +1,27 @@
+import abc
 from contextlib import contextmanager
-from typing import Generator, Type
+from typing import Any, Generator, Type
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, TextClause
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.base import Connection
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import Update
+from sqlalchemy.sql.selectable import Select
 
 from logger import logger
 
 
-class BaseEngine:
+class BaseEngine(abc.ABC):
 
     engine: Engine
     metadata: MetaData
     conn: Connection
     session: Type[Session]
+
+    @abc.abstractmethod
+    def query__(self, statement: Select|Update|str|TextClause, params: dict[str, Any]={}):
+        pass
 
     def __init__(self, database: str):
         self.database: str = database
@@ -33,3 +40,6 @@ class BaseEngine:
             raise err
         finally:
             session.close()
+
+    def query(self, statement: Select|Update|str|TextClause, params: dict[str, Any]={}):
+        return self.query__(statement, params)

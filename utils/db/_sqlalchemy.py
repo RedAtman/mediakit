@@ -1,10 +1,17 @@
 from functools import cached_property
+from typing import Any
 
 import sqlalchemy as db
+from sqlalchemy import TextClause, text
+import sqlalchemy.exc
 from sqlalchemy.orm import sessionmaker
+import sqlalchemy.orm.exc
+from sqlalchemy.sql.expression import Update
+from sqlalchemy.sql.selectable import Select
 
 from logger import logger
 from src import models
+from utils import response
 from utils.db.base import BaseEngine
 
 
@@ -39,6 +46,36 @@ class Engine(BaseEngine):
             # autocommit=False,
             # autoflush=False,
         )
+
+    def query__(self, statement: Select|Update|str|TextClause, params: dict[str, Any]={}):
+        if isinstance(statement, str):
+            statement = text(statement)
+        with self.get_session() as session:
+            try:
+                # session.exec(statement, params)
+                if isinstance(statement, Select):
+                    result = session.execute(statement, params).scalars().all()
+                elif isinstance(statement, Update):
+                    # result = session.query(models.Media).filter(models.Media.md5 == '3a51af5d5e4d3c8b84185729e91e0170').update(
+                    #     {'state': func.json_set(models.Media.state, "$.compress", 0)},
+                    #     synchronize_session='fetch'
+                    # )
+                    _result = session.execute(statement, params)
+                    result = _result.__dict__
+                    if result.get('rowcount') is 0:
+                        return response.Result(code=404)
+                elif isinstance(statement, TextClause):
+                    result = session.execute(statement, params)
+                else:
+                    result = {}
+                session.commit()
+            except sqlalchemy.exc.NoResultFound as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            except Exception as err:
+                logger.error(err)
+                return response.Result(code=400, msg=err)
+            return response.Result(code=200, data=result)
 
 
 if __name__ == '__main__':
