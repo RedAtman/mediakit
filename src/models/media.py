@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.sqlite import JSON
@@ -99,6 +100,12 @@ class Media(Base):
     #     logger.debug(('validate_state', key, state, type(state), schemas.State(**state).model_dump()))
     #     state = schemas.State(**state).model_dump()
     #     return state
+
+    @classmethod
+    def get(cls, **kwargs: dict[str, Any]):
+        with db.DatabaseEngine.engine.get_session() as session:
+            instance = session.query(cls).filter_by(**kwargs).first()
+            return instance
 
     @classmethod
     def get_or_create(cls, **kwargs: dict[str, str]):
