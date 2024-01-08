@@ -8,6 +8,7 @@ from typing import Optional, Self, Type
 
 from config import CONFIG
 from logger import logger
+from src import models
 from utils import exceptions
 from utils.command import CommandExecutor
 from utils.tools import calculate_md5, is_media
@@ -40,6 +41,7 @@ class BaseMedia:
         # '-i', self.path,
         # '-threads', '16',
     ]
+    _MEDIA_CLS: Type[models.Media] = models.Media
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -57,6 +59,7 @@ class BaseMedia:
         logger.debug('BaseMedia: %s', path)
         self.path: str = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
+        self.media: models.Media = self._MEDIA_CLS.get(md5=self.md5)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.path})'
