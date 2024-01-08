@@ -80,7 +80,6 @@ class TaskManager:
     # PoolExecutor = ProcessPoolExecutor
     def __init__(self, max_workers: int=1):
         max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
-        logger.debug('TaskManager init, max_workers: %s', max_workers)
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
@@ -115,7 +114,7 @@ class TaskManager:
     def _task_done(self, _future: Future[Any]):
         """Called once task is done, releases the queue if blocked."""
         result = _future.result()
-        logger.warning('TaskManager._task_done: %s', result)
+        logger.debug('TaskManager._task_done: %s', result)
         self.queue.put(result)
         self.shutdown(False)
         return result
