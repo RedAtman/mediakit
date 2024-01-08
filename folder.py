@@ -87,8 +87,9 @@ class Folder(
             **kwargs,
         )
 
-    @staticmethod
+    @classmethod
     def run__(
+        cls,
         media_method: str,
         *args: Any,
         medias: Optional[Generator[BaseMedia, None, None]]=None,
@@ -98,11 +99,25 @@ class Folder(
     ):
         '''Run all media's method.
         '''
-        # logger.warning(('run__, *args, **kwargs', media_method, args, kwargs, callback_list))
         if medias is None:
-            logger.warning('medias is None.')
-            raise TypeError
+            raise TypeError('medias is None.')
         tasks = [getattr(media, media_method) for media in medias]
+        return cls.run___(
+            *args,
+            tasks=tasks,
+            max_workers=max_workers,
+            callback_list=callback_list,
+            **kwargs,
+        )
+
+    @staticmethod
+    def run___(
+        *args: Any,
+        tasks: List[Callable]=[],
+        max_workers: int=CONFIG.MAX_WORKERS,
+        callback_list: List[Callable[..., Any]]=[],
+        **kwargs: Any,
+    ):
         task_manager = TaskManager(max_workers)
         task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
         return [future.result() for future in task_manager.futures]
