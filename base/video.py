@@ -1,13 +1,11 @@
 import functools
-from pickle import FALSE
-import re
 import time
 from typing import List, Optional, Set, Union
 
 from base.media import BaseMedia
 from logger import logger
 from src.mixins import whispers
-from utils import Translator, decorator
+from utils import Translator, decorator, response
 from utils.command import CommandExecutor
 
 from .media import BaseMedia
@@ -493,7 +491,13 @@ class Video(
             self.executor.run(command)
         except Exception as err:
             # logger.exception(err)
+            return response.Result(code=400, msg=err)
             return False, err
+        return response.Result(code=200, data={
+            'handler': self,
+            'media': self.media,
+            'new_file_path': new_file_path,
+        })
         return True, self.__class__(new_file_path)
 
     @decorator.timer
