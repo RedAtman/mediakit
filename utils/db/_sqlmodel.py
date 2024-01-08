@@ -3,8 +3,8 @@ from typing import Any, AsyncGenerator, Iterator
 
 from sqlalchemy import select, text
 import sqlalchemy.exc
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 import sqlalchemy.orm.exc
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -23,9 +23,7 @@ class Engine(BaseEngine):
         super().__init__(database)
         # e.g. sqlite:///sqlite.db | sqlite+aiosqlite:///sqlite.db | postgresql://user:password@localhost:5432/dbname
         self.database: str = f'sqlite:///{self.database}'
-
-    def create_db_and_tables(self):
-        engine = create_engine(
+        self.engine = create_engine(
             self.database, echo=True,
             # connect_args={'check_same_thread': False},
             max_overflow=0,  # 超过连接池大小外最多创建的连接
@@ -33,21 +31,32 @@ class Engine(BaseEngine):
             pool_timeout=30,  # 池中没有线程最多等待的时间 否则报错
             pool_recycle=-1  # 多久之后对线程池中的线程进行一次连接的回收（重置）
         )
-        return SQLModel.metadata.create_all(engine, checkfirst=True)
+
+    def create_db_and_tables(self):
+        return SQLModel.metadata.create_all(self.engine, checkfirst=True)
 
     def drop_tables(self):
-        engine = create_engine(self.database, echo=True)
-        SQLModel.metadata.drop_all(engine, checkfirst=True)
+        SQLModel.metadata.drop_all(self.engine, checkfirst=True)
 
     @property
     def SessionLocal(self):
-        engine = create_engine(self.database, echo=True)
+        session_factory = sessionmaker(
+            bind=self.engine,
+            autocommit=False,
+            autoflush=False,
+        )
+        # Use scoped_session to create a thread-local session. For thread safety, it’s usually best to create a new Session instance for each incoming request, and scope it to that request.
+        return scoped_session(session_factory)
         return sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
     @property
     def AsyncSessionLocal(self):
-        async_engine = create_async_engine(self.db_url)
-        return sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
+        async_engine: AsyncEngine = create_async_engine(self.database)
+        return async_sessionmaker(
+            bind=async_engine,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        )
 
     # @property
     # def session(self) -> Session:
