@@ -263,6 +263,14 @@ LOGGING_CONFIG = {
             'level': 'DEBUG',
             'propagate': False
         },
+        'sqlalchemy': {
+            'handlers': [
+                'default',
+                'console',
+            ],
+            'level': 'WARNING',
+            'propagate': False
+        },
     }
 }
 
@@ -347,3 +355,8 @@ if __name__ == '__main__':
     # logger.exception('log level: exception')
     # logger.critical('log level: critical')
     logger.json({'a': 1, 'b': '-' * 80, 'c': {'d': 3, 'e': 4, 'f': {'g': 5, 'h': 6}}})
+    sqllogger = logging.getLogger('sqlalchemy')
+    logger.json(sqllogger.__dict__)
+    sqllogger.debug('sqllogger debug')
+    sqllogger.info('sqllogger info')
+    sqllogger.warning('sqllogger debug')
