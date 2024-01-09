@@ -273,9 +273,9 @@ from pprint import pformat, pprint
 from pygments import formatters, highlight, lexers
 
 
-def wrap(fuc):
+def json_wrap(fuc):
     @functools.wraps(fuc)
-    def inner(msg, *args, **kwargs):
+    def inner(self, msg, *args, **kwargs):
         # Get the previous frame in the stack, which is the caller of this function.
         frame = sys._getframe(0)
         f = frame.f_code.co_filename
@@ -328,11 +328,12 @@ class _Logger(logging.Logger):
     json: Callable[..., Any]
 
 
+setattr(logging.Logger, 'json', json_wrap(getattr(logging.Logger, 'debug')))
 logging.config.dictConfig(LOGGING_CONFIG)
 logger: _Logger = logging.getLogger(__name__)   # type: ignore
 # logger.setLevel(logging.DEBUG)
-setattr(logger, 'json', wrap(getattr(logger, 'debug')))
 logger.debug("Logging is configured.")
+logger.json(('__annotations__', logging.Logger.__annotations__))
 
 if __name__ == '__main__':
     # 引入logger
