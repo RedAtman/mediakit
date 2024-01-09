@@ -69,6 +69,34 @@ class Folder(
         callback_list: List[Callable[..., Any]]=[],
         **kwargs: Any,
     ):
+        '''Run the specified method of all media in the folder.
+
+        Arguments:
+            media_method {str} -- [media method name]
+            path {str} -- [folder path] (default: {CONFIG.MEDIA_FILE_FOLDER})
+            media_type {str} -- [media type] (default: {'video'})
+            max_workers {int} -- [max_workers] (default: {CONFIG.MAX_WORKERS})
+            callback_list {List[Callable[..., Any]]} -- [callback function list] (default: {[]})
+
+        Returns:
+            [list] -- [The return value of each media method]
+            e.g.: [
+                {
+                    code: <ResultStatus.SUCCESS: 200>,
+                    msg: 'Success',
+                    data: {},
+                },
+            ]
+
+        Usage:
+        e.g.:
+            Folder.run_(
+                'quick_compress',
+                *args,
+                callback_list=[callback, ],
+                **kwargs,
+            )
+        '''
         MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         _media_method = getattr(MEDIA_CLS, media_method, None)
         if _media_method is None:
@@ -97,8 +125,6 @@ class Folder(
         callback_list: List[Callable[..., Any]]=[],
         **kwargs: Any,
     ):
-        '''Run all media's method.
-        '''
         if medias is None:
             raise TypeError('medias is None.')
         tasks = [getattr(media, media_method) for media in medias]
