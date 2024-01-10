@@ -1,9 +1,7 @@
 from enum import Enum
 import logging
-from logging import LogRecord, StreamHandler
 import logging.config
 import os
-from pprint import pprint
 import sys
 from typing import Any, Callable
 
@@ -99,21 +97,6 @@ class LevelColorFilter(logging.Filter):
         if self.__class__.__name__.upper().startswith(record.levelname):
             return True
         return False
-
-
-# TODO: undone
-class JsonHandler(StreamHandler):
-
-    def emit(self, record: LogRecord) -> None:
-        msg = self.format(record)
-        stream = self.stream
-        # print('msg', msg)
-        # print('stream', stream)
-        _dict = {}
-        for attr in filter(lambda attr: not attr.endswith("__"), dir(record)):
-            _dict[attr] = record.__getattribute__(attr)
-        del _dict["getMessage"]
-        pprint(_dict)
 
 
 LOGGING_CONFIG = {
@@ -276,7 +259,7 @@ LOGGING_CONFIG = {
 
 
 import functools
-from pprint import pformat, pprint
+from pprint import pformat
 
 from pygments import formatters, highlight, lexers
 
@@ -341,7 +324,7 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger: _Logger = logging.getLogger(__name__)   # type: ignore
 # logger.setLevel(logging.DEBUG)
 logger.debug("Logging is configured.")
-logger.json(('__annotations__', logging.Logger.__annotations__))
+
 
 if __name__ == '__main__':
     # 引入logger
@@ -355,8 +338,9 @@ if __name__ == '__main__':
     # logger.exception('log level: exception')
     # logger.critical('log level: critical')
     logger.json({'a': 1, 'b': '-' * 80, 'c': {'d': 3, 'e': 4, 'f': {'g': 5, 'h': 6}}})
-    sqllogger = logging.getLogger('sqlalchemy')
-    logger.json(sqllogger.__dict__)
-    sqllogger.debug('sqllogger debug')
-    sqllogger.info('sqllogger info')
-    sqllogger.warning('sqllogger debug')
+
+    sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')
+    logger.json(sqlalchemy_logger.__dict__)
+    sqlalchemy_logger.debug('sqlalchemy debug')
+    sqlalchemy_logger.info('sqlalchemy info')
+    sqlalchemy_logger.warning('sqlalchemy warning')
