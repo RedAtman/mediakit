@@ -1,24 +1,30 @@
 import functools
 import json
+import logging
 import os
 import time
 from typing import Any, Callable, Dict, Generator, List, Optional, Type
 
 from base import BaseFolder, BaseMedia
 from config import CONFIG
-from logger import logger
 from src.mixins.db import SqlAlchemyFolderMixin
-from utils import Dict2Obj, TaskManager, decorator, exceptions
+from utils import decorator, exceptions, executor
 from utils.command import CommandExecutor
+from utils.tools import Dict2Obj
+
+
+logger = logging.getLogger()
 
 
 class Folder(
     BaseFolder,
     SqlAlchemyFolderMixin,
 ):
-    def __init__(self, path: str, media_type: str='video'):
+    def __init__(self, path: str, media_type: str = "video"):
         super().__init__(path)
-        self.MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        self.MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
+            media_type, BaseMedia
+        )
 
     @functools.cached_property
     def medias(self):
@@ -26,8 +32,12 @@ class Folder(
 
     @classmethod
     # @functools.cache
-    def medias_(cls, path: str, media_type: str='video') -> Generator[BaseMedia, Any, None]:
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+    def medias_(
+        cls, path: str, media_type: str = "video"
+    ) -> Generator[BaseMedia, Any, None]:
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
+            media_type, BaseMedia
+        )
         for file in cls.get_files(path):
             try:
                 media = MEDIA_CLS(file)
@@ -61,15 +71,16 @@ class Folder(
 
     @classmethod
     def run_(
-        cls, media_method: str,
+        cls,
+        media_method: str,
         *args: Any,
-        path: str=CONFIG.MEDIA_FILE_FOLDER,
-        media_type: str='video',
-        max_workers: int=CONFIG.MAX_WORKERS,
-        callback_list: List[Callable[..., Any]]=[],
+        path: str = CONFIG.MEDIA_FILE_FOLDER,
+        media_type: str = "video",
+        max_workers: int = CONFIG.MAX_WORKERS,
+        callback_list: List[Callable[..., Any]] = [],
         **kwargs: Any,
     ):
-        '''Run the specified method of all media in the folder.
+        """Run the specified method of all media in the folder.
 
         Arguments:
             media_method {str} -- [media method name]
@@ -96,19 +107,24 @@ class Folder(
                 callback_list=[callback, ],
                 **kwargs,
             )
-        '''
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        """
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
+            media_type, BaseMedia
+        )
         _media_method = getattr(MEDIA_CLS, media_method, None)
         if _media_method is None:
-            logger.warning('Unimplemented method: %s', media_method)
+            logger.warning("Unimplemented method: %s", media_method)
             raise NotImplementedError
         if not isinstance(_media_method, Callable):
-            logger.warning(f'{MEDIA_CLS} has not implemented {_media_method} method.')
+            logger.warning(f"{MEDIA_CLS} has not implemented {_media_method} method.")
             raise TypeError
         medias = cls.medias_(path, media_type)
-        logger.debug(('run_', MEDIA_CLS, medias, type(medias), path, media_type, callback_list))
+        logger.debug(
+            ("run_", MEDIA_CLS, medias, type(medias), path, media_type, callback_list)
+        )
         return cls.run__(
-            media_method, *args,
+            media_method,
+            *args,
             medias=medias,
             max_workers=max_workers,
             callback_list=callback_list,
@@ -120,13 +136,13 @@ class Folder(
         cls,
         media_method: str,
         *args: Any,
-        medias: Optional[Generator[BaseMedia, None, None]]=None,
-        max_workers: int=CONFIG.MAX_WORKERS,
-        callback_list: List[Callable[..., Any]]=[],
+        medias: Optional[Generator[BaseMedia, None, None]] = None,
+        max_workers: int = CONFIG.MAX_WORKERS,
+        callback_list: List[Callable[..., Any]] = [],
         **kwargs: Any,
     ):
         if medias is None:
-            raise TypeError('medias is None.')
+            raise TypeError("medias is None.")
         tasks = [getattr(media, media_method) for media in medias]
         return cls.run___(
             *args,
@@ -139,12 +155,12 @@ class Folder(
     @staticmethod
     def run___(
         *args: Any,
-        tasks: List[Callable]=[],
-        max_workers: int=CONFIG.MAX_WORKERS,
-        callback_list: List[Callable[..., Any]]=[],
+        tasks: List[Callable] = [],
+        max_workers: int = CONFIG.MAX_WORKERS,
+        callback_list: List[Callable[..., Any]] = [],
         **kwargs: Any,
     ):
-        task_manager = TaskManager(max_workers)
+        task_manager = executor.TaskManager(max_workers)
         task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
         return [future.result() for future in task_manager.futures]
 
@@ -154,7 +170,7 @@ class Folder(
 
     @staticmethod
     def read_meta(path: str) -> Dict[str, str]:
-        '''Read media meta from meta.json under the folder.
+        """Read media meta from meta.json under the folder.
 
         Arguments:
             path {str} -- [folder path]
@@ -189,30 +205,34 @@ class Folder(
                     "transparent": 0.3
                 }
             }
-        '''
-        if not os.listdir(path).count('meta.json'):
-            raise FileNotFoundError(f'File not found: {path}/meta.json')
+        """
+        if not os.listdir(path).count("meta.json"):
+            raise FileNotFoundError(f"File not found: {path}/meta.json")
         try:
-            with open(os.path.join(path, 'meta.json'), 'r', encoding='utf-8') as fd:
+            with open(os.path.join(path, "meta.json"), "r", encoding="utf-8") as fd:
                 content = fd.read()
-                return json.loads(content).get('video', {})
+                return json.loads(content).get("video", {})
         except Exception as err:
             logger.exception(err)
             raise err
 
     @decorator.timer
     def trim(
-        self, files: List[Dict[str, Any]],
-        callback_list: List[Callable[..., Any]]=[],
-        max_workers: int=CONFIG.MAX_WORKERS):
+        self,
+        files: List[Dict[str, Any]],
+        callback_list: List[Callable[..., Any]] = [],
+        max_workers: int = CONFIG.MAX_WORKERS,
+    ):
         self._trim(files, callback_list, max_workers)
 
     @classmethod
     def _trim(
-        cls, files: List[Dict[str, Any]]=[],
-        callback_list: List[Callable[..., Any]]=[],
-        max_workers: int=CONFIG.MAX_WORKERS):
-        '''Multi-process batch file trim.
+        cls,
+        files: List[Dict[str, Any]] = [],
+        callback_list: List[Callable[..., Any]] = [],
+        max_workers: int = CONFIG.MAX_WORKERS,
+    ):
+        """Multi-process batch file trim.
 
         Arguments:
             files {[list]} -- [A list of dictionaries containing the path and trim_times of the file to be trimmed]
@@ -226,19 +246,19 @@ class Folder(
                     },
                 ]
             callback_list {[list]} -- [A list of callback function names after the file is trimmed] (default: {None})
-        '''
+        """
         callback_list = callback_list or []
-        task_manager = TaskManager(max_workers)
+        task_manager = executor.TaskManager(max_workers)
         # TODO: use task_manager.submit_all
         with task_manager.executor:
             for file in files:
                 suffix_number = 0
-                for _time in file.get('trim_times'):
+                for _time in file.get("trim_times"):
                     suffix_number += 1
                     try:
-                        media = cls(file.get('path'))
+                        media = cls(file.get("path"))
                         task_manager.submit(
-                            getattr(media, 'trim'),
+                            getattr(media, "trim"),
                             time=_time,
                             suffix_number=suffix_number,
                         )
@@ -247,11 +267,11 @@ class Folder(
                         continue
                     except Exception as err:
                         logger.exception(err)
-            logger.info('Waiting for all subprocesses done...')
+            logger.info("Waiting for all subprocesses done...")
 
     @decorator.timer
-    def convert_images_to_video(self, image_format: str, bit_rate='5000k'):
-        '''Convert images to video.
+    def convert_images_to_video(self, image_format: str, bit_rate="5000k"):
+        """Convert images to video.
 
         Arguments:
             image_format {[str]} -- [Image format] (default: {'jpg'})
@@ -260,37 +280,38 @@ class Folder(
                 e.g.: '5000k', '10000k', ...
 
         TODO: delete image_format
-        '''
+        """
         self._convert_images_to_video(self.path, image_format, bit_rate)
 
     @classmethod
-    def _convert_images_to_video(cls, images_path: str, image_format: str, bit_rate='5000k', media_type='image'):
+    def _convert_images_to_video(
+        cls, images_path: str, image_format: str, bit_rate="5000k", media_type="image"
+    ):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
-        new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        new_file_path = f"{images_path}/output_{bit_rate}_1920_{create_time}.mp4"
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
+            media_type, BaseMedia
+        )
         command = MEDIA_CLS._FFMPEG_PREFIX + [
             # 关闭每帧都提醒是否overwrite
-            '-pattern_type', 'glob',
-
+            "-pattern_type",
+            "glob",
             # 设置帧率
-            '-r', '24',
-
+            "-r",
+            "24",
             # 设置images文件路径,
-            '-i', images_path + '/*.' + image_format,
-
+            "-i",
+            images_path + "/*." + image_format,
             # 码率
             # '-b:v', bit_rate,
-
             # 线程(待验证)
             # '-threads', '4',
-
             # 画面缩放比率
-            '-vf', 'scale=1920:-1',
-
+            "-vf",
+            "scale=1920:-1",
             # 对video类型文件设置编码类型
             # '-c:v', 'libx264',
             # '-c:v', 'libx265',
-
             # 时长取最短的media
             # '-shortest',
             new_file_path,

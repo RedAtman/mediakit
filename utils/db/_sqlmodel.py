@@ -1,20 +1,28 @@
 from contextlib import contextmanager
+import logging
 from typing import Any, AsyncGenerator, Iterator
 
 from sqlalchemy import select, text
 import sqlalchemy.exc
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 import sqlalchemy.orm.exc
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from logger import logger
 from utils import response
 
 from .base import BaseEngine
 
+
+logger = logging.getLogger()
+
 __all__ = [
-    'Engine',
+    "Engine",
 ]
 
 
@@ -22,14 +30,15 @@ class Engine(BaseEngine):
     def __init__(self, database: str):
         super().__init__(database)
         # e.g. sqlite:///sqlite.db | sqlite+aiosqlite:///sqlite.db | postgresql://user:password@localhost:5432/dbname
-        self.database: str = f'sqlite:///{self.database}'
+        self.database: str = f"sqlite:///{self.database}"
         self.engine = create_engine(
-            self.database, echo=True,
+            self.database,
+            echo=True,
             # connect_args={'check_same_thread': False},
             max_overflow=0,  # 超过连接池大小外最多创建的连接
             pool_size=5,  # 连接池大小
             pool_timeout=30,  # 池中没有线程最多等待的时间 否则报错
-            pool_recycle=-1  # 多久之后对线程池中的线程进行一次连接的回收（重置）
+            pool_recycle=-1,  # 多久之后对线程池中的线程进行一次连接的回收（重置）
         )
 
     def create_db_and_tables(self):
@@ -79,7 +88,7 @@ class Engine(BaseEngine):
         async with self.AsyncSessionLocal() as session:
             yield session
 
-    def query__(self, query: str, params: dict[str, Any]={}):
+    def query__(self, query: str, params: dict[str, Any] = {}):
         # statement = select(models.Media).where(
         #     models.Media.dirname == self.abspath,
         #     # cast(models.Media.state['trim'], String) == 2,
@@ -97,7 +106,7 @@ class Engine(BaseEngine):
             except Exception as err:
                 logger.error(err)
                 return response.Result(code=400, msg=err)
-            return response.Result(code=200, data=medias)
+            return response.Result(code=0, data=medias)
 
 
 if __name__ == "__main__":

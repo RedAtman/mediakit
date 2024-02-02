@@ -1,13 +1,16 @@
+import logging
 from queue import Queue
 import sqlite3
 import threading
 from typing import Any, Dict, Optional, Tuple, Union
 
 from config import CONFIG
-from logger import logger
+
+
+logger = logging.getLogger()
 
 __all__ = [
-    'Engine',
+    "Engine",
 ]
 
 
@@ -19,7 +22,9 @@ class Engine:
         self.create_connection_pool()
         logger.debug("Engine: %s", self)
 
-    def create_connection_pool(self, pool_size: int=CONFIG.SQLITE_CONNECTION_POOL_SIZE):
+    def create_connection_pool(
+        self, pool_size: int = CONFIG.SQLITE_CONNECTION_POOL_SIZE
+    ):
         with self.lock:
             for _ in range(pool_size):
                 connection = sqlite3.connect(
@@ -36,7 +41,11 @@ class Engine:
     def release_connection(self, connection: sqlite3.Connection) -> None:
         self.connection_pool.put(connection)
 
-    def execute_query(self, query: str, params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None):
+    def execute_query(
+        self,
+        query: str,
+        params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None,
+    ):
         connection = self.get_connection()
         logger.debug("Connection: %s", connection)
         cursor = connection.cursor()
@@ -52,7 +61,11 @@ class Engine:
             cursor.close()
             self.release_connection(connection)
 
-    def execute_insert_update_delete(self, query: str, params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None):
+    def execute_insert_update_delete(
+        self,
+        query: str,
+        params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None,
+    ):
         connection = self.get_connection()
         cursor = connection.cursor()
         try:
@@ -84,6 +97,7 @@ def worker(db: Engine):
     logger.debug(result)
     return result
 
+
 if __name__ == "__main__":
     db = Engine("sqlite.db")
 
@@ -99,7 +113,6 @@ if __name__ == "__main__":
     #     thread.join()
     # logger.debug([thread.__dict__ for thread in threads])
     # db.close_all_connections()
-
 
     from utils import TaskManager
 

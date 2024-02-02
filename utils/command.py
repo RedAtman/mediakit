@@ -1,23 +1,26 @@
 from functools import partial
+import logging
 import os
 import subprocess
 import sys
 import threading
 from typing import List, Optional, Union
 
-from logger import logger
+
+logger = logging.getLogger()
 
 from .tools import ProgressBar
 
+
 __all__ = [
-    'CommandExecutor',
+    "CommandExecutor",
 ]
 
 
 class CommandExecutor:
     progress_bar = None
 
-    def __init__(self, total: int = 0, title: str = ''):
+    def __init__(self, total: int = 0, title: str = ""):
         if total > 0 and title:
             self.progress_bar = partial(ProgressBar, total, title, fmt=ProgressBar.FULL)
         # logger.info((total, title, self.progress_bar))
@@ -28,7 +31,9 @@ class CommandExecutor:
         return self.execute(command)
 
     @staticmethod
-    def execute(command: Union[List[str], str], progress_bar: Optional[ProgressBar]=None):
+    def execute(
+        command: Union[List[str], str], progress_bar: Optional[ProgressBar] = None
+    ):
         """Execute shell command.
 
         Args:
@@ -45,17 +50,17 @@ class CommandExecutor:
         """
         # logger.debug(progress_bar)
         if not isinstance(command, (list, str)):
-            raise TypeError(f'command must be list or str. but got {type(command)}')
+            raise TypeError(f"command must be list or str. but got {type(command)}")
 
         logger.info(
-            'Process: %s, Thread: %s, <Caller (%s) start...>, file: %s:%s %s',
+            "Process: %s, Thread: %s, <Caller (%s) start...>, file: %s:%s %s",
             os.getpid(),
             threading.current_thread().name,
             # inspect.currentframe().f_code.co_name,
             sys._getframe().f_back.f_code.co_name,  # pylint: disable=E1101, protected-access
             sys._getframe().f_back.f_code.co_filename,  # pylint: disable=E1101, protected-access
-            sys._getframe().f_back.f_code.co_firstlineno,   # pylint: disable=E1101, protected-access
-            ' '.join(command) if isinstance(command, list) else command
+            sys._getframe().f_back.f_code.co_firstlineno,  # pylint: disable=E1101, protected-access
+            " ".join(command) if isinstance(command, list) else command,
         )
         with subprocess.Popen(
             command,
@@ -65,7 +70,7 @@ class CommandExecutor:
             shell=isinstance(command, str),
             # bufsize=1,
             # universal_newlines=True,
-            encoding='utf-8',
+            encoding="utf-8",
             # text=True,
         ) as process:
             if progress_bar and process.stdout:
@@ -84,10 +89,15 @@ class CommandExecutor:
 
             if process.returncode != 0:
                 logger.exception(
-                    'returncode: %s, command: %s, stdout: %s, _stderr: %s',
-                    command, process.returncode, stdout, _stderr,
+                    "returncode: %s, command: %s, stdout: %s, _stderr: %s",
+                    command,
+                    process.returncode,
+                    stdout,
+                    _stderr,
                 )
-                raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=_stderr)
+                raise subprocess.CalledProcessError(
+                    process.returncode, command, output=stdout, stderr=_stderr
+                )
 
             # logger.debug(stdout)
             return stdout

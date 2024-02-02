@@ -1,16 +1,19 @@
 import functools
+import logging
 import os
 import threading
 import time
 from typing import Any, Callable, List, Type
 
 from base.media import BaseMedia
-from logger import logger
+
+
+logger = logging.getLogger()
 
 __all__ = [
-    'timer',
-    'execute_shell_command',
-    'class_property',
+    "timer",
+    "execute_shell_command",
+    "class_property",
 ]
 
 
@@ -18,16 +21,17 @@ def timer(fn: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fn)
     def wrap(self, *args, **kwargs):
         start_time = time.time()
-        logger.debug('Task start(%s): %s', fn.__name__, start_time)
+        logger.debug("Task start(%s): %s", fn.__name__, start_time)
         result = fn(self, *args, **kwargs)
         logger.info(
-            'Process: %s, Thread: %s, <Task (%s) finished!!!>. Time cost: %s',
+            "Process: %s, Thread: %s, <Task (%s) finished!!!>. Time cost: %s",
             os.getpid(),
             threading.current_thread().name,
             fn.__name__,
             time.time() - start_time,
         )
         return result
+
     return wrap
 
 
@@ -38,13 +42,14 @@ def execute_shell_command(fn: Callable):
         command: List[str]
         new_file_path: str
         command, new_file_path = fn(self, *args, **kwargs)
-        logger.debug('self: %s, command: %s', self, command)
+        logger.debug("self: %s, command: %s", self, command)
         self.executor.run(command)
         return self.__class__(new_file_path)
+
     return wrap
 
 
-class class_property:   # pylint: disable=invalid-name
+class class_property:  # pylint: disable=invalid-name
     def __init__(self, f):
         self.f = f
 
@@ -70,3 +75,12 @@ class class_property:   # pylint: disable=invalid-name
 #     def getter(self, method):
 #         self.fget = method
 #         return self
+
+
+# classproperty = type(
+#     'classproperty',
+#     (property, ),
+#     {
+#         '__get__': lambda self, cls, owner: self.fget.__get__(None, owner)()
+#     }
+# )

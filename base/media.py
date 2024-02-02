@@ -1,5 +1,6 @@
 from functools import cached_property, partial
 import json
+import logging
 import os
 import sys
 import threading
@@ -7,37 +8,41 @@ import time
 from typing import Optional, Self, Type
 
 from config import CONFIG
-from logger import logger
 from src import models
 from utils import exceptions
 from utils.command import CommandExecutor
 from utils.tools import calculate_md5, is_media
 
+
+logger = logging.getLogger("root")
+
 __all__ = [
-    'BaseMedia',
+    "BaseMedia",
 ]
 
 
 class BaseMedia:
-    '''docstring for BaseMedia'''
+    """docstring for BaseMedia"""
+
     _INCLUDE_TYPE = [
-        'image',
-        'audio',
-        'video',
+        "image",
+        "audio",
+        "video",
     ]
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
     _executor = partial(CommandExecutor)
-    _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffmpeg')
-    _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffprobe')
+    _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffmpeg")
+    _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffprobe")
     # logger.warning('_FFMPEG_BIN: %s', _FFMPEG_BIN)
     # logger.warning('_FFPROBE_BIN: %s', _FFPROBE_BIN)
     # TODO: Type[super]?
     _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
     _FFMPEG_PREFIX: list[str] = [
         _FFMPEG_BIN,
-        '-y',
-        '-loglevel', _LOG_LEVEL,
+        "-y",
+        "-loglevel",
+        _LOG_LEVEL,
         # '-i', self.path,
         # '-threads', '16',
     ]
@@ -51,40 +56,40 @@ class BaseMedia:
         super().__init__()
         path = path.strip()
         if not os.path.exists(path):
-            raise FileNotFoundError(f'File not found at path: {path}')
+            raise FileNotFoundError(f"File not found at path: {path}")
         if not os.path.isfile(path):
-            raise exceptions.NotMediaException(101, f'Path is not a file: {path}')
+            raise exceptions.NotMediaException(101, f"Path is not a file: {path}")
         if not is_media(path, include_type=self._INCLUDE_TYPE):
-            raise exceptions.NotMediaException(101, f'File is not media file: {path}')
-        logger.debug('BaseMedia: %s', path)
+            raise exceptions.NotMediaException(101, f"File is not media file: {path}")
+        logger.debug("BaseMedia: %s", path)
         self.path: str = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
         self.media: models.Media = self._MEDIA_CLS.get(md5=self.md5)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.path})'
+        return f"{self.__class__.__name__}({self.path})"
 
     @cached_property
     def md5(self):
-        '''Get media file md5.
+        """Get media file md5.
 
         Returns:
             [str] -- [md5]
-        '''
+        """
         return calculate_md5(self.path)
 
     @property
     def executor(self) -> CommandExecutor:
         try:
             frames_count = self.frames_count
-            title=self.path
+            title = self.path
             return self._executor(total=frames_count, title=title)
         except Exception:
             return self._executor()
 
     @cached_property
     def frames_count(self):
-        '''Get media file frames count.
+        """Get media file frames count.
 
         e.g.:
             # More speed and if nb_frames is reliable enough, simplify as: but nb_frames is not always reliable.
@@ -109,7 +114,7 @@ class BaseMedia:
                 -of default=noprint_wrappers=1:nokey=1 input.mp4
             ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
 
-        '''
+        """
         try:
             result = CommandExecutor.execute(
                 f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | \
@@ -133,50 +138,56 @@ class BaseMedia:
 
     @classmethod
     def get_metadata(cls, path: str):
-        '''Get media file metadata.
+        """Get media file metadata.
 
         Arguments:
             path {[str]} -- [Media file path]
 
         Returns:
             [type] -- [description]
-        '''
+        """
         command = [
-            cls._FFPROBE_BIN, '-v', 'quiet', '-show_format',
-            '-show_streams', '-print_format', 'json', path.strip()
+            cls._FFPROBE_BIN,
+            "-v",
+            "quiet",
+            "-show_format",
+            "-show_streams",
+            "-print_format",
+            "json",
+            path.strip(),
         ]
-        command = f'{cls._FFPROBE_BIN} -v quiet -show_format -show_streams -print_format json {path.strip()}'
+        command = f"{cls._FFPROBE_BIN} -v quiet -show_format -show_streams -print_format json {path.strip()}"
         metadata = CommandExecutor.execute(command)
         try:
             return json.loads(metadata)
         except Exception as err:
-            raise TypeError(f'Not a json string: {metadata}') from err
+            raise TypeError(f"Not a json string: {metadata}") from err
 
     @cached_property
     def width_height(self):
-        '''Get media file width and height. Unit:pixel
-        '''
+        """Get media file width and height. Unit:pixel"""
         width, height = 0, 0
-        _format = self.metadata.get('format')
-        if _format and _format.get('width') and _format.get('height'):
-            width, height = _format.get('width'), _format.get('height')
+        _format = self.metadata.get("format")
+        if _format and _format.get("width") and _format.get("height"):
+            width, height = _format.get("width"), _format.get("height")
         else:
-            for stream in self.metadata.get('streams'):
-                if stream.get('width') and stream.get('height'):
-                    width, height = stream.get('width'), stream.get('height')
+            for stream in self.metadata.get("streams"):
+                if stream.get("width") and stream.get("height"):
+                    width, height = stream.get("width"), stream.get("height")
                     break
         return width, height
 
     @cached_property
     def bitrate(self):
-        '''Get media file bitrate. Unit:kb/s'''
-        bitrate = self.metadata.get('streams')[0].get(
-            'bit_rate') or self.metadata.get('format').get('bit_rate')
+        """Get media file bitrate. Unit:kb/s"""
+        bitrate = self.metadata.get("streams")[0].get("bit_rate") or self.metadata.get(
+            "format"
+        ).get("bit_rate")
         return float(bitrate)
 
     @cached_property
     def duration(self):
-        '''Get media file duration. Unit:second'''
+        """Get media file duration. Unit:second"""
         # result = subprocess.run([
         #     "ffprobe", "-v", "error", "-show_entries",
         #     "format=duration", "-of",
@@ -185,42 +196,50 @@ class BaseMedia:
         #     stderr=subprocess.STDOUT)
         # return float(result.stdout)
 
-        return self.metadata.get('streams')[0].get('duration')
+        return self.metadata.get("streams")[0].get("duration")
 
     @staticmethod
     def get_file_info(path: str):
-        '''Get file info.: dirname, title, ext.
+        """Get file info.: dirname, title, ext.
 
         Arguments:
             path {[str]} -- [File path]
 
         Returns:
             [tuple] -- [dirname, title, ext]
-        '''
+        """
         title, ext = os.path.splitext(os.path.basename(path))
         return os.path.dirname(path), title, ext[1:]
 
     @cached_property
     def output_path(self):
-        '''Media output path'''
+        """Media output path"""
         return self.get_output_path()
 
-    def get_output_path(self, suffix=''):
-        '''媒体输出路径(代替 self.output_path)
+    def get_output_path(self, suffix=""):
+        """媒体输出路径(代替 self.output_path)
 
         Keyword Arguments:
             suffix {str} -- [输出文件名后缀] (default: {''})
 
         Returns:
             [str] -- [媒体输出路径]
-        '''
+        """
         # suffix or caller function name
-        suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
+        suffix = (
+            suffix or sys._getframe().f_back.f_code.co_name
+        )  # pylint: disable=protected-access
         return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
 
     @classmethod
-    def create_file_path(cls, path: str, suffix: str='', suffix_number: int=1, ext: Optional[str]=None):
-        '''产生媒体剪切片段输出路径
+    def create_file_path(
+        cls,
+        path: str,
+        suffix: str = "",
+        suffix_number: int = 1,
+        ext: Optional[str] = None,
+    ):
+        """产生媒体剪切片段输出路径
 
         Arguments:
             path {[type]} -- [description]
@@ -232,11 +251,13 @@ class BaseMedia:
         Returns:
             [type] -- [description]
                 e.g.: /Users/nut/Downloads/RS/_trim/VIDEO_trim_1.mp4
-        '''
+        """
         dirname, title, _ext = cls.get_file_info(path)
         ext = ext or _ext
-        suffix = suffix or sys._getframe().f_back.f_code.co_name    # pylint: disable=protected-access
-        dirname = os.path.join(dirname, '_' + suffix)
+        suffix = (
+            suffix or sys._getframe().f_back.f_code.co_name
+        )  # pylint: disable=protected-access
+        dirname = os.path.join(dirname, "_" + suffix)
         if not os.path.exists(dirname):
             try:
                 os.mkdir(dirname)
@@ -254,11 +275,13 @@ class BaseMedia:
             cls._LOCK.acquire()
         try:
             suffix_number = suffix_number or 1
-            file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
+            file_path = os.path.join(dirname, f"{title}-{suffix}_{suffix_number}.{ext}")
             while os.path.exists(file_path):
                 suffix_number += 1
-                file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
-            with open(file_path, encoding='utf-8', mode='x'):
+                file_path = os.path.join(
+                    dirname, f"{title}-{suffix}_{suffix_number}.{ext}"
+                )
+            with open(file_path, encoding="utf-8", mode="x"):
                 pass
         except Exception as err:
             logger.exception(err)

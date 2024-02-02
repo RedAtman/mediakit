@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from typing import Any, Generator, List, Optional, Type
 
 from sqlalchemy import Integer, TextClause, select
@@ -7,16 +8,18 @@ from sqlalchemy.sql.selectable import Select
 
 from base import BaseMedia
 from config import CONFIG
-from logger import logger
 from src import models
 from src.db import DatabaseEngine
 from utils import response
 from utils.db import _sqlalchemy, _sqlite, _sqlmodel, base
 
+
+logger = logging.getLogger()
+
 __all__ = [
-    'SqlAlchemyFolderMixin',
-    'SqlModelFolderMixin',
-    'SqliteFolderMixin',
+    "SqlAlchemyFolderMixin",
+    "SqlModelFolderMixin",
+    "SqliteFolderMixin",
 ]
 
 
@@ -26,12 +29,16 @@ class BaseFolderMixin:
     engine: base.BaseEngine = DatabaseEngine.engine
 
     @classmethod
-    def medias_(cls, path: str, media_type: str='video') -> Generator[BaseMedia, Any, None]:
-        ...
+    def medias_(
+        cls, path: str, media_type: str = "video"
+    ) -> Generator[BaseMedia, Any, None]: ...
 
     @staticmethod
-    def query__(engine: base.BaseEngine, statement: Select|Update|str|TextClause, params: dict[str, Any]={}):
-        ...
+    def query__(
+        engine: base.BaseEngine,
+        statement: Select | Update | str | TextClause,
+        params: dict[str, Any] = {},
+    ): ...
 
     # _DB_TABLE = 'media'
     _DB_MODEL: models.Base = models.Media
@@ -39,31 +46,38 @@ class BaseFolderMixin:
 
     def get_query_statement(self, key: str):
         MAPPER_QUERY_STATEMENT = {
-            'QUERY_UN_COMPRESS': select(models.Media) \
-                .where(models.Media.dirname == self.abspath) \
-                .where(models.Media.state.op("->>")("compress").cast(Integer) == 0),    # type: ignore
+            "QUERY_UN_COMPRESS": select(models.Media)
+            .where(models.Media.dirname == self.abspath)
+            .where(models.Media.state.op("->>")("compress").cast(Integer) == 0),  # type: ignore
         }
         return MAPPER_QUERY_STATEMENT.get(key, None)
 
     @staticmethod
-    def media__(path: str, media_type: str='video'):
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+    def media__(path: str, media_type: str = "video"):
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
+            media_type, BaseMedia
+        )
         media = MEDIA_CLS(path)
         return media
 
-    def query(self, statement: Select|Update|str|TextClause, params: dict[str, Any] = {}):
+    def query(
+        self, statement: Select | Update | str | TextClause, params: dict[str, Any] = {}
+    ):
         return self.engine.query(statement, params)
 
-    def scan_media(self, media_type: str='video',):
+    def scan_media(
+        self,
+        media_type: str = "video",
+    ):
         medias = self.medias_(self.path, media_type)
         return self.scan_media_(self.path, medias, media_type)
 
     @classmethod
     def scan_media_(
         cls,
-        path: str=CONFIG.MEDIA_FILE_FOLDER,
-        medias: Optional[Generator[BaseMedia, None, None]]=None,
-        media_type: str='video',
+        path: str = CONFIG.MEDIA_FILE_FOLDER,
+        medias: Optional[Generator[BaseMedia, None, None]] = None,
+        media_type: str = "video",
     ):
         medias = cls.medias_(path, media_type)
         # try:
@@ -77,16 +91,16 @@ class BaseFolderMixin:
     @classmethod
     def scan_media__(
         cls,
-        medias: Optional[Generator[BaseMedia, None, None]]=None,
+        medias: Optional[Generator[BaseMedia, None, None]] = None,
     ):
         if medias is None:
-            logger.warning('medias is None.')
-            raise TypeError(f'medias is None.')
+            logger.warning("medias is None.")
+            raise TypeError(f"medias is None.")
         with cls.engine.get_session() as session:
             media_list: list[models.Base] = []
             for media in medias:
                 _media = cls._DB_MODEL(
-                    title=media.title + '.' + media.ext,
+                    title=media.title + "." + media.ext,
                     md5=media.md5,
                     dirname=media.dirname,
                 )
@@ -117,12 +131,13 @@ class SqliteFolderMixin(BaseFolderMixin):
     @classmethod
     def scan_media__(
         cls,
-        medias: Optional[Generator[BaseMedia, None, None]]=None,
+        medias: Optional[Generator[BaseMedia, None, None]] = None,
     ):
         if medias is None:
-            logger.warning('medias is None.')
+            logger.warning("medias is None.")
             raise TypeError
-        cls.engine.execute_query(f"""
+        cls.engine.execute_query(
+            f"""
             CREATE TABLE IF NOT EXISTS {cls._DB_TABLE} (
                 # id INT PRIMARY KEY default(random()),
                 title TEXT UNIQUE,
@@ -131,12 +146,18 @@ class SqliteFolderMixin(BaseFolderMixin):
                 created_date TIMESTAMP,
                 state JSON,
             )
-        """)
+        """
+        )
         result_list: List[Any] = []
         for media in medias:
             result = cls.engine.execute_insert_update_delete(
                 f"INSERT OR IGNORE INTO {cls._DB_TABLE} (title, md5, dirname, created_date) VALUES (?, ?, ?, ?)",
-                (media.title + '.' + media.ext, media.md5, media.dirname, datetime.now()),
+                (
+                    media.title + "." + media.ext,
+                    media.md5,
+                    media.dirname,
+                    datetime.now(),
+                ),
             )
             result_list.append(result)
         return result_list
@@ -144,21 +165,48 @@ class SqliteFolderMixin(BaseFolderMixin):
     # TODO: remove all update_state method.
     @classmethod
     def update_state_(cls, media: BaseMedia, key: str, value: Any):
-        result = cls.engine.execute_query(f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5, ))
-        logger.info(('result', type(result), result, result[0][0], media.title + '.' + media.ext, media.md5))
+        result = cls.engine.execute_query(
+            f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5,)
+        )
+        logger.info(
+            (
+                "result",
+                type(result),
+                result,
+                result[0][0],
+                media.title + "." + media.ext,
+                media.md5,
+            )
+        )
         return cls.engine.execute_query(
-            f"UPDATE {cls._DB_TABLE} SET state = json_set(state, '$.{key}', ?) WHERE md5 = ?", (value, media.md5))
+            f"UPDATE {cls._DB_TABLE} SET state = json_set(state, '$.{key}', ?) WHERE md5 = ?",
+            (value, media.md5),
+        )
 
-    def query_state(self, path, media_type: str='video'):
-        '''Query media state.
-        '''
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+    def query_state(self, path, media_type: str = "video"):
+        """Query media state."""
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
+            media_type, BaseMedia
+        )
         media = MEDIA_CLS(path)
         return self._query_state(media)
 
     @classmethod
     def _query_state(cls, media: BaseMedia):
-        result = cls.engine.execute_query(f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5, ))
-        logger.info(('result', type(result), result, result[0][0], media.title + '.' + media.ext, media.md5))
+        result = cls.engine.execute_query(
+            f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5,)
+        )
+        logger.info(
+            (
+                "result",
+                type(result),
+                result,
+                result[0][0],
+                media.title + "." + media.ext,
+                media.md5,
+            )
+        )
         return cls.engine.execute_query(
-            f"SELECT title, json(state) FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5, ))
+            f"SELECT title, json(state) FROM {cls._DB_TABLE} WHERE md5 = ?",
+            (media.md5,),
+        )

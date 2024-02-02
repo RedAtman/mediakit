@@ -1,9 +1,10 @@
-
 from enum import IntEnum
+import logging
 
 from pydantic import BaseModel, ValidationError
 
-from logger import logger
+
+logger = logging.getLogger()
 
 
 class StateChoices(IntEnum):
@@ -30,18 +31,29 @@ class State(BaseModel):
     # @validator('compress')
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     state = State()
-    logger.info(('state', type(state), state, state.dict()))
-    setattr(state, 'key', 'value')
-    logger.info(('state', type(state), state, state.dict()))
+    logger.info(("state", type(state), state, state.dict()))
+    setattr(state, "key", "value")
+    logger.info(("state", type(state), state, state.dict()))
     _dict = {
-        'key': 'value',
+        "key": "value",
     }
-    logger.info(('dict', type(_dict), _dict, _dict.keys(), 'key' in _dict, _dict['key'], hasattr(dict, 'key'), getattr(_dict, 'key', '233')))
+    logger.info(
+        (
+            "dict",
+            type(_dict),
+            _dict,
+            _dict.keys(),
+            "key" in _dict,
+            _dict["key"],
+            hasattr(dict, "key"),
+            getattr(_dict, "key", "233"),
+        )
+    )
 
     logger.debug(State.model_fields.keys())
-    logger.debug('compress' in State.model_fields.keys())
+    logger.debug("compress" in State.model_fields.keys())
 
     try:
         # result = State()

@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from typing import Any
 
 from sqlalchemy import Column, DateTime, String
@@ -7,35 +8,39 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from config import CONFIG
-from logger import logger
 from src import db, schemas
+from utils import response
+
+
+logger = logging.getLogger()
 
 __all__ = [
-    'Base',
-    'Media',
+    "Base",
+    "Media",
 ]
 
 Base = declarative_base()
+
 
 class Media(Base):
     md5 = Column(String, primary_key=True, nullable=False)
     title = Column(String, nullable=False)
     dirname = Column(String, nullable=False)
     # created_at = Column(DateTime, default=datetime.utcnow, read_only=True)
-    _created_at = Column('created_at', DateTime, default=datetime.utcnow)
+    _created_at = Column("created_at", DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=None, nullable=True)
     state = Column(JSON, default=schemas.State().model_dump(), nullable=False)
 
     @hybrid_property
     def created_at(self):
-        '''Make created_at read-only'''
+        """Make created_at read-only"""
         return self._created_at
 
     # @created_at.setter
     # def created_at(self, value):
     #     self._created_at = value
 
-    __tablename__ = 'media'
+    __tablename__ = "media"
     # @classmethod
     # def __tablename__(cls):
     #     return 'media'
@@ -50,7 +55,6 @@ class Media(Base):
 
     def __str__(self) -> str:
         return f"<{self.__class__.__name__}({self.__dict__})>"
-
 
     # def model_dump(self):
     #     return {
@@ -120,39 +124,47 @@ class Media(Base):
 
     def update_state(self, key: str, val: int):
         with db.DatabaseEngine.engine.get_session() as session:
-            state: dict = self.state.copy() # type: ignore
+            state: dict = self.state.copy()  # type: ignore
             # state = dict(self.state)
             state[key] = val
             self.state = schemas.State(**state).model_dump()
             session.add(self)
             session.commit()
-            return self
+            return response.Result(code=200, data={"media": self})
 
 
 # Signal
 from sqlalchemy import event
 
 
-@event.listens_for(Media, 'before_update')
+@event.listens_for(Media, "before_update")
 def on_media_before_update(mapper, connection, target):
     # target.state = schemas.State(**target.state).model_dump()
     target.updated_at = datetime.utcnow()
-    logger.warning(('on_media_before_update', mapper, connection, target, ))
+    logger.warning(
+        (
+            "on_media_before_update",
+            mapper,
+            connection,
+            target,
+        )
+    )
 
 
 if __name__ == "__main__":
     from utils.db import _sqlmodel
+
     engine = _sqlmodel.Engine(CONFIG.SQLITE_DATABASE)
     # engine.create_db_and_tables()
     company: Media = Media(
-        md5='md5',
-        title='title',
-        dirname='dirname',
+        md5="md5",
+        title="title",
+        dirname="dirname",
         # state={'compress': 'compress', 'trim': 'trim'},
-        state = schemas.State(
+        state=schemas.State(
             compress=schemas.StateChoices.undo,
             trim=schemas.StateChoices.undo,
-        )
+        ),
     )
     logger.json(company)
     logger.json(company.__dict__)

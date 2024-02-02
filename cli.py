@@ -1,45 +1,58 @@
-'''
+"""
 Usage:
 python cli.py compress -f /path/to/folder -t video -w 1
-'''
+"""
+
 import argparse
+import logging
 
 from config import CONFIG
-from logger import logger
+
+
+logger = logging.getLogger()
+
 
 mapper_action = {
-    'all': None,
-    'compress': None,
-    'trim': None,
+    "all": None,
+    "compress": None,
+    "trim": None,
 }
+
 
 def create_parser():
     parser = argparse.ArgumentParser(
-        description='''
+        description="""
         Media Handler CLI;
 
         e.g.: \r\n
             %(prog)s compress -t video -w 2;
-        '''
+        """
     )
     parser.add_argument(
-        'action', type=str,
+        "action",
+        type=str,
         choices=mapper_action.keys(),
-        default='all',
-        help="Action to run"
+        default="all",
+        help="Action to run",
     )
     parser.add_argument(
-        '-f', '--folder', type=str, default=CONFIG.MEDIA_FILE_FOLDER,
-        help='Folder to run',
+        "-f",
+        "--folder",
+        type=str,
+        default=CONFIG.MEDIA_FILE_FOLDER,
+        help="Folder to run",
     )
     parser.add_argument(
-        '-t', '--type', type=str, default='all',
-        choices=('all', 'video', 'audio', 'image'),
+        "-t",
+        "--type",
+        type=str,
+        default="all",
+        choices=("all", "video", "audio", "image"),
     )
+    parser.add_argument("-w", "--worker", type=int, default=1, help="Number of workers")
     parser.add_argument(
-        '-w', '--worker', type=int, default=1, help='Number of workers'
+        "-d", "--daemon", type=bool, default=True, choices=(True, False)
     )
-    parser.add_argument('-d', '--daemon', type=bool, default=True, choices=(True, False))
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
     return parser
@@ -47,13 +60,15 @@ def create_parser():
 
 def main():
     from src.schedulers import folder_scheduler
+
     parser = create_parser()
     args = parser.parse_args()
     # logger.debug(args)
+    # logger.debug(args.action)
     # logger.debug(type(args.__dict__))
-    # logger.debug(args.__dict__)
-    result = getattr(folder_scheduler, 'compress')()
+    logger.debug(args.__dict__)
+    result = getattr(folder_scheduler, "compress")(**args.__dict__)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
