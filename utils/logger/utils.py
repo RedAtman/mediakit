@@ -224,7 +224,7 @@ if __name__ == "__main__":
         },
     }
     logging.config.dictConfig(LOGGING_CONFIG)
-    logger: _Logger = logging.getLogger(__name__)  # type: ignore
+    logger: _Logger = logging.getLogger()  # type: ignore
     # logger.setLevel(logging.WARNING)
     logger.debug("log level: debug")
     logger.info("log level: info")

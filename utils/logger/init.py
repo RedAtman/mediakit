@@ -158,7 +158,7 @@ logging.config.dictConfig(LOGGING_CONFIG)
 
 
 if __name__ == "__main__":
-    logger: _Logger = logging.getLogger(__name__)  # type: ignore
+    logger: _Logger = logging.getLogger()  # type: ignore
     # logger.setLevel(logging.DEBUG)
     logger.debug("Logging is configured.")
     logger.debug("log level: debug")
