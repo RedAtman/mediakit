@@ -1,4 +1,11 @@
-from concurrent.futures import ALL_COMPLETED, Future, ProcessPoolExecutor, ThreadPoolExecutor, wait
+from concurrent.futures import (
+    ALL_COMPLETED,
+    Future,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+    wait,
+)
+import logging
 import multiprocessing
 import os
 from queue import Queue
@@ -7,11 +14,12 @@ import threading
 from types import FunctionType, MethodType
 from typing import Any, Callable, List
 
-from logger import logger
+
+logger = logging.getLogger()
 
 __all__ = [
-    'BoundedExecutor',
-    'TaskManager',
+    "BoundedExecutor",
+    "TaskManager",
 ]
 
 
@@ -24,13 +32,13 @@ class BoundedExecutor:
     """
 
     def __init__(self, bound=0, max_workers=multiprocessing.cpu_count()):
-        '''
+        """
         Arguments:
             bound {[type]} -- [description] (default: {0})
 
         Keyword Arguments:
             max_workers {[int]} -- [进程池worker数量 若未指定 则使用cpu个数作为默认值] (default: {multiprocessing.cpu_count()})
-        '''
+        """
         # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         # self.semaphore = threading.Semaphore(bound + max_workers)
         # self.lock = threading.Lock()
@@ -40,7 +48,9 @@ class BoundedExecutor:
         self.lock = multiprocessing.Manager().Lock()
 
     # See concurrent.futures.Executor#submit
-    def submit(self, fn, *args, callback_list: List[FunctionType|MethodType]=[], **kwargs):
+    def submit(
+        self, fn, *args, callback_list: List[FunctionType | MethodType] = [], **kwargs
+    ):
         """Start a new task, blocks if queue is full."""
         self.semaphore.acquire()
         try:
@@ -68,27 +78,38 @@ class BoundedExecutor:
     def shutdown(self, wait=True):
         self.executor.shutdown(wait)
         logger.info(
-            '<All done!!!> Task: %s, Thread: %s, Parent Process: %s',
-            sys._getframe().f_code.co_name,   # pylint: disable=protected-access
+            "<All done!!!> Task: %s, Thread: %s, Parent Process: %s",
+            sys._getframe().f_code.co_name,  # pylint: disable=protected-access
             threading.current_thread().name,
-            os.getpid()
+            os.getpid(),
         )
 
 
 class TaskManager:
     PoolExecutor = ThreadPoolExecutor
+
     # PoolExecutor = ProcessPoolExecutor
-    def __init__(self, max_workers: int=1):
-        max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
+    def __init__(self, max_workers: int = 1):
+        max_workers = (
+            max_workers
+            if max_workers <= multiprocessing.cpu_count()
+            else multiprocessing.cpu_count()
+        )
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
         self.futures: List[Future[str]] = []
-        self.queue: Queue[List[Any]]  = Queue()
+        self.queue: Queue[List[Any]] = Queue()
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
-    def submit_all(self, tasks: List[Callable[[], str]], is_wait: bool=True, *args: Any, **kwargs: Any):
+    def submit_all(
+        self,
+        tasks: List[Callable[[], str]],
+        is_wait: bool = True,
+        *args: Any,
+        **kwargs: Any
+    ):
         with self.executor:
             futures = [self.submit(task, *args, **kwargs) for task in tasks]
             logger.debug("All media have been processed.")
@@ -114,7 +135,7 @@ class TaskManager:
     def _task_done(self, _future: Future[Any]):
         """Called once task is done, releases the queue if blocked."""
         result = _future.result()
-        logger.debug('TaskManager._task_done: %s', result)
+        logger.debug("TaskManager._task_done: %s", result)
         self.queue.put(result)
         self.shutdown(False)
         return result

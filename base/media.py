@@ -14,7 +14,7 @@ from utils.command import CommandExecutor
 from utils.tools import calculate_md5, is_media
 
 
-logger = logging.getLogger("root")
+logger = logging.getLogger()
 
 __all__ = [
     "BaseMedia",
