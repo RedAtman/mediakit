@@ -3,6 +3,7 @@ import os
 import sys
 from typing import Type
 
+
 try:
     from dotenv import load_dotenv
 except ImportError:
@@ -89,3 +90,9 @@ class Production(_BaseConfig):
 
 env: str = os.getenv('ENV', 'development')
 CONFIG: Type[_BaseConfig] = _BaseConfig.mapping.get(env, Development)
+
+
+from importlib import import_module
+
+
+import_module("utils.logger.init")
