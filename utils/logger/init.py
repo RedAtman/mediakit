@@ -10,17 +10,16 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": True,
     "formatters": {
         "simple": {
-            "()": "utils.logger.utils.ColorFormatter",
+            # "()": "utils.logger.utils.ColorFormatter",
             "format": "%(asctime)s: [%(levelname)s]: %(name)s: %(message)s",
         },
         "standard": {
-            "class": "utils.logger.utils.ColorFormatter",
+            # "class": "utils.logger.utils.ColorFormatter",
             "format": "%(asctime)s: [%(levelname)s]: %(pathname)s:%(lineno)d: %(funcName)s: %(message)s",
         },
         "color": {
             "class": "utils.logger.utils.ColorFormatter",
             # "format": "utils.logger.utils.ColorFormatter.format_str",
-            # "format": ColorFormatter.format_str,
             "format": "[%(levelname)s]:%(pathname)s:%(lineno)d: %(funcName)s: %(message)s",
         },
     },

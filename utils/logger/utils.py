@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,38 +64,47 @@ class RelativePathFormatter(logging.Formatter):
         return super().format(record)
 
 
-from enum import Enum
+from enum import IntEnum
+
+
+class Color(IntEnum):
+    # PREFIX = "\033["
+    # SUFFIX = "\033[0m"
+    DEFAULT = 29
+    GREY = 30  # 灰色
+    RED = 31  # 红色
+    GREEN = 32  # 绿色
+    YELLOW = 33  # 黄色
+    BLUE = 34  # 蓝色
+    MAGENTA = 35  # 紫色
+    CYAN = 36  # 青色
+    WHITE = 37  # 白色
+
+
+class LevelColor(IntEnum):
+    DEFAULT = Color.DEFAULT
+    NONE = Color.DEFAULT
+    DEBUG = Color.CYAN
+    INFO = Color.GREEN
+    WARNING = Color.YELLOW
+    ERROR = Color.RED
+    CRITICAL = Color.MAGENTA
+    EXCEPTION = Color.RED
+
+
+import functools
+from pprint import pformat
+import sys
+
+from pygments import formatters, highlight, lexers
 
 
 class ColorFormatter(logging.Formatter):
+    # TODO: Currently, configuration is only supported in one formatter.
 
     PREFIX = "\033["
     SUFFIX = "\033[0m"
 
-    class Color(Enum):
-        DEFAULT = 29
-        GREY = 30  # 灰色
-        RED = 31  # 红色
-        GREEN = 32  # 绿色
-        YELLOW = 33  # 黄色
-        BLUE = 34  # 蓝色
-        MAGENTA = 35  # 紫色
-        CYAN = 36  # 青色
-        WHITE = 37  # 白色
-
-    COLOR_MAPPING = {
-        logging.DEBUG: Color.CYAN.value,
-        logging.INFO: Color.GREEN.value,
-        logging.WARNING: Color.YELLOW.value,
-        logging.ERROR: Color.RED.value,
-        logging.CRITICAL: Color.MAGENTA.value,
-    }
-
-    # _format = f"[%(levelname)s]: {ColorFormatter.PREFIX}"
-    #         f"{ColorFormatter.Color.GREY.value}m%(pathname)s:%(lineno)d:"
-    #         f"{ColorFormatter.SUFFIX} %(funcName)s: %(message)s",
-    # format_str = f"[%(levelname)s]:{PREFIX} {Color.GREY.value}m%(pathname)s:%(lineno)d: \
-    #     {SUFFIX} %(funcName)s: %(message)s"
     format_str = f"[%(levelname)s]:%(pathname)s:%(lineno)d: %(funcName)s: %(message)s"
 
     @classmethod
@@ -108,29 +117,53 @@ class ColorFormatter(logging.Formatter):
 
         return inner
 
+    @staticmethod
+    def format_msg(msg: Dict[str, Any]):
+        return highlight(
+            pformat(msg, indent=1, width=80, depth=9),
+            lexers.JsonnetLexer(),
+            # lexers.JsonLexer(),
+            # lexers.PythonTracebackLexer(),
+            formatters.TerminalTrueColorFormatter(
+                style="algol",
+                # style="dracula",
+                # style="friendly",
+                # style="github-dark",
+                # style="gruvbox-dark",
+                # style="gruvbox-light",
+                # style="native",
+                # style="rrt",
+                # style="stata-light",
+                # style="tango",
+                # style="trac",
+                # style="xcode",
+            ),
+            # formatters.TerminalFormatter(),
+            # formatters.Terminal256Formatter(bg="dark", colorscheme="colorful"),
+            # formatters.TerminalFormatter(bg="dark"),
+            # formatters.TerminalFormatter(bg="light"),
+        )
+
     def format(self, record: logging.LogRecord) -> str:
-        # print("record", record.__dict__)
-        level_color = self.COLOR_MAPPING.get(record.levelno, self.Color.WHITE.value)
+        level_color = getattr(LevelColor, record.levelname, LevelColor.DEFAULT)
         level_name = logging.getLevelName(record.levelno)
         record.levelname = f"{self.PREFIX}{level_color}m{level_name}{self.SUFFIX}"
-        record.pathname = (
-            f"{self.PREFIX}{self.Color.GREY.value}m{record.pathname}{self.SUFFIX}"
-        )
-        # record.lineno = f"{self.PREFIX}{self.Color.GREY.value}m{record.lineno}{self.SUFFIX}"
-        record.msg = f"{self.PREFIX}{level_color}m{record.msg}{self.SUFFIX}"
+        record.pathname = f"{self.PREFIX}{Color.GREY}m{record.pathname}{self.SUFFIX}"
+        # record.msg = f"{self.PREFIX}{level_color}m{record.msg}{self.SUFFIX}"
+        if isinstance(record.msg, dict):
+            record.msg = "\n" + self.format_msg(record.msg)
+        else:
+            record.msg = f"{self.PREFIX}{level_color}m{record.msg}{self.SUFFIX}"
         return super().format(record)
 
 
-import functools
-from pprint import pformat
-import sys
-
-from pygments import formatters, highlight, lexers
-
-
-def json_wrap(fuc):
+def json_wrap(fuc: Callable[..., Any]):
     @functools.wraps(fuc)
-    def inner(self, msg, *args, **kwargs):
+    def inner(self: logging.Logger, msg, *args, **kwargs):
+        # level = getattr(logging, fuc.__name__.upper(), logging.INFO)
+        level_color: LevelColor = getattr(LevelColor, fuc.__name__.upper(), LevelColor.DEFAULT)
+        if not isinstance(msg, dict):
+            return fuc(self, msg, *args, **kwargs)
         # Get the previous frame in the stack, which is the caller of this function.
         frame = sys._getframe(0)
         f = frame.f_code.co_filename
@@ -141,51 +174,21 @@ def json_wrap(fuc):
         name = frame.f_code.co_name  # type: ignore
 
         # Print the stack trace
-        BOLD = "\033[1m"
-        GRAY = "\033[90m"
-        WARNING = "\033[93m"
-        END = "\033[0m"
-        print(f"[{BOLD}{WARNING}JSON{END}]: {GRAY}{filename}:{lineno}: {name}{END}")
+        print(
+            f"[{ColorFormatter.PREFIX}{level_color}mJSON{ColorFormatter.SUFFIX}]: {ColorFormatter.PREFIX}{Color.GREY}m{filename}:{lineno}: {name}{ColorFormatter.SUFFIX}"
+        )
 
         # Print incoming message.
         print(
-            highlight(
-                pformat(msg, indent=1, width=80, depth=9),
-                lexers.JsonnetLexer(),
-                # lexers.JsonLexer(),
-                # lexers.PythonTracebackLexer(),
-                formatters.TerminalTrueColorFormatter(
-                    style="algol",
-                    # style='dracula',
-                    # style='friendly',
-                    # style='github-dark',
-                    # style='gruvbox-dark',
-                    # style='gruvbox-light',
-                    # style='native',
-                    # style='rrt',
-                    # style='stata-light',
-                    # style='tango',
-                    # style='trac',
-                    # style='xcode',
-                ),
-                # formatters.TerminalFormatter(),
-                # formatters.Terminal256Formatter(bg='dark', colorscheme='colorful'),
-                # formatters.TerminalFormatter(bg='dark'),
-                # formatters.TerminalFormatter(bg='light'),
-            ),
+            ColorFormatter.format_msg(msg),
             # end='',
         )
 
     return inner
 
 
-class _Logger(logging.Logger):
-    """Add json type hit to logger."""
-
-    json: Callable[..., Any]
-
-
-setattr(logging.Logger, "json", json_wrap(getattr(logging.Logger, "debug")))
+# for level in ("debug", "info", "warning", "error", "exception", "critical"):
+#     setattr(logging.Logger, level, json_wrap(getattr(logging.Logger, level)))
 
 
 if __name__ == "__main__":
@@ -224,7 +227,7 @@ if __name__ == "__main__":
         },
     }
     logging.config.dictConfig(LOGGING_CONFIG)
-    logger: _Logger = logging.getLogger()  # type: ignore
+    logger = logging.getLogger()  # type: ignore
     # logger.setLevel(logging.WARNING)
     logger.debug("log level: debug")
     logger.info("log level: info")
@@ -232,10 +235,11 @@ if __name__ == "__main__":
     logger.error("log level: error")
     logger.exception("log level: exception")
     logger.critical("log level: critical")
-    logger.json({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
+    logger.debug({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
+    logger.info({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
 
     sqlalchemy_logger = logging.getLogger("sqlalchemy.engine")
-    logger.json(sqlalchemy_logger.__dict__)
+    sqlalchemy_logger.error(sqlalchemy_logger.__dict__)
     sqlalchemy_logger.debug("sqlalchemy debug")
     sqlalchemy_logger.info("sqlalchemy info")
     sqlalchemy_logger.warning("sqlalchemy warning")
