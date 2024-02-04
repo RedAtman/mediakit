@@ -10,6 +10,8 @@ from utils import response
 from .media import compress as media_compress
 
 
+__all__ = ["compress", "change_file_extension"]
+
 logger = logging.getLogger()
 
 
@@ -81,6 +83,19 @@ compress.initialize()
 # result = getattr(compress, 'compress')()
 # logger.debug(result)
 
+
+change_file_extension = MiddlewareScheduler()
+
+
+@change_file_extension.add_func("core")
+def _change_file_extension(*args, ctx: Context, **kwargs):
+    from utils import folder
+
+    result = folder.change_file_extension(*ctx.args, **ctx.kwargs)
+    return result
+
+
+change_file_extension.initialize()
 
 if __name__ == "__main__":
     result = getattr(compress, "core")(
