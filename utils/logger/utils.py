@@ -1,9 +1,9 @@
 import logging
 import os
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # class _ColorfulFormatter(logging.Formatter):
@@ -68,17 +68,59 @@ from enum import IntEnum
 
 
 class Color(IntEnum):
-    # PREFIX = "\033["
-    # SUFFIX = "\033[0m"
     DEFAULT = 29
     GREY = 30  # 灰色
     RED = 31  # 红色
     GREEN = 32  # 绿色
     YELLOW = 33  # 黄色
     BLUE = 34  # 蓝色
-    MAGENTA = 35  # 紫色
+    PINK = 35  # 紫色
     CYAN = 36  # 青色
     WHITE = 37  # 白色
+    # Foreground:
+    GREY_OK = 90
+    RED_OK = 91
+    GREEN_OK = 92
+    YELLOW_OK = 93
+    BLUE_OK = 94
+    PINK_OK = 95
+    CYAN_OK = 96
+    WHITE_OK = 97
+    # Background:
+    GREY_BG = 100
+    RED_BG = 101
+    GREEN_BG = 102
+    YELLOW_BG = 103
+    BLUE_BG = 104
+    PINK_BG = 105
+    CYAN_BG = 106
+    WHITE_BG = 107
+    # Formatting
+    BOLD = 1
+    ITALIC = 3
+    UNDERLINE = 4
+    __PREFIX = "\033["
+    __SUFFIX = "\033[0m"
+    # NC = "\x1b[0m"  # No Color
+
+    def format(
+        self,
+        text: str,
+        bold=False,
+        underline=False,
+        italic=False,
+        bg: Optional[int] = None,
+    ):
+        c = self
+        if bold:
+            c = f"1;{c}"
+        if italic:
+            c = f"3;{c}"
+        if underline:
+            c = f"4;{c}"
+        if bg:
+            c = f"{c};{bg}"
+        return f"{self.__PREFIX}{c}m{text}{self.__SUFFIX}"
 
 
 class LevelColor(IntEnum):
@@ -88,7 +130,7 @@ class LevelColor(IntEnum):
     INFO = Color.GREEN
     WARNING = Color.YELLOW
     ERROR = Color.RED
-    CRITICAL = Color.MAGENTA
+    CRITICAL = Color.PINK
     EXCEPTION = Color.RED
 
 
@@ -102,20 +144,9 @@ from pygments import formatters, highlight, lexers
 class ColorFormatter(logging.Formatter):
     # TODO: Currently, configuration is only supported in one formatter.
 
-    PREFIX = "\033["
-    SUFFIX = "\033[0m"
-
-    format_str = f"[%(levelname)s]:%(pathname)s:%(lineno)d: %(funcName)s: %(message)s"
-
-    @classmethod
-    def _wrap_with(cls, color_code):
-        def inner(text, bold=False):
-            c = color_code
-            if bold:
-                c = f"1;{c}"
-            return f"{cls.PREFIX}{c}m{text}{cls.SUFFIX}"
-
-        return inner
+    FORMAT_PATTERN = (
+        f"[%(levelname)s]:%(pathname)s:%(lineno)d: %(funcName)s: %(message)s"
+    )
 
     @staticmethod
     def format_msg(msg: Dict[str, Any]):
@@ -124,58 +155,67 @@ class ColorFormatter(logging.Formatter):
             lexers.JsonnetLexer(),
             # lexers.JsonLexer(),
             # lexers.PythonTracebackLexer(),
-            formatters.TerminalTrueColorFormatter(
-                style="algol",
-                # style="dracula",
-                # style="friendly",
-                # style="github-dark",
-                # style="gruvbox-dark",
-                # style="gruvbox-light",
-                # style="native",
-                # style="rrt",
-                # style="stata-light",
-                # style="tango",
-                # style="trac",
-                # style="xcode",
+            # formatters.TerminalTrueColorFormatter(
+            #     # style="algol",
+            #     # style="manni",
+            #     # style="material",
+            #     style="paraiso-dark",
+            #     # style="dracula",
+            #     # style="friendly",
+            #     # style="github-dark",
+            #     # style="gruvbox-dark",
+            #     # style="gruvbox-light",
+            #     # style="native",
+            #     # style="rrt",
+            #     # style="stata-light",
+            #     # style="tango",
+            #     # style="trac",
+            #     # style="xcode",
+            # ),
+            # formatters.TerminalFormatter(
+            #     bg="dark",
+            #     style="paraiso-dark",
+            # ),
+            formatters.Terminal256Formatter(
+                # style="colorful",
+                # style="lightbulb",
+                # style="material",
+                style="nord",
+                # style="staroffice",
+                # style="zenburn",
             ),
-            # formatters.TerminalFormatter(),
-            # formatters.Terminal256Formatter(bg="dark", colorscheme="colorful"),
             # formatters.TerminalFormatter(bg="dark"),
             # formatters.TerminalFormatter(bg="light"),
         )
 
     def format(self, record: logging.LogRecord) -> str:
-        level_color = getattr(LevelColor, record.levelname, LevelColor.DEFAULT)
-        level_name = logging.getLevelName(record.levelno)
-        record.levelname = f"{self.PREFIX}{level_color}m{level_name}{self.SUFFIX}"
-        record.pathname = f"{self.PREFIX}{Color.GREY}m{record.pathname}{self.SUFFIX}"
-        # record.msg = f"{self.PREFIX}{level_color}m{record.msg}{self.SUFFIX}"
-        if isinstance(record.msg, dict):
+        level_color_num = getattr(LevelColor, record.levelname, LevelColor.DEFAULT)
+        record.levelname = Color(level_color_num).format(record.levelname, bold=True)
+        record.pathname = Color.GREY_OK.format(record.pathname)
+        if isinstance(record.msg, (dict, list)):
             record.msg = "\n" + self.format_msg(record.msg)
         else:
-            record.msg = f"{self.PREFIX}{level_color}m{record.msg}{self.SUFFIX}"
+            record.msg = Color(level_color_num).format(record.msg)
         return super().format(record)
 
 
 def json_wrap(fuc: Callable[..., Any]):
     @functools.wraps(fuc)
     def inner(self: logging.Logger, msg, *args, **kwargs):
-        # level = getattr(logging, fuc.__name__.upper(), logging.INFO)
-        level_color: LevelColor = getattr(LevelColor, fuc.__name__.upper(), LevelColor.DEFAULT)
-        if not isinstance(msg, dict):
-            return fuc(self, msg, *args, **kwargs)
-        # Get the previous frame in the stack, which is the caller of this function.
-        frame = sys._getframe(0)
-        f = frame.f_code.co_filename
-        while frame and frame.f_code.co_filename == f:
-            frame = frame.f_back
-        filename = frame.f_code.co_filename  # type: ignore
-        lineno = frame.f_lineno  # type: ignore
-        name = frame.f_code.co_name  # type: ignore
+        level_color: LevelColor = getattr(
+            LevelColor, fuc.__name__.upper(), LevelColor.DEFAULT
+        )
+        filename, lineno, name, sinfo = self.findCaller(stack_info=True)
 
         # Print the stack trace
+        if not isinstance(msg, (list, dict)):
+            print(
+                f"[{Color(level_color).format('JSON')}]: {Color.GREY_OK.format(filename)}:{lineno}: {name}: {Color(level_color).format(msg)}"
+            )
+            return
+
         print(
-            f"[{ColorFormatter.PREFIX}{level_color}mJSON{ColorFormatter.SUFFIX}]: {ColorFormatter.PREFIX}{Color.GREY}m{filename}:{lineno}: {name}{ColorFormatter.SUFFIX}"
+            f"[{Color(level_color).format('JSON')}]: {Color.GREY_OK.format(filename)}:{lineno}: {name}: "
         )
 
         # Print incoming message.
@@ -192,6 +232,12 @@ def json_wrap(fuc: Callable[..., Any]):
 
 
 if __name__ == "__main__":
+    print(Color.RED.format("hello"))
+    print(Color.RED.format("hello", bold=True))
+    print(Color.PINK_OK.format("hello", underline=True, italic=True))
+    print(Color.BLUE.format("hello", bold=True, underline=True))
+    print(Color.RED.format("hello", bg=Color.BLUE_BG))
+
     import logging.config
 
     LOGGING_CONFIG = {
@@ -200,7 +246,7 @@ if __name__ == "__main__":
         "formatters": {
             "color": {
                 "()": ColorFormatter,
-                "format": ColorFormatter.format_str,
+                "format": ColorFormatter.FORMAT_PATTERN,
             },
             "relative": {
                 "()": RelativePathFormatter,

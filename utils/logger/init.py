@@ -19,7 +19,6 @@ LOGGING_CONFIG = {
         },
         "color": {
             "class": "utils.logger.utils.ColorFormatter",
-            # "format": "utils.logger.utils.ColorFormatter.format_str",
             "format": "[%(levelname)s]:%(pathname)s:%(lineno)d: %(funcName)s: %(message)s",
         },
     },
