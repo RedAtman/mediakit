@@ -7,57 +7,19 @@ from folder import Folder
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
 from utils import response
 
+from .media import compress as media_compress
+
 
 logger = logging.getLogger()
 
 
-# Set media state before compress.
-media_scheduler = MiddlewareScheduler()
-
-
-@media_scheduler.add_middleware
-def update_state(self, *args, ctx: Context, **kwargs):
-    logger.info((self, args, kwargs))
-    # logger.info(self.media.state)
-    result = self.media.update_state("compress", 1)
-    # logger.info(ctx.args, ctx.kwargs)
-    # result = ctx.next(*args, **kwargs)
-    # logger.info(result)
-    logger.info(ctx.next.__name__)
-    assert isinstance(result, response.Result)
-    if result == 200:
-        # logger.info(self.media.state)
-        return ctx.next(self, *args, **kwargs)
-    else:
-        raise Exception("Cannot update state.")
-
-
-@media_scheduler.add_func("compress")
-def core(self, *args, ctx: Context, **kwargs):
-    logger.info((self, args, kwargs))
-    result = self.quick_compress()
-    logger.warning("-" * 80)
-    logger.info(result)
-    assert isinstance(result, response.Result)
-    if result == 200:
-        # result = ctx.next(self, *args, **kwargs)
-        # logger.debug(('compress core result', result))
-        return result
-    else:
-        result = self.media.update_state("compress", 0)
-        raise Exception("Cannot compress media.")
-
-
-media_scheduler.initialize()
-
-
 # Scan to find un-compressed media. Then compress them.
-folder_scheduler = MiddlewareScheduler()
+compress = MiddlewareScheduler()
 
 # scheduler.add_middleware(lambda ctx: setattr(ctx, 'result', Folder._scan()))
 
 
-@folder_scheduler.add_middleware
+@compress.add_middleware
 def scan(*args, ctx: Context, **kwargs):
     logger.info((args, kwargs))
     logger.info(ctx.next.__name__)
@@ -69,7 +31,7 @@ def scan(*args, ctx: Context, **kwargs):
     return ctx.next(*args, **kwargs)
 
 
-@folder_scheduler.add_middleware
+@compress.add_middleware
 def query(*args, ctx: Context, **kwargs):
     logger.info((args, kwargs))
 
@@ -99,8 +61,8 @@ def callback(future: Future, *args, **kwargs):
         media.update_state("compress", 0)
 
 
-@folder_scheduler.add_func("compress")
-def core(*args, ctx: Context, medias=[], **kwargs):
+@compress.add_func("core")
+def _compress(*args, ctx: Context, medias=[], **kwargs):
     logger.warning(("args, ctx: Context, **kwargs", args, ctx, kwargs))
     logger.info((args, ctx, kwargs))
     logger.info((ctx.next, ctx.args, ctx.kwargs))
@@ -110,7 +72,7 @@ def core(*args, ctx: Context, medias=[], **kwargs):
     #     callback_list=[callback, ],
     #     **kwargs,
     # )
-    scheduler = getattr(media_scheduler, "compress")
+    scheduler = getattr(media_compress, "core")
     tasks = [partial(scheduler, media) for media in medias]
     result = Folder.run___(
         *args,
@@ -125,19 +87,19 @@ def core(*args, ctx: Context, medias=[], **kwargs):
     return result
 
 
-# folder_scheduler.add_middleware(Folder._compress)
-# folder_scheduler.add_func('compress')(lambda ctx: ctx.result)
-# folder_scheduler.add_func('compress')(core)
-# folder_scheduler.add_func('compress')(lambda: Folder._compress)
+# compress.add_middleware(Folder._compress)
+# compress.add_func('compress')(lambda ctx: ctx.result)
+# compress.add_func('compress')(core)
+# compress.add_func('compress')(lambda: Folder._compress)
 
-folder_scheduler.initialize()
-# result = folder_scheduler.compress()
-# result = getattr(folder_scheduler, 'compress')()
+compress.initialize()
+# result = compress.compress()
+# result = getattr(compress, 'compress')()
 # logger.debug(result)
 
 
 if __name__ == "__main__":
-    result = getattr(folder_scheduler, "compress")(
+    result = getattr(compress, "core")(
         folder=CONFIG.MEDIA_FILE_FOLDER, type="video", worker=1
     )
     logger.info(result)

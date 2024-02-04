@@ -59,7 +59,7 @@ def create_parser():
 
 
 def main():
-    from src.schedulers import folder_scheduler
+    from src.schedulers import folder
 
     parser = create_parser()
     args = parser.parse_args()
@@ -67,7 +67,8 @@ def main():
     # logger.debug(args.action)
     # logger.debug(type(args.__dict__))
     logger.debug(args.__dict__)
-    result = getattr(folder_scheduler, "compress")(**args.__dict__)
+    scheduler = getattr(folder, args.action)
+    result = getattr(scheduler, "core")(**args.__dict__)
 
 
 if __name__ == "__main__":
