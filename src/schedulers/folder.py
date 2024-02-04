@@ -21,38 +21,26 @@ compress = MiddlewareScheduler()
 
 @compress.add_middleware
 def scan(*args, ctx: Context, **kwargs):
-    logger.info((args, kwargs))
-    logger.info(ctx.next.__name__)
     folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
     result = folder.scan_media()
     # result = Folder.scan_media__()
-    logger.info(result)
-    # logger.info(ctx.args, ctx.kwargs)
     return ctx.next(*args, **kwargs)
 
 
 @compress.add_middleware
 def query(*args, ctx: Context, **kwargs):
-    logger.info((args, kwargs))
-
     folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
     QUERY_UN_COMPRESS = folder.get_query_statement("QUERY_UN_COMPRESS")
     result = folder.query(QUERY_UN_COMPRESS)
-    logger.info(result)
     assert isinstance(result, response.Result)
     assert result == 0
-    print("result", type(result), result, result.__dict__)
     assert result == "Success"
     medias = [folder.MEDIA_CLS(media.path) for media in result.data]
-    logger.info(ctx.args, ctx.kwargs)
-    # args = args + (result, )
-    # kwargs.update({'medias': medias})
     return ctx.next(*args, medias=medias, **kwargs)
 
 
 def callback(future: Future, *args, **kwargs):
     result = future.result()
-    logger.info((result, args, kwargs))
     assert isinstance(result, response.Result)
     media = result.data.get("media")
     if result == 200:
@@ -63,9 +51,6 @@ def callback(future: Future, *args, **kwargs):
 
 @compress.add_func("core")
 def _compress(*args, ctx: Context, medias=[], **kwargs):
-    logger.warning(("args, ctx: Context, **kwargs", args, ctx, kwargs))
-    logger.info((args, ctx, kwargs))
-    logger.info((ctx.next, ctx.args, ctx.kwargs))
     # result = Folder.run_(
     #     'quick_compress',
     #     *args,
@@ -83,7 +68,6 @@ def _compress(*args, ctx: Context, medias=[], **kwargs):
         max_workers=1,
         **kwargs,
     )
-    logger.info(result)
     return result
 
 
