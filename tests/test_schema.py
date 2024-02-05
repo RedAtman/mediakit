@@ -1,26 +1,30 @@
+import logging
 import unittest
 
-from logger import logger
 from src import schemas
+
+
+logger = logging.getLogger()
 
 
 class SchemaTest(unittest.TestCase):
 
     def test_validate(self):
         _state = {
-            'compress': schemas.StateChoices.running,
-            'trim': 2,
+            "compress": schemas.StateChoices.running,
+            "trim": 2,
         }
         state = schemas.State(**_state)
-        logger.json(state)
+        logger.info(state)
         assert isinstance(state, schemas.State)
-        assert state.compress == _state['compress']
+        assert state.compress == _state["compress"]
 
         _state = {
-            'compress': schemas.StateChoices.running,
-            'trim': 20,
+            "compress": schemas.StateChoices.running,
+            "trim": 2,
         }
         from pydantic import ValidationError
+
         try:
             state = schemas.State(**_state)
         except ValidationError as err:
