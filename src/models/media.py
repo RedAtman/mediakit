@@ -133,24 +133,6 @@ class Media(Base):
             return response.Result(code=200, data={"media": self})
 
 
-# Signal
-from sqlalchemy import event
-
-
-@event.listens_for(Media, "before_update")
-def on_media_before_update(mapper, connection, target):
-    # target.state = schemas.State(**target.state).model_dump()
-    target.updated_at = datetime.utcnow()
-    logger.warning(
-        (
-            "on_media_before_update",
-            mapper,
-            connection,
-            target,
-        )
-    )
-
-
 if __name__ == "__main__":
     from utils.db import _sqlmodel
 
@@ -166,6 +148,6 @@ if __name__ == "__main__":
             trim=schemas.StateChoices.undo,
         ),
     )
-    logger.json(company)
-    logger.json(company.__dict__)
-    logger.json(company.state)
+    logger.info(company)
+    logger.info(company.__dict__)
+    logger.info(company.state)
