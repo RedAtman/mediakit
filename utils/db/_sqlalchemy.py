@@ -36,7 +36,8 @@ class Engine(BaseEngine):
     def engine(self):
         return db.create_engine(
             self.database,
-            echo=True,
+            # creates StreamHandler which outputs to console.
+            # echo=True,
             isolation_level="READ UNCOMMITTED",
             # json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
         )

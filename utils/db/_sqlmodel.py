@@ -33,7 +33,8 @@ class Engine(BaseEngine):
         self.database: str = f"sqlite:///{self.database}"
         self.engine = create_engine(
             self.database,
-            echo=True,
+            # creates StreamHandler which outputs to console.
+            # echo=True,
             # connect_args={'check_same_thread': False},
             max_overflow=0,  # 超过连接池大小外最多创建的连接
             pool_size=5,  # 连接池大小
