@@ -4,8 +4,19 @@
 # freeze==1.0.10
 # future==0.18.2
 # idna==2.8
-requests==2.22.0
+requests==2.31.0
 # urllib3==1.25.9
+sqlalchemy==2.0.27
+sqlmodel==0.0.16
+pygments==2.17.2
+pydantic==2.6.1
 openai-whisper==20231117
 faster-whisper==0.10.0
 whisper-cpp-pybind==0.1.2
+
+# voice recognition
+SpeechRecognition==3.10.1
+PyAudio==0.2.14
+pyttsx3==2.90
+# MacOS seems to need this for pyttsx3
+pyobjc == 9.0.1
