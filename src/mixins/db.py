@@ -94,8 +94,7 @@ class BaseFolderMixin:
         medias: Optional[Generator[BaseMedia, None, None]] = None,
     ):
         if medias is None:
-            logger.warning("medias is None.")
-            raise TypeError(f"medias is None.")
+            raise TypeError("medias is None.")
         with cls.engine.get_session() as session:
             media_list: list[models.Base] = []
             for media in medias:
@@ -107,11 +106,11 @@ class BaseFolderMixin:
                 session.add(_media)
                 media_list.append(_media)
             try:
-                result = session.commit()
+                _ = session.commit()
                 return response.Result(code=200, data=media_list)
             except Exception as err:
                 # raise err
-                logger.error(err)
+                logger.error(f'medias: {medias}, error: {err}')
                 # session.rollback()
                 return response.Result(code=400, msg=err)
 
