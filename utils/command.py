@@ -6,10 +6,10 @@ import sys
 import threading
 from typing import List, Optional, Union
 
+from .tools import ProgressBar
+
 
 logger = logging.getLogger()
-
-from .tools import ProgressBar
 
 
 __all__ = [
@@ -48,18 +48,17 @@ class CommandExecutor:
         Returns:
             [type]: [description]
         """
-        # logger.debug(progress_bar)
         if not isinstance(command, (list, str)):
             raise TypeError(f"command must be list or str. but got {type(command)}")
 
         logger.info(
-            "Process: %s, Thread: %s, <Caller (%s) start...>, file: %s:%s %s",
+            "Process: %s, Thread: %s, Caller: %s:%s:%s, Command: %s",
             os.getpid(),
             threading.current_thread().name,
             # inspect.currentframe().f_code.co_name,
-            sys._getframe().f_back.f_code.co_name,  # pylint: disable=E1101, protected-access
-            sys._getframe().f_back.f_code.co_filename,  # pylint: disable=E1101, protected-access
-            sys._getframe().f_back.f_code.co_firstlineno,  # pylint: disable=E1101, protected-access
+            sys._getframe().f_back.f_code.co_filename,
+            sys._getframe().f_back.f_code.co_firstlineno,
+            sys._getframe().f_back.f_code.co_name,
             " ".join(command) if isinstance(command, list) else command,
         )
         with subprocess.Popen(

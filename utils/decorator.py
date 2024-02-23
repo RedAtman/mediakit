@@ -1,3 +1,4 @@
+import datetime
 import functools
 import logging
 import os
@@ -23,12 +24,14 @@ def timer(fn: Callable[..., Any]) -> Callable[..., Any]:
         start_time = time.time()
         logger.debug("Task start(%s): %s", fn.__name__, start_time)
         result = fn(self, *args, **kwargs)
+        cost_seconds = time.time() - start_time
         logger.info(
-            "Process: %s, Thread: %s, <Task (%s) finished!!!>. Time cost: %s",
+            f"Process: %s, Thread: %s, <Task (%s) finished!!!>. Time cost: %s(s), %s",
             os.getpid(),
             threading.current_thread().name,
             fn.__name__,
-            time.time() - start_time,
+            cost_seconds,
+            datetime.timedelta(seconds=cost_seconds),
         )
         return result
 
