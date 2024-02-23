@@ -460,7 +460,7 @@ class Video(
         return self.__class__(path=new_file_path)
 
     @decorator.timer
-    def quick_compress(self):
+    def compress(self):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
@@ -538,17 +538,17 @@ class Video(
         )
         return True, self.__class__(new_file_path)
 
-    @decorator.timer
-    def compress(self):
-        width, height = self.width_height
-        bitrate = 3200000 / 1280 / 720
-        bitrate = bitrate * width * height
-        # logger.warning('bitrate: %s, self.bitrate: %s', bitrate, self.bitrate)
-        if bitrate >= self.bitrate:
-            logger.warning("bitrate: %s, self.bitrate: %s", bitrate, self.bitrate)
-            bitrate = self.bitrate
-            # raise ValueError(f'output bit_rate({bitrate}) must < origin bit_rate({self.bitrate})')
-        return self._compress(self.path, width=width, height=height, bitrate=bitrate)
+    # @decorator.timer
+    # def compress(self):
+    #     width, height = self.width_height
+    #     bitrate = 3200000 / 1280 / 720
+    #     bitrate = bitrate * width * height
+    #     # logger.warning('bitrate: %s, self.bitrate: %s', bitrate, self.bitrate)
+    #     if bitrate >= self.bitrate:
+    #         logger.warning("bitrate: %s, self.bitrate: %s", bitrate, self.bitrate)
+    #         bitrate = self.bitrate
+    #         # raise ValueError(f'output bit_rate({bitrate}) must < origin bit_rate({self.bitrate})')
+    #     return self._compress(self.path, width=width, height=height, bitrate=bitrate)
 
     @classmethod
     def _compress(

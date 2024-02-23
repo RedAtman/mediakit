@@ -54,7 +54,7 @@ def callback(future: Future, *args, **kwargs):
 @compress.add_func("core")
 def _compress(*args, ctx: Context, medias=[], **kwargs):
     # result = Folder.run_(
-    #     'quick_compress',
+    #     'compress',
     #     *args,
     #     callback_list=[callback, ],
     #     **kwargs,

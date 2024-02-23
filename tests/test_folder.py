@@ -158,7 +158,7 @@ class TestFolder(unittest.TestCase):
 
     def test_run(self):
         result = self.folder.run(
-            "quick_compress",
+            "compress",
             # 'speech_to_text',
             # 'save_text',
             # 'convert_format',
@@ -168,7 +168,7 @@ class TestFolder(unittest.TestCase):
 
     def test_run_(self):
         result = Folder.run_(
-            "quick_compress",
+            "compress",
             # 'speech_to_text',
             # 'save_text',
             # 'convert_format',

@@ -102,7 +102,7 @@ class Folder(
         Usage:
         e.g.:
             Folder.run_(
-                'quick_compress',
+                'compress',
                 *args,
                 callback_list=[callback, ],
                 **kwargs,
