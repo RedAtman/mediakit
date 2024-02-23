@@ -112,10 +112,10 @@ class TaskManager:
     ):
         with self.executor:
             futures = [self.submit(task, *args, **kwargs) for task in tasks]
-            logger.debug("All media have been processed.")
+            logger.info("All media have been processed.")
             if is_wait:
                 wait(self.futures, return_when=ALL_COMPLETED)
-                logger.debug(("ALL_COMPLETED", self.futures))
+                logger.info(("ALL_COMPLETED", self.futures))
 
     def submit(
         self,
@@ -135,7 +135,7 @@ class TaskManager:
     def _task_done(self, _future: Future[Any]):
         """Called once task is done, releases the queue if blocked."""
         result = _future.result()
-        logger.debug("TaskManager._task_done: %s", result)
+        logger.info("TaskManager._task_done: %s", result)
         self.queue.put(result)
         self.shutdown(False)
         return result

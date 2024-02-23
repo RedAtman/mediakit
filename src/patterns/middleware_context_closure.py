@@ -115,7 +115,7 @@ class MiddlewareScheduler():
         def f(*args, **kwargs):
             ctx = Context(*args, **kwargs)
             return self._load_middleware(ctx, func)(
-                # *args, **kwargs
+                *args, **kwargs
             )
         return f
 

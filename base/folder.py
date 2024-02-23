@@ -1,8 +1,9 @@
 import functools
 import os
 
+
 __all__ = [
-    'BaseFolder',
+    "BaseFolder",
 ]
 
 
@@ -11,9 +12,9 @@ class BaseFolder:
     def __init__(self, path: str):
         path = path.strip()
         if not os.path.exists(path):
-            raise FileNotFoundError(f'File not found at path: {path}')
-        if not os.path.isdir(rf'{path}'):
-            raise TypeError(f'Path is not a folder: {path}')
+            raise FileNotFoundError(f"File not found at path: {path}")
+        if not os.path.isdir(rf"{path}"):
+            raise TypeError(f"Path is not a folder: {path}")
         self.path = path
         self.abspath = os.path.abspath(path)
 
@@ -23,4 +24,6 @@ class BaseFolder:
 
     @staticmethod
     def get_files(path: str):
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File not found at path: {path}")
         return (os.path.abspath(os.path.join(path, file)) for file in os.listdir(path))

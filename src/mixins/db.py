@@ -109,9 +109,8 @@ class BaseFolderMixin:
                 _ = session.commit()
                 return response.Result(code=200, data=media_list)
             except Exception as err:
-                # raise err
-                logger.error(f'medias: {medias}, error: {err}')
-                # session.rollback()
+                logger.error(err.__dict__)
+                session.rollback()
                 return response.Result(code=400, msg=err)
 
 
