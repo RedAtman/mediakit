@@ -145,7 +145,7 @@ class ColorFormatter(logging.Formatter):
     # TODO: Currently, configuration is only supported in one formatter.
 
     FORMAT_PATTERN = (
-        f"[%(levelname)s]:%(pathname)s:%(lineno)d: %(funcName)s: %(message)s"
+        f"[%(levelname)s]%(pathname)s:%(lineno)d: %(funcName)s: %(message)s"
     )
 
     @staticmethod
