@@ -1,6 +1,7 @@
 from concurrent.futures import Future
 from functools import partial
 import logging
+from typing import Any, Dict
 
 from config import CONFIG
 from folder import Folder
@@ -10,7 +11,7 @@ from utils import response
 from .media import compress as media_compress
 
 
-__all__ = ["compress", "change_file_extension"]
+__all__ = ["compress", "change_file_extension", "convert_format"]
 
 logger = logging.getLogger()
 
@@ -96,6 +97,31 @@ def _change_file_extension(*args, ctx: Context, **kwargs):
 
 
 change_file_extension.initialize()
+
+
+convert_format = MiddlewareScheduler()
+
+
+@convert_format.add_func("core")
+def _convert_format(
+    *args,
+    ctx: Context,
+    action: str = "convert_format",
+    folder: str = "",
+    ext: str = "",
+    **kwargs: Dict[str, Any],
+):
+    result = Folder.run_(
+        media_method=action,
+        path=folder,
+        ext=ext,
+    )
+    assert isinstance(result, list)
+    return result
+
+
+convert_format.initialize()
+
 
 if __name__ == "__main__":
     result = getattr(compress, "core")(

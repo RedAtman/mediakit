@@ -1,8 +1,8 @@
 """
 Usage:
 python cli.py compress -t video -w 1 -f /path/to/folder
-python cli.py change_file_extension --old_ext avi --new_ext mp4 -f /path/to/folder
-python cli.py change_file_extension --old_ext mp4 --new_ext avi
+python cli.py change_file_extension --old_ext avi --ext mp4 -f /path/to/folder
+python cli.py change_file_extension --old_ext mp4 --ext avi
 """
 
 import argparse
@@ -19,6 +19,7 @@ mapper_action = {
     "compress": None,
     "trim": None,
     "change_file_extension": None,
+    "convert_format": None,
 }
 
 
@@ -59,7 +60,7 @@ def create_parser():
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
     parser.add_argument("--old_ext", type=str, help="Old extension")
-    parser.add_argument("--new_ext", type=str, help="New extension")
+    parser.add_argument("--ext", type=str, default="mp4", help="New extension")
     return parser
 
 

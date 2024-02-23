@@ -688,5 +688,15 @@ class Video(
             # '-avoid_negative_ts', '1',
             new_file_path,
         ]
-        self.executor.run(command)
-        return self.__class__(path=new_file_path)
+        try:
+            self.executor.run(command)
+        except Exception as err:
+            # logger.exception(err)
+            return response.Result(code=400, msg=err)
+        return response.Result(
+            code=200,
+            data={
+                "handler": self,
+                "new_file_path": new_file_path,
+            },
+        )
