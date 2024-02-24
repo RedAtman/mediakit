@@ -4,13 +4,14 @@ import re
 import sys
 from typing import List
 
+
 __all__ = [
-    'Dict2Obj',
-    'is_media',
-    'ProgressBar',
-    'loading_bar',
-    'progressbar',
-    'calculate_md5',
+    "Dict2Obj",
+    # "is_media",
+    "ProgressBar",
+    "loading_bar",
+    "progressbar",
+    "calculate_md5",
 ]
 
 
@@ -39,18 +40,18 @@ class Dict2Obj(dict):
 mimetypes.init()
 
 
-def is_media(file: str, include_type: List[str]=['image', 'audio', 'video']):
-    '''Check if the file is a media file.'''
+def is_media(file: str, include_type: List[str] = ["image", "audio", "video"]):
+    """Check if the file is a media file."""
     mime_start = mimetypes.guess_type(file)[0]
     if mime_start is not None:
-        mime_start = mime_start.split('/')[0]
+        mime_start = mime_start.split("/")[0]
         if mime_start in include_type:
             return True
     return False
 
 
 class ProgressBar:
-    '''Print a progress bar to `sys.stderr`.
+    """Print a progress bar to `sys.stderr`.
 
     Arguments:
         total {[int]} -- [Total count]
@@ -67,27 +68,30 @@ class ProgressBar:
         progress.done()
     Example:
         Progress: [##########          ] 50%
-    '''
-    # TITLE = 'Progress'
-    SYMBOL = '█'
-    assert len(SYMBOL) == 1
-    DEFAULT = '%(title)s: %(bar)s %(percent)3d%%'
-    FULL = '%(bar)s %(current)d/%(total)d (%(percent)3d%%) %(remaining)d %(title)s'
+    """
 
-    def __init__(self, total, title='Progress', width=40, fmt=DEFAULT, output=sys.stderr):
+    # TITLE = 'Progress'
+    SYMBOL = "█"
+    assert len(SYMBOL) == 1
+    DEFAULT = "%(title)s: %(bar)s %(percent)3d%%"
+    FULL = "%(bar)s %(current)d/%(total)d (%(percent)3d%%) %(remaining)d %(title)s"
+
+    def __init__(
+        self, total, title="Progress", width=40, fmt=DEFAULT, output=sys.stderr
+    ):
         self.title = title
         self.total = float(total)
         self.width = width
         self.output = output
         self._current = 0
         self.fmt = re.sub(
-            r'(?P<name>%\(.+?\))d',
-            rf'\g<name>{len(str(total))}d',
+            r"(?P<name>%\(.+?\))d",
+            rf"\g<name>{len(str(total))}d",
             fmt,
         )
 
     def __repr__(self) -> str:
-        return f'<ProgressBar: {self.title}>'
+        return f"<ProgressBar: {self.title}>"
 
     # current = property(fget=lambda self: self._current)
 
@@ -104,31 +108,31 @@ class ProgressBar:
         percent = self.current / float(self.total)
         size = int(self.width * percent)
         remaining = self.total - self.current
-        _bar = '[' + self.SYMBOL * size + ' ' * (self.width - size) + ']'
+        _bar = "[" + self.SYMBOL * size + " " * (self.width - size) + "]"
 
         args = {
-            'total': self.total,
-            'bar': _bar,
-            'current': self.current,
-            'percent': percent * 100,
-            'remaining': remaining,
-            'title': self.title,
+            "total": self.total,
+            "bar": _bar,
+            "current": self.current,
+            "percent": percent * 100,
+            "remaining": remaining,
+            "title": self.title,
         }
-        print('\r' + self.fmt % args, file=self.output, end='')
+        print("\r" + self.fmt % args, file=self.output, end="")
 
     def done(self):
         self.current = self.total
-        print('', file=self.output)
+        print("", file=self.output)
 
     def parse_current(self, stdout_line: str):
-        current = re.findall(r'frame=\s*(\d+)', stdout_line)
+        current = re.findall(r"frame=\s*(\d+)", stdout_line)
         if current:
             current = current[-1]
             self.current = current
 
 
 def loading_bar(count, total, size):
-    '''Use `sys.stdout.write` to print the loading bar.
+    """Use `sys.stdout.write` to print the loading bar.
 
     Arguments:
         count {[int]} -- [Current count]
@@ -141,16 +145,22 @@ def loading_bar(count, total, size):
             time.sleep(.1)
     Example:
         001/100 [==========] 100%
-    '''
-    percent = float(count)/float(total) * 100
+    """
+    percent = float(count) / float(total) * 100
     sys.stdout.write(
-        "\r" + str(int(count)).rjust(3, '0') + "/" + str(int(total)).rjust(3, '0') + ' [' + '=' * \
-        int(percent / 10) * size + ' ' * (10 - int(percent / 10)) * size + ']'
+        "\r"
+        + str(int(count)).rjust(3, "0")
+        + "/"
+        + str(int(total)).rjust(3, "0")
+        + " ["
+        + "=" * int(percent / 10) * size
+        + " " * (10 - int(percent / 10)) * size
+        + "]"
     )
 
 
 def progressbar(count: int):
-    '''Use `sys.stdout.write` to print the progress bar.
+    """Use `sys.stdout.write` to print the progress bar.
 
     Arguments:
         count {int} -- [Current count]
@@ -160,11 +170,14 @@ def progressbar(count: int):
             time.sleep(0.1)
     Example:
         [##########] - 10/10
-    '''
+    """
     for current in range(count):
-        print(f"[{current * '#'}{(count - 1 - current)*' '}] - {current + current}/{count}", end="\r")
+        print(
+            f"[{current * '#'}{(count - 1 - current)*' '}] - {current + current}/{count}",
+            end="\r",
+        )
         yield current
-    print('\n')
+    print("\n")
 
 
 def calculate_md5(file_path: str) -> str:
