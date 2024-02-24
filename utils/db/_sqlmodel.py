@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, scoped_session, sessionmaker
 import sqlalchemy.orm.exc
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from config import CONFIG
 from utils import response
 
 from .base import BaseEngine
@@ -111,7 +112,7 @@ class Engine(BaseEngine):
 
 
 if __name__ == "__main__":
-    engine = Engine("sqlite:///sqlite.db")
+    engine = Engine("sqlite:///" + CONFIG.SQLITE_DATABASE)
     from models.media import Media
 
     # synchronous usage

@@ -99,7 +99,7 @@ def worker(db: Engine):
 
 
 if __name__ == "__main__":
-    db = Engine("sqlite.db")
+    db = Engine(CONFIG.SQLITE_DATABASE)
 
     num_threads = 5
     # threads = []

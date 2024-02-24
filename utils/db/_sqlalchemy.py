@@ -10,6 +10,7 @@ import sqlalchemy.orm.exc
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
 
+from config import CONFIG
 from src import models
 from utils import response
 from utils.db.base import BaseEngine
@@ -86,7 +87,7 @@ class Engine(BaseEngine):
 
 
 if __name__ == "__main__":
-    engine = Engine("sqlite.db")
+    engine = Engine(CONFIG.SQLITE_DATABASE)
     # engine.create_db_and_tables()
     with engine.get_session() as session:
         # result = session.execute(text('select * from media'))

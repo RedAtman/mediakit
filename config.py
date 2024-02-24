@@ -44,7 +44,7 @@ class _BaseConfig:
     # PROJECT_AUTHOR = 'media_handler'
 
     # SQLITE
-    SQLITE_DATABASE = os.getenv("SQLITE_DATABASE", os.path.join(BASE_DIR, "sqlite.db"))
+    SQLITE_DATABASE = os.getenv("SQLITE_DATABASE", os.path.join(BASE_DIR, "db.sqlite"))
     SQLITE_CONNECTION_POOL_SIZE = int(os.getenv("SQLITE_CONNECTION_POOL_SIZE", 10))
 
     # FFMPEG
