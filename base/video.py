@@ -460,7 +460,7 @@ class Video(
         return self.__class__(path=new_file_path)
 
     @decorator.timer
-    def compress(self):
+    def compress(self, ext: str = "mp4"):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
@@ -469,7 +469,7 @@ class Video(
         """
         suffix, vcodec, preset = "compress", "libx265", "medium"
         new_file_path = self.create_file_path(
-            self.path, suffix=f"[{suffix}.{vcodec}.{preset}]"
+            self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext
         )
 
         # More smaller size, but more time, more CPU usage.
@@ -677,21 +677,24 @@ class Video(
         new_file_path = self.create_file_path(
             self.path, suffix=f"[convert.{ext}]", ext=ext
         )
+        vcodec = "copy"
+        vcodec = "libx265"
         command = self._FFMPEG_PREFIX + [
             "-i",
             self.path,
             # '-map', '0', '-c', 'copy',
             "-c:v",
-            "copy",
+            vcodec,
             "-c:a",
             "copy",
+            "-tag:v",
+            "hvc1",
             # '-avoid_negative_ts', '1',
             new_file_path,
         ]
         try:
             self.executor.run(command)
         except Exception as err:
-            # logger.exception(err)
             return response.Result(code=400, msg=err)
         return response.Result(
             code=200,
