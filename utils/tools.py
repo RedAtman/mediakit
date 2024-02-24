@@ -1,8 +1,10 @@
 import hashlib
-import mimetypes
 import re
 import sys
-from typing import List
+
+
+# import mimetypes
+# from typing import List
 
 
 __all__ = [
@@ -37,17 +39,17 @@ class Dict2Obj(dict):
         self.__dict__ = self
 
 
-mimetypes.init()
+# mimetypes.init()
 
 
-def is_media(file: str, include_type: List[str] = ["image", "audio", "video"]):
-    """Check if the file is a media file."""
-    mime_start = mimetypes.guess_type(file)[0]
-    if mime_start is not None:
-        mime_start = mime_start.split("/")[0]
-        if mime_start in include_type:
-            return True
-    return False
+# def is_media(file: str, include_type: List[str] = ["image", "audio", "video"]):
+#     """Check if the file is a media file."""
+#     mime_start = mimetypes.guess_type(file)[0]
+#     if mime_start is not None:
+#         mime_start = mime_start.split("/")[0]
+#         if mime_start in include_type:
+#             return True
+#     return False
 
 
 class ProgressBar:

@@ -11,7 +11,8 @@ from config import CONFIG
 from src import models
 from utils import exceptions
 from utils.command import CommandExecutor
-from utils.tools import calculate_md5, is_media
+from utils.media import guess
+from utils.tools import calculate_md5
 
 
 logger = logging.getLogger()
@@ -59,7 +60,7 @@ class BaseMedia:
             raise FileNotFoundError(f"File not found at path: {path}")
         if not os.path.isfile(path):
             raise exceptions.NotMediaException(101, f"Path is not a file: {path}")
-        if not is_media(path, include_type=self._INCLUDE_TYPE):
+        if guess(path) not in self._INCLUDE_TYPE:
             raise exceptions.NotMediaException(101, f"File is not media file: {path}")
         logger.debug("BaseMedia: %s", path)
         self.path: str = path
