@@ -1,4 +1,6 @@
 import logging
+import os
+import shutil
 from typing import Dict
 
 from base.video import Video
@@ -11,30 +13,34 @@ __all__ = ["compress"]
 logger = logging.getLogger()
 
 
-compress = MiddlewareScheduler()
-
-
-@compress.add_middleware
-def update_state(self: Video, *args, ctx: Context, **kwargs):
-    result = self.media.update_state("compress", 1)
+def update_state(self: Video, *args, ctx: Context, key="compress", val=1, **kwargs):
+    result = self.media.update_state(key, val)
     assert isinstance(result, response.Result)
-    if result == 200:
-        return ctx.next(self, *args, **kwargs)
-    else:
-        raise Exception(f"Cannot update state: {result}")
+    assert result == 200
+    return ctx.next(self, *args, **kwargs)
 
 
-@compress.add_func("core")
+def soft_remove(self: Video, *args, ctx: Context, **kwargs):
+    remove_folder = os.path.join(self.dirname, ".removed")
+    if not os.path.exists(remove_folder):
+        os.makedirs(remove_folder)
+    shutil.move(self.path, os.path.join(remove_folder, self.title + "." + self.ext))
+    return ctx.next(*args, **kwargs)
+
+
 def _compress(
     self: Video, *args, ctx: Context, action: str = "compress", **kwargs: Dict[str, str]
 ):
     result = getattr(self, action)()
     assert isinstance(result, response.Result)
-    if result == 200:
-        return result
-    else:
-        result = self.media.update_state(action, 0)
-        raise Exception(f"Cannot compress media: {result}")
+    assert result == 200
+    return ctx.next(self, *args, val=2, result=result, **kwargs)
 
 
+compress = MiddlewareScheduler()
+compress.add_middleware(update_state)
+compress.add_middleware(_compress)
+compress.add_middleware(update_state)
+compress.add_middleware(soft_remove)
+compress.add_func("core")(lambda *args, ctx, result, **kwargs: result)
 compress.initialize()

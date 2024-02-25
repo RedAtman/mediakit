@@ -16,13 +16,13 @@ __all__ = ["compress", "change_file_extension", "convert_format"]
 logger = logging.getLogger()
 
 
-# Scan to find un-compressed media. Then compress them.
-compress = MiddlewareScheduler()
+def _core(*args, ctx: Context, result=None, **kwargs):
+    return result
+
 
 # scheduler.add_middleware(lambda ctx: setattr(ctx, 'result', Folder._scan()))
 
 
-@compress.add_middleware
 def scan(*args, ctx: Context, **kwargs):
     folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
     result = folder.scan_media()
@@ -30,7 +30,6 @@ def scan(*args, ctx: Context, **kwargs):
     return ctx.next(*args, **kwargs)
 
 
-@compress.add_middleware
 def query(*args, ctx: Context, **kwargs):
     folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
     QUERY_UN_COMPRESS = folder.get_query_statement("QUERY_UN_COMPRESS")
@@ -52,7 +51,6 @@ def callback(future: Future, *args, **kwargs):
         media.update_state("compress", 0)
 
 
-@compress.add_func("core")
 def _compress(*args, ctx: Context, medias=[], **kwargs):
     # result = Folder.run_(
     #     'compress',
@@ -66,7 +64,7 @@ def _compress(*args, ctx: Context, medias=[], **kwargs):
         *args,
         tasks=tasks,
         callback_list=[
-            callback,
+            # callback,
         ],
         max_workers=1,
         **kwargs,
@@ -79,30 +77,27 @@ def _compress(*args, ctx: Context, medias=[], **kwargs):
 # compress.add_func('compress')(core)
 # compress.add_func('compress')(lambda: Folder._compress)
 
+# Scan to find un-compressed media. Then compress them.
+compress = MiddlewareScheduler()
+compress.add_middleware(scan)
+compress.add_middleware(query)
+compress.add_func("core")(_compress)
 compress.initialize()
-# result = compress.compress()
-# result = getattr(compress, 'compress')()
-# logger.debug(result)
 
 
-change_file_extension = MiddlewareScheduler()
-
-
-@change_file_extension.add_func("core")
 def _change_file_extension(*args, ctx: Context, **kwargs):
     from utils import folder
 
     result = folder.change_file_extension(*ctx.args, **ctx.kwargs)
-    return result
+    return ctx.next(*args, result=result, **kwargs)
 
 
+change_file_extension = MiddlewareScheduler()
+change_file_extension.add_middleware(_change_file_extension)
+change_file_extension.add_func("core")(_core)
 change_file_extension.initialize()
 
 
-convert_format = MiddlewareScheduler()
-
-
-@convert_format.add_func("core")
 def _convert_format(
     *args,
     ctx: Context,
@@ -117,9 +112,12 @@ def _convert_format(
         ext=ext,
     )
     assert isinstance(result, list)
-    return result
+    return ctx.next(*args, result=result, **kwargs)
 
 
+convert_format = MiddlewareScheduler()
+convert_format.add_middleware(_convert_format)
+convert_format.add_func("core")(_core)
 convert_format.initialize()
 
 
