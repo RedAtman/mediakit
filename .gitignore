@@ -126,6 +126,8 @@ venv.bak/
 
 # db
 *.db
+*.sqlite
+*.sqlite3
 
 # media files
 samples/
