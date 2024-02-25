@@ -1,8 +1,9 @@
 """
 Usage:
-python cli.py compress -t video -w 1 -f /path/to/folder
-python cli.py change_file_extension --old_ext avi --ext mp4 -f /path/to/folder
-python cli.py change_file_extension --old_ext mp4 --ext avi
+python cli compress -t video -w 1 -f /path/to/folder
+python cli change_file_extension --old_ext avi --ext mp4 -f /path/to/folder
+python cli change_file_extension --old_ext mp4 --ext avi
+python cli convert_format -t video
 """
 
 import argparse
@@ -71,7 +72,6 @@ def main():
     args = parser.parse_args()
     # logger.debug(args)
     # logger.debug(args.action)
-    # logger.debug(type(args.__dict__))
     logger.debug(args.__dict__)
     scheduler = getattr(folder, args.action)
     # logger.debug(scheduler)
