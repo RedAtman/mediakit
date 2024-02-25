@@ -105,7 +105,7 @@ class MiddlewareScheduler():
                 # @functools.wraps(middleware)
                 def new_next(*args, **kwargs):
                     ctx.next = next
-                    return middleware(*ctx.args, ctx=ctx, **ctx.kwargs)
+                    return middleware(*args, ctx=ctx, **kwargs)
                 # new_next.__name__ = getattr(middleware, '__name__')
                 return new_next
             next = f()
@@ -146,7 +146,7 @@ if __name__ == '__main__':
             print("The 2nd one", cls, ctx)
             print("The 2nd one", ctx.__dict__)
             print("The 2nd one", args, kwargs)
-            return ctx.next(cls, *ctx.args, **ctx.kwargs)
+            return ctx.next(cls, *args, **kwargs)
 
     obj = Obj()
 
