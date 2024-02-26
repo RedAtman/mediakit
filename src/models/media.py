@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from typing import Any
+from typing import Unpack
 
 from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.sqlite import JSON
@@ -10,6 +10,8 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from config import CONFIG
 from src import db, schemas
 from utils import response
+
+from ._type import MediaParams
 
 
 logger = logging.getLogger()
@@ -106,13 +108,13 @@ class Media(Base):
     #     return state
 
     @classmethod
-    def get(cls, **kwargs: dict[str, Any]):
+    def get(cls, **kwargs: Unpack[MediaParams]):
         with db.DatabaseEngine.engine.get_session() as session:
             instance = session.query(cls).filter_by(**kwargs).first()
             return instance
 
     @classmethod
-    def get_or_create(cls, **kwargs: dict[str, str]):
+    def get_or_create(cls, **kwargs: Unpack[MediaParams]):
         with db.DatabaseEngine.engine.get_session() as session:
             instance = session.query(cls).filter_by(**kwargs).first()
             if not instance:

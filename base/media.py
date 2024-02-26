@@ -65,7 +65,7 @@ class BaseMedia:
         logger.debug("BaseMedia: %s", path)
         self.path: str = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
-        self.media: models.Media = self._MEDIA_CLS.get(md5=self.md5)
+        self.media: models.Media| None = self._MEDIA_CLS.get(md5=self.md5)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.path})"
@@ -226,7 +226,7 @@ class BaseMedia:
         # suffix or caller function name
         suffix = (
             suffix or sys._getframe().f_back.f_code.co_name
-        )  # pylint: disable=protected-access
+        )
         return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
 
     @classmethod
@@ -237,7 +237,7 @@ class BaseMedia:
         suffix_number: int = 1,
         ext: Optional[str] = None,
     ):
-        """产生媒体剪切片段输出路径
+        """Create file path.
 
         Arguments:
             path {[type]} -- [description]
@@ -254,7 +254,7 @@ class BaseMedia:
         ext = ext or _ext
         suffix = (
             suffix or sys._getframe().f_back.f_code.co_name
-        )  # pylint: disable=protected-access
+        )
         dirname = os.path.join(dirname, "_" + suffix)
         if not os.path.exists(dirname):
             try:
@@ -269,23 +269,10 @@ class BaseMedia:
                 logger.exception(err)
                 raise err
 
-        if cls._LOCK:
-            cls._LOCK.acquire()
-        try:
-            suffix_number = suffix_number or 1
-            file_path = os.path.join(dirname, f"{title}-{suffix}_{suffix_number}.{ext}")
-            while os.path.exists(file_path):
+        with cls._LOCK:
+            while True:
+                file_path = os.path.join(dirname, f"{title}-{suffix}_{suffix_number}.{ext}")
+                if not os.path.exists(file_path):
+                    break
                 suffix_number += 1
-                file_path = os.path.join(
-                    dirname, f"{title}-{suffix}_{suffix_number}.{ext}"
-                )
-            with open(file_path, encoding="utf-8", mode="x"):
-                pass
-        except Exception as err:
-            logger.exception(err)
-            raise err
-        finally:
-            if cls._LOCK:
-                cls._LOCK.release()
-        # logger.debug('create_file_path: %s', file_path)
         return file_path
