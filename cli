@@ -21,6 +21,7 @@ mapper_action = {
     "trim": None,
     "change_file_extension": None,
     "convert_format": None,
+    "save_text": None,
 }
 
 
@@ -45,6 +46,7 @@ def create_parser():
         "--folder",
         type=str,
         default=CONFIG.MEDIA_FILE_FOLDER,
+        # default=os.getcwd(),
         help="Folder to run",
     )
     parser.add_argument(
@@ -61,7 +63,9 @@ def create_parser():
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
     parser.add_argument("--old_ext", type=str, help="Old extension")
-    parser.add_argument("--ext", type=str, default="mp4", help="New extension")
+    parser.add_argument(
+        "--ext", type=str, default=argparse.SUPPRESS, help="New extension"
+    )
     return parser
 
 

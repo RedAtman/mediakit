@@ -121,6 +121,23 @@ convert_format.add_func("core")(_core)
 convert_format.initialize()
 
 
+def _save_text(
+    *args, ctx: Context, action: str = "convert_format", folder: str = "", **kwargs
+):
+    result = Folder.run_(
+        *args,
+        media_method="save_text",
+        path=folder,
+        **kwargs,
+    )
+    return ctx.next(*args, result=result, **kwargs)
+
+
+save_text = MiddlewareScheduler()
+save_text.add_middleware(_save_text)
+save_text.add_func("core")(_core)
+save_text.initialize()
+
 if __name__ == "__main__":
     result = getattr(compress, "core")(
         folder=CONFIG.MEDIA_FILE_FOLDER, type="video", worker=1
