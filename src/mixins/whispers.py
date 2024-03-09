@@ -23,7 +23,7 @@ class MixinMediaWhisperProtocol(Protocol):
     def whisper_model(self) -> Whisper: ...
     def _speech_to_text(self) -> dict: ...
     def speech_to_text(self) -> Any: ...
-    def save_text(self, ext: str = "txt") -> Any: ...
+    def save_text(self, ext: str = "txt", **kwargs: Any) -> Any: ...
 
 
 class MixinMediaWhisper(MixinMediaWhisperProtocol):
@@ -178,7 +178,7 @@ class MixinMediaWhisperCPP(MixinMediaWhisper):
         # }
         return result
 
-    def save_text(self, ext="txt"):
+    def save_text(self, ext="txt", **kwargs: Any):
         self.whisper_model.output(
             fname_out=self.path,
             output_txt=True,
