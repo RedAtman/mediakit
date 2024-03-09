@@ -33,7 +33,7 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
 
     @property
     def whisper_model(self) -> Whisper:
-        import whisper  # pylint: disable=import-outside-toplevel
+        import whisper
 
         return whisper.load_model(CONFIG.WHISPER_MODEL)
 
@@ -57,7 +57,6 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
 
     @lru_cache(maxsize=9)
     def _speech_to_text(self):
-        # logger.info('Processing media: %s', self.path)
         result = self.whisper_model.transcribe(
             self.path,
             **self.transcribe_kwargs,
@@ -71,20 +70,22 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
             return result.get("text", "")
         return result
 
-    def save_text(self, ext: str = "txt"):
+    def save_text(self, ext: str = "txt", **kwargs: Any):
         result = self._speech_to_text()
-        # with open(self.path, 'w') as file:
         # get srt writer for the current directory
-        from whisper.utils import get_writer  # pylint: disable=import-outside-toplevel
+        from whisper.utils import get_writer
 
         writer = get_writer(ext, self.dirname)
         writer(
             result,
-            self.path,
+            self.path,  # type: ignore
+            # add empty dictionary for 'options'
             {
-                # "max_line_width": 50, "max_line_count": 1, "highlight_words": False
+                # "max_line_width": 50,
+                # "max_line_count": 1,
+                # "highlight_words": False,
             },
-        )  # add empty dictionary for 'options'
+        )
         return result
 
 
@@ -133,9 +134,9 @@ class MixinMediaFasterWhisper(MixinMediaWhisper):
         # return segments, info
         segments = [{"start": i.start, "end": i.end, "text": i.text} for i in segments]
         result = {
-            "segments": segments,
-            "text": "\n".join([segment["text"] for segment in segments]),
             "language": info.language,
+            "text": "\n".join([segment["text"] for segment in segments]),
+            "segments": segments,
         }
         return result
 
