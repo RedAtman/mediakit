@@ -65,7 +65,7 @@ class BaseMedia:
         logger.debug("BaseMedia: %s", path)
         self.path: str = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
-        self.media: models.Media| None = self._MEDIA_CLS.get(md5=self.md5)
+        self.media: models.Media | None = self._MEDIA_CLS.get(md5=self.md5)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.path})"
@@ -224,9 +224,7 @@ class BaseMedia:
             [str] -- [媒体输出路径]
         """
         # suffix or caller function name
-        suffix = (
-            suffix or sys._getframe().f_back.f_code.co_name
-        )
+        suffix = suffix or sys._getframe().f_back.f_code.co_name
         return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
 
     @classmethod
@@ -252,9 +250,7 @@ class BaseMedia:
         """
         dirname, title, _ext = cls.get_file_info(path)
         ext = ext or _ext
-        suffix = (
-            suffix or sys._getframe().f_back.f_code.co_name
-        )
+        suffix = suffix or sys._getframe().f_back.f_code.co_name
         dirname = os.path.join(dirname, "_" + suffix)
         if not os.path.exists(dirname):
             try:
@@ -271,7 +267,9 @@ class BaseMedia:
 
         with cls._LOCK:
             while True:
-                file_path = os.path.join(dirname, f"{title}-{suffix}_{suffix_number}.{ext}")
+                file_path = os.path.join(
+                    dirname, f"{title}-{suffix}_{suffix_number}.{ext}"
+                )
                 if not os.path.exists(file_path):
                     break
                 suffix_number += 1

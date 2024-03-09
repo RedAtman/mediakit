@@ -88,9 +88,10 @@ class CommandExecutor:
 
             if process.returncode != 0:
                 logger.exception(
-                    "returncode: %s, command: %s, stdout: %s, _stderr: %s",
-                    command,
+                    "process: %s, returncode: %s, command: %s, stdout: %s, stderr: %s",
+                    process.__dict__,
                     process.returncode,
+                    command,
                     stdout,
                     _stderr,
                 )

@@ -671,6 +671,7 @@ class Video(
     def concat(self):
         return "ffmpeg -f concat -i concat.txt -c copy concat.mov"
 
+    @decorator.timer
     # @decorator.execute_shell_command
     def convert_format(self, ext: str = "mp4"):
         """转换视频格式"""
