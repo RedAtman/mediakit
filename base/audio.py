@@ -4,8 +4,9 @@ from src.mixins import whispers
 
 from .media import BaseMedia
 
+
 __all__ = [
-    'Audio',
+    "Audio",
 ]
 
 
@@ -16,7 +17,7 @@ class Audio(
     # whispers.MixinMediaWhisperCPP,
 ):
     _INCLUDE_TYPE = [
-        'audio',
+        "audio",
     ]
 
     def __init__(self, *args, **kwargs):
@@ -27,7 +28,7 @@ class Audio(
 
     @classmethod
     def _trim(cls, path: str, trim_time: Sequence[str] = ()):
-        '''Trim media file.
+        """Trim media file.
 
         Arguments:
             path {[str]} -- [Media file path]
@@ -35,12 +36,12 @@ class Audio(
 
         Returns:
             [str] -- [Trimmed media file path]
-        '''
+        """
 
         if not trim_time:
-            raise ValueError('trim_time is empty')
+            raise ValueError("trim_time is empty")
         if len(trim_time) != 2:
-            raise ValueError('trim_time length is not 2')
+            raise ValueError("trim_time length is not 2")
         start_time, end_time = trim_time
         new_file_path = cls.create_file_path(path)
         command = f'ffmpeg -y -i "{path}" -c copy -ss {start_time} -to {end_time} "{new_file_path}"'

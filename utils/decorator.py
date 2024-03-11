@@ -22,7 +22,9 @@ def timer(fn: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fn)
     def wrap(self, *args, **kwargs):
         start_time = time.time()
-        logger.debug("Task start(%s): %s", fn.__name__, start_time)
+        logger.debug(
+            "Task start(%s): %s, %s", fn.__name__, start_time, datetime.datetime.now()
+        )
         result = fn(self, *args, **kwargs)
         cost_seconds = time.time() - start_time
         logger.info(
