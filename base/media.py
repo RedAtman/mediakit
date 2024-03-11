@@ -35,8 +35,10 @@ class BaseMedia:
     _executor = partial(CommandExecutor)
     _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffmpeg")
     _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffprobe")
-    # logger.warning('_FFMPEG_BIN: %s', _FFMPEG_BIN)
-    # logger.warning('_FFPROBE_BIN: %s', _FFPROBE_BIN)
+    if not os.path.exists(_FFMPEG_BIN):
+        raise FileNotFoundError(f"File not found at path: {_FFMPEG_BIN}")
+    if not os.path.exists(_FFPROBE_BIN):
+        raise FileNotFoundError(f"File not found at path: {_FFPROBE_BIN}")
     # TODO: Type[super]?
     _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
     _FFMPEG_PREFIX: list[str] = [
