@@ -19,6 +19,7 @@ mapper_action = {
     "all": None,
     "compress": None,
     "trim": None,
+    "scale": None,
     "change_file_extension": None,
     "convert_format": None,
     "save_text": None,

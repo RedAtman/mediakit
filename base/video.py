@@ -704,3 +704,32 @@ class Video(
                 "new_file_path": new_file_path,
             },
         )
+
+    @decorator.timer
+    def scale(self, width: int = 1920, height: int = 1080, **kwargs):
+        """Scale video resolution."""
+        new_file_path = self.create_file_path(
+            self.path, suffix=f"[scale.{width}x{height}]", ext="mp4"
+        )
+        command = self._FFMPEG_PREFIX + [
+            "-i",
+            self.path,
+            "-vf",
+            f"scale={width}:{height}",
+            "-c:v",
+            "libx265",
+            "-tag:v",
+            "hvc1",
+            new_file_path,
+        ]
+        try:
+            self.executor.run(command)
+        except Exception as err:
+            return response.Result(code=400, msg=err)
+        return response.Result(
+            code=200,
+            data={
+                "handler": self,
+                "new_file_path": new_file_path,
+            },
+        )

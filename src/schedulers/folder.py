@@ -85,6 +85,27 @@ compress.add_func("core")(_compress)
 compress.initialize()
 
 
+def _scale(
+    *args, ctx: Context,
+    action: str = "scale",
+    folder: str = "",
+    **kwargs,
+):
+    result = Folder.run_(
+        *args,
+        media_method=action,
+        path=folder,
+        **kwargs,
+    )
+    return ctx.next(*args, result=result, **kwargs)
+
+
+scale = MiddlewareScheduler()
+scale.add_middleware(_scale)
+scale.add_func("core")(_core)
+scale.initialize()
+
+
 def _change_file_extension(*args, ctx: Context, **kwargs):
     from utils import folder
 
