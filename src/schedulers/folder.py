@@ -103,13 +103,12 @@ def _convert_format(
     ctx: Context,
     action: str = "convert_format",
     folder: str = "",
-    ext: str = "",
     **kwargs: Dict[str, Any],
 ):
     result = Folder.run_(
         media_method=action,
         path=folder,
-        ext=ext,
+        **kwargs,
     )
     assert isinstance(result, list)
     return ctx.next(*args, result=result, **kwargs)
@@ -137,6 +136,7 @@ save_text = MiddlewareScheduler()
 save_text.add_middleware(_save_text)
 save_text.add_func("core")(_core)
 save_text.initialize()
+
 
 if __name__ == "__main__":
     result = getattr(compress, "core")(

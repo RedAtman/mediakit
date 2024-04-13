@@ -3,7 +3,7 @@ Usage:
 python cli compress -t video -w 1 -f /path/to/folder
 python cli change_file_extension --old_ext avi --ext mp4 -f /path/to/folder
 python cli change_file_extension --old_ext mp4 --ext avi
-python cli convert_format -t video
+python cli convert_format -t video -f /path/to/folder
 """
 
 import argparse
@@ -62,7 +62,9 @@ def create_parser():
     )
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
-    parser.add_argument("--old_ext", type=str, help="Old extension")
+    parser.add_argument(
+        "--old_ext", type=str, default=argparse.SUPPRESS, help="Old extension"
+    )
     parser.add_argument(
         "--ext", type=str, default=argparse.SUPPRESS, help="New extension"
     )

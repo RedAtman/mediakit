@@ -19,8 +19,8 @@ __all__ = [
 
 class Video(
     BaseMedia,
-    whispers.MixinMediaWhisper,
-    # whispers.MixinMediaFasterWhisper,
+    # whispers.MixinMediaWhisper,
+    whispers.MixinMediaFasterWhisper,
     # whispers.MixinMediaWhisperCPP,
 ):
     _INCLUDE_TYPE = [
@@ -673,7 +673,7 @@ class Video(
 
     @decorator.timer
     # @decorator.execute_shell_command
-    def convert_format(self, ext: str = "mp4"):
+    def convert_format(self, ext: str = "mp4", **kwargs):
         """转换视频格式"""
         new_file_path = self.create_file_path(
             self.path, suffix=f"[convert.{ext}]", ext=ext
