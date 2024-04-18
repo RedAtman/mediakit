@@ -35,6 +35,11 @@ class TestVideo(TestCase):
         result = self.video.decode()
         assert isinstance(result, Video)
 
+    def test_md5(self):
+        result = self.video.md5
+        logger.info(result)
+        assert isinstance(result, str)
+
     def test_frames_count(self):
         result = self.video.frames_count
         logger.info(result)
