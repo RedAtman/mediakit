@@ -146,8 +146,8 @@ class Video(
             "libx265",
             "-pix_fmt",
             "yuv420p10le",
-            "-threads",
-            "0",
+            # "-threads",
+            # "0",
             "-tag:v",
             "hvc1",
             "-x265-params",
@@ -385,8 +385,8 @@ class Video(
             # 码率
             # '-b:v', bit_rate,
             # 线程(待验证)
-            "-threads",
-            "4",
+            # "-threads",
+            # "4",
             # 画面缩放比率
             "-vf",
             "scale=1920:-1",
@@ -504,11 +504,15 @@ class Video(
 
         # videotoolbox
         # More faster, more smaller size.
-        # command = f'ffmpeg -y -loglevel {self.__loglevel} \
-        #     -i "{self.path}" \
-        #     -c:v h264_videotoolbox -acodec copy \
-        #     -q:v 50 \
-        #     "{new_file_path}"'
+        # command = self._FFMPEG_PREFIX + [
+        #     "-i", self.path,
+        #     "-c:a", "copy",
+        #     "-c:v",
+        #     "h264_videotoolbox",
+        #     "-q:v",
+        #     "50",
+        #     new_file_path,
+        # ]
 
         # videotoolbox: H.265 / HEVC (High Efficiency Video Coding), hevc_videotoolbox isn't as good as libx265, \
         # but it is fast
@@ -517,11 +521,12 @@ class Video(
         # Use -b:v to control quality. -crf is only for libx264, libx265, libvpx, and libvpx-vp9. It will be ignored by other encoders. It will also ignore -preset.
         # * -q:v 50: Constant quality mode (VBR). Lower values mean better quality, The value should be 1-100, \
         # the higher the number, the better the quality. 65 seems to be acceptable.
-        # command = f'ffmpeg -y -loglevel {self.__loglevel} \
-        #     -i "{self.path}" \
-        #     -vcodec hevc_videotoolbox -tag:v hvc1 \
-        #     -q:v 65 \
-        #     "{new_file_path}"'
+        # command = self._FFMPEG_PREFIX + [
+        #     "-i", self.path,
+        #     "-vcodec", "hevc_videotoolbox", "-tag:v", "hvc1",
+        #     "-q:v", "65",
+        #     new_file_path,
+        # ]
         try:
             self.executor.run(command)
         except Exception as err:
@@ -596,8 +601,8 @@ class Video(
             str(width) + "x" + str(height),
             "-aspect",
             str(width) + ":" + str(height),
-            "-threads",
-            "0",
+            # "-threads",
+            # "0",
             "-c:v",
             "hevc_videotoolbox",
             "-r",

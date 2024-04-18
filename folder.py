@@ -78,7 +78,7 @@ class Folder(
         media_type: str = "video",
         max_workers: int = CONFIG.MAX_WORKERS,
         callback_list: List[Callable[..., Any]] = [],
-        **kwargs: Any,
+        **kwargs: Dict[str, Any],
     ):
         """Run the specified method of all media in the folder.
 

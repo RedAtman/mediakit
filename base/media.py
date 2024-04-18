@@ -47,7 +47,8 @@ class BaseMedia:
         "-loglevel",
         _LOG_LEVEL,
         # '-i', self.path,
-        # '-threads', '16',
+        # "-threads", "16",
+        # "-threads:v",
     ]
     _MEDIA_CLS: Type[models.Media] = models.Media
 
