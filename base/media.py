@@ -33,15 +33,24 @@ class BaseMedia:
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
     _executor = partial(CommandExecutor)
+
+    _CPULIMIT_PREFIX = []
+    if CONFIG.CPULIMIT:
+        _CPULIMIT_PREFIX = [
+            "cpulimit",
+            "--limit",
+            CONFIG.CPULIMIT,
+            "--lazy",
+            # "--",
+        ]
+
     _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffmpeg")
     _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffprobe")
     if not os.path.exists(_FFMPEG_BIN):
         raise FileNotFoundError(f"File not found at path: {_FFMPEG_BIN}")
     if not os.path.exists(_FFPROBE_BIN):
         raise FileNotFoundError(f"File not found at path: {_FFPROBE_BIN}")
-    # TODO: Type[super]?
-    _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
-    _FFMPEG_PREFIX: list[str] = [
+    _FFMPEG_PREFIX: list[str] = _CPULIMIT_PREFIX + [
         _FFMPEG_BIN,
         "-y",
         "-loglevel",
@@ -50,6 +59,9 @@ class BaseMedia:
         # "-threads", "16",
         # "-threads:v",
     ]
+
+    # TODO: Type[super]?
+    _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
     _MEDIA_CLS: Type[models.Media] = models.Media
 
     def __init_subclass__(cls, **kwargs):
@@ -273,6 +285,7 @@ class BaseMedia:
                 file_path = os.path.join(
                     dirname, f"{title}-{suffix}_{suffix_number}.{ext}"
                 )
+                # file_path = os.path.join(dirname, f"{title}.{ext}")
                 if not os.path.exists(file_path):
                     break
                 suffix_number += 1
