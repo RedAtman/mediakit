@@ -1,2 +1,23 @@
-# media_hander
-基于Python、ffmpeg实现的media操作类。
+# Media Handler
+
+Media Handler is a tool to operate on media files. It can compress, convert, and scale media files.
+
+More features will be added in the future.
+
+## Create virtual environment
+
+```sh
+brew install ffmpeg
+brew install cpulimit
+
+conda create -n media_handler python=3.11.5 -y &&
+conda activate media_handler &&
+pip install -r requirements.txt
+```
+
+## Usage
+
+```sh
+conda activate media_handler &&
+python cli compress -t video -f /path/to/video/directory
+```
