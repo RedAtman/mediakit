@@ -23,14 +23,14 @@ def _core(*args, ctx: Context, result=None, **kwargs):
 # scheduler.add_middleware(lambda ctx: setattr(ctx, 'result', Folder._scan()))
 
 
-def scan(*args, ctx: Context, **kwargs):
+def _scan(*args, ctx: Context, **kwargs):
     folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
     result = folder.scan_media()
     # result = Folder.scan_media__()
     return ctx.next(*args, **kwargs)
 
 
-def query(*args, ctx: Context, **kwargs):
+def _query(*args, ctx: Context, **kwargs):
     folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
     QUERY_UN_COMPRESS = folder.get_query_statement("QUERY_UN_COMPRESS")
     result = folder.query(QUERY_UN_COMPRESS)
@@ -41,7 +41,7 @@ def query(*args, ctx: Context, **kwargs):
     return ctx.next(*args, medias=medias, **kwargs)
 
 
-def callback(future: Future, *args, **kwargs):
+def _callback(future: Future, *args, **kwargs):
     result = future.result()
     assert isinstance(result, response.Result)
     media = result.data.get("media")
@@ -55,7 +55,7 @@ def _compress(*args, ctx: Context, medias=[], **kwargs):
     # result = Folder.run_(
     #     'compress',
     #     *args,
-    #     callback_list=[callback, ],
+    #     callback_list=[_callback, ],
     #     **kwargs,
     # )
     scheduler = getattr(media_compress, "core")
@@ -64,7 +64,7 @@ def _compress(*args, ctx: Context, medias=[], **kwargs):
         *args,
         tasks=tasks,
         callback_list=[
-            # callback,
+            # _callback,
         ],
         max_workers=1,
         **kwargs,
@@ -79,8 +79,8 @@ def _compress(*args, ctx: Context, medias=[], **kwargs):
 
 # Scan to find un-compressed media. Then compress them.
 compress = MiddlewareScheduler()
-compress.add_middleware(scan)
-compress.add_middleware(query)
+compress.add_middleware(_scan)
+compress.add_middleware(_query)
 compress.add_func("core")(_compress)
 compress.initialize()
 
