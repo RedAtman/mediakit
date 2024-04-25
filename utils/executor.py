@@ -1,18 +1,22 @@
 from concurrent.futures import (
-    ALL_COMPLETED,
+    FIRST_EXCEPTION,
     Future,
     ProcessPoolExecutor,
     ThreadPoolExecutor,
     wait,
 )
+import ctypes
+from dataclasses import dataclass
+import inspect
 import logging
 import multiprocessing
 import os
-from queue import Queue
 import sys
 import threading
 from types import FunctionType, MethodType
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List
+
+from utils.response import Result
 
 
 logger = logging.getLogger()
@@ -21,6 +25,49 @@ __all__ = [
     "BoundedExecutor",
     "TaskManager",
 ]
+
+
+# def _async_raise(tid, exctype = ExecError) -> None:
+def _async_raise(tid, exctype) -> None:
+    """Raises an exception in the threads with id tid"""
+    if not inspect.isclass(exctype):
+        raise TypeError("Only types can be raised (not instances)")
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_long(tid), ctypes.py_object(exctype)
+    )
+    if res == 0:
+        raise ValueError("invalid thread id")
+    elif res != 1:
+        # "if it returns a number greater than one, you're in trouble,
+        # and you should call it again with exc=NULL to revert the effect"
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
+        raise SystemError("PyThreadState_SetAsyncExc failed")
+
+
+def _get_tid(thread: threading.Thread):
+    """determines the thread id of the given thread"""
+    if not thread.is_alive():
+        raise threading.ThreadError("the thread is not active")
+
+    # do we have it cached?
+    if hasattr(thread, "_thread_id"):
+        return thread._thread_id
+
+    # no, look for it in the _active dict
+    for tid, tobj in threading._active.items():
+        if tobj is thread:
+            thread._thread_id = tid
+            return tid
+
+    raise AssertionError("could not determine the thread's id")
+
+
+@dataclass
+class FutureContext:
+    future: Future
+    fn: Callable[..., Any]
+    args: Any
+    kwargs: Any
 
 
 class BoundedExecutor:
@@ -99,23 +146,9 @@ class TaskManager:
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
         self.futures: List[Future[str]] = []
-        self.queue: Queue[List[Any]] = Queue()
+        self.mapper_future_args: Dict[Future[Any], FutureContext] = {}
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
-
-    def submit_all(
-        self,
-        tasks: List[Callable[[], str]],
-        is_wait: bool = True,
-        *args: Any,
-        **kwargs: Any
-    ):
-        with self.executor:
-            futures = [self.submit(task, *args, **kwargs) for task in tasks]
-            logger.info("All media have been processed.")
-            if is_wait:
-                wait(self.futures, return_when=ALL_COMPLETED)
-                logger.info(("ALL_COMPLETED", self.futures))
 
     def submit(
         self,
@@ -126,18 +159,18 @@ class TaskManager:
     ):
         """Start a new task, blocks if queue is full."""
         with self.semaphore:
-            _future = self.executor.submit(fn, *args, **kwargs)
+            _future: Future[Any] = self.executor.submit(fn, *args, **kwargs)
             self.futures.append(_future)
+            self.mapper_future_args[_future] = FutureContext(_future, fn, args, kwargs)
             for _callback in callback_list:
                 _future.add_done_callback(_callback)
-            _future.add_done_callback(self._task_done)
+            # _future.add_done_callback(self._task_done)
 
     def _task_done(self, _future: Future[Any]):
         """Called once task is done, releases the queue if blocked."""
         result = _future.result()
         logger.info("TaskManager._task_done: %s", result)
-        self.queue.put(result)
-        self.shutdown(False)
+        # self.shutdown(False)
         return result
 
     def shutdown(self, wait=True):
@@ -149,3 +182,46 @@ class TaskManager:
         #     threading.current_thread().name,
         #     os.getpid()
         # )
+
+    def submit_all(
+        self,
+        tasks: List[Callable[[], str]],
+        is_wait: bool = True,
+        *args: Any,
+        **kwargs: Any
+    ):
+        with self.executor:
+            _ = [self.submit(task, *args, **kwargs) for task in tasks]
+
+            not_done = self.futures
+            try:
+                while not_done:
+                    done, not_done = wait(
+                        not_done,
+                        timeout=1,
+                        return_when=FIRST_EXCEPTION,
+                    )
+
+            # Cancel any futures not done on KeyboardInterrupt
+            except KeyboardInterrupt as err:
+                logger.exception(err)
+                # raise err
+                # yield err
+                # yield Result(403, err)
+                for future in self.futures:
+                    if not future.done():
+                        future_context = self.mapper_future_args[future]
+                        future.cancel()
+                        future.set_result(
+                            Result(
+                                601,
+                                msg=err,
+                                data={
+                                    # TODO: Not recommended to use fn.args[0] to obtain the handler
+                                    "handler": future_context.fn.args[0],
+                                },
+                            )
+                        )
+            except Exception as err:
+                logger.exception(err)
+                yield Result(1, err)

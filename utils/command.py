@@ -25,7 +25,7 @@ class CommandExecutor:
             self.progress_bar = partial(ProgressBar, total, title, fmt=ProgressBar.FULL)
         # logger.info((total, title, self.progress_bar))
 
-    def run(self, command: List[str], progress_bar=True):
+    def run(self, command: Union[List[str], str], progress_bar=True):
         if progress_bar and self.progress_bar:
             return self.execute(command, progress_bar=self.progress_bar())
         return self.execute(command)
@@ -71,6 +71,7 @@ class CommandExecutor:
             # universal_newlines=True,
             encoding="utf-8",
             # text=True,
+            # start_new_session=True,
         ) as process:
             if progress_bar and process.stdout:
                 while process.stdout.readable():

@@ -4,16 +4,17 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Callable, List, Type
+from typing import Any, Callable
 
-from base.media import BaseMedia
+from .response import Result
 
 
 logger = logging.getLogger()
 
 __all__ = [
     "timer",
-    "execute_shell_command",
+    "exception",
+    "execute",
     "class_property",
 ]
 
@@ -40,16 +41,41 @@ def timer(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrap
 
 
-def execute_shell_command(fn: Callable):
+class exception:
+
+    def __init__(self, fn):
+        self.fn = fn
+
+    def __call__(self, *args, **kwargs):
+        # logger.debug((self, self.fn, args, kwargs))
+        try:
+            data = self.fn(*args, **kwargs)
+            result = Result(0, data=data)
+            return result
+        except KeyboardInterrupt as err:
+            logger.exception(err)
+            result = Result(601, err)
+            return result
+        except Exception as err:
+            logger.exception(err)
+            result = Result(1, err)
+            return result
+
+    def __get__(self, obj, objtype):
+        return functools.partial(self.__call__, obj)
+
+
+def execute(fn: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fn)
-    def wrap(self: Type[BaseMedia], *args, **kwargs):
-        # Call the original function to get the shell command
-        command: List[str]
-        new_file_path: str
-        command, new_file_path = fn(self, *args, **kwargs)
-        logger.debug("self: %s, command: %s", self, command)
-        self.executor.run(command)
-        return self.__class__(new_file_path)
+    def wrap(self, *args, **kwargs):
+        handler, command, new_file_path = fn(self, *args, **kwargs)
+        # TODO: Decouple the executor from the handler
+        result = handler.executor.run(command)
+        return {
+            "handler": handler,
+            "new_file_path": new_file_path,
+            "result": result,
+        }
 
     return wrap
 

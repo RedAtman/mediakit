@@ -161,7 +161,9 @@ class Folder(
         **kwargs: Any,
     ):
         task_manager = executor.TaskManager(max_workers)
-        task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
+        _ = list(
+            task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
+        )
         return [future.result() for future in task_manager.futures]
 
     @property

@@ -132,14 +132,12 @@ class BaseMedia:
 
         """
         try:
-            result = CommandExecutor.execute(
-                f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
-            )
+            command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
+            result = CommandExecutor().run(command, progress_bar=False)
             return int(result)
         except ValueError:
-            result = CommandExecutor.execute(
-                f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
-            )
+            command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
+            result = CommandExecutor().run(command, progress_bar=False)
             return int(result)
         except Exception as err:
             logger.exception(err)

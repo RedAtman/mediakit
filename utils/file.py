@@ -1,6 +1,13 @@
 import glob
 import os
+import shutil
 from typing import Any, Dict, Optional
+
+
+__all__ = [
+    "change_file_extension",
+    "soft_remove",
+]
 
 
 def change_file_extension(
@@ -20,3 +27,11 @@ def change_file_extension(
         os.rename(filename, base + f".{ext}")
         result[filename] = base + f".{ext}"
     return result
+
+
+def soft_remove(file_path: str) -> None:
+    basedir, filename = os.path.split(file_path)
+    remove_folder = os.path.join(basedir, ".removed")
+    if not os.path.exists(remove_folder):
+        os.makedirs(remove_folder)
+    shutil.move(file_path, os.path.join(remove_folder, filename))

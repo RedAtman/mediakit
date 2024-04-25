@@ -132,7 +132,7 @@ class Media(Base):
             self.state = schemas.State(**state).model_dump()
             session.add(self)
             session.commit()
-            return response.Result(code=200, data={"media": self})
+            return response.Result(code=0, data={"media": self})
 
 
 if __name__ == "__main__":

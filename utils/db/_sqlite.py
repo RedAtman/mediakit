@@ -114,11 +114,10 @@ if __name__ == "__main__":
     # logger.debug([thread.__dict__ for thread in threads])
     # db.close_all_connections()
 
-    from utils import TaskManager
+    from utils.executor import TaskManager
 
     task_manager = TaskManager()
     with task_manager.executor:
         for _ in range(num_threads):
             task_manager.submit(db.tables)
     # logger.info([future.result() for future in task_manager.futures])
-    logger.info([result for result in task_manager.queue.queue])

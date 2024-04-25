@@ -26,6 +26,7 @@ class ResultStatus(_StatusConstructor):
     SUCCESS = 0, "Success", "Success"
     FAILED = 1, "Failed", "Failed"
     DATABASE_ERROR = 600, "Database Error", "Database Error"
+    KEYBOARD_INTERRUPT = 601, "Keyboard Interrupt", "Keyboard Interrupt"
 
 
 Status = _StatusConstructor(
@@ -73,6 +74,9 @@ class BaseResponse(dict):
 
     def __eq__(self, __value: object) -> bool:
         return __value in self.values()
+
+    def __ne__(self, __value: object) -> bool:
+        return __value not in self.values()
 
     def check_kwargs(
         self,

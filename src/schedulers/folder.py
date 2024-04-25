@@ -6,21 +6,25 @@ from typing import Any, Dict
 from config import CONFIG
 from folder import Folder
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
-from utils import response
+from utils import file, response
 
 from .media import compress as media_compress
 
 
-__all__ = ["compress", "change_file_extension", "convert_format"]
+__all__ = [
+    "compress",
+    "scale",
+    "change_file_extension",
+    "convert_format",
+    "save_text",
+]
+
 
 logger = logging.getLogger()
 
 
 def _core(*args, ctx: Context, result=None, **kwargs):
     return result
-
-
-# scheduler.add_middleware(lambda ctx: setattr(ctx, 'result', Folder._scan()))
 
 
 def _scan(*args, ctx: Context, **kwargs):
@@ -38,44 +42,36 @@ def _query(*args, ctx: Context, **kwargs):
     assert result == 0
     assert result == "Success"
     medias = [folder.MEDIA_CLS(media.path) for media in result.data]
+    assert bool(medias), logger.warning("No media to compress")
     return ctx.next(*args, medias=medias, **kwargs)
 
 
 def _callback(future: Future, *args, **kwargs):
     result = future.result()
     assert isinstance(result, response.Result)
-    media = result.data.get("media")
-    if result == 200:
-        media.update_state("compress", 2)
+    handler = result.data.get("handler")
+    if result == 0:
+        handler.media.update_state("compress", 2)
+        file.soft_remove(handler.path)
     else:
-        media.update_state("compress", 0)
+        handler.media.update_state("compress", 0)
 
 
 def _compress(*args, ctx: Context, medias=[], **kwargs):
-    # result = Folder.run_(
-    #     'compress',
-    #     *args,
-    #     callback_list=[_callback, ],
-    #     **kwargs,
-    # )
     scheduler = getattr(media_compress, "core")
     tasks = [partial(scheduler, media) for media in medias]
     result = Folder.run___(
         *args,
         tasks=tasks,
         callback_list=[
-            # _callback,
+            _callback,
         ],
-        max_workers=1,
         **kwargs,
     )
     return result
 
 
-# compress.add_middleware(Folder._compress)
-# compress.add_func('compress')(lambda ctx: ctx.result)
-# compress.add_func('compress')(core)
-# compress.add_func('compress')(lambda: Folder._compress)
+# scheduler.add_middleware(lambda ctx: setattr(ctx, 'result', Folder._scan()))
 
 # Scan to find un-compressed media. Then compress them.
 compress = MiddlewareScheduler()
@@ -86,7 +82,8 @@ compress.initialize()
 
 
 def _scale(
-    *args, ctx: Context,
+    *args,
+    ctx: Context,
     action: str = "scale",
     folder: str = "",
     **kwargs,
@@ -107,9 +104,7 @@ scale.initialize()
 
 
 def _change_file_extension(*args, ctx: Context, **kwargs):
-    from utils import folder
-
-    result = folder.change_file_extension(*ctx.args, **ctx.kwargs)
+    result = file.change_file_extension(*ctx.args, **ctx.kwargs)
     return ctx.next(*args, result=result, **kwargs)
 
 

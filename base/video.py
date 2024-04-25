@@ -460,6 +460,7 @@ class Video(
         return self.__class__(path=new_file_path)
 
     @decorator.timer
+    @decorator.execute
     def compress(self, ext: str = "mp4"):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
@@ -527,21 +528,7 @@ class Video(
         #     "-q:v", "65",
         #     new_file_path,
         # ]
-        try:
-            self.executor.run(command)
-        except Exception as err:
-            # logger.exception(err)
-            return response.Result(code=400, msg=err)
-            return False, err
-        return response.Result(
-            code=200,
-            data={
-                "handler": self,
-                "media": self.media,
-                "new_file_path": new_file_path,
-            },
-        )
-        return True, self.__class__(new_file_path)
+        return self, command, new_file_path
 
     # @decorator.timer
     # def compress(self):

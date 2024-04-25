@@ -107,11 +107,11 @@ class BaseFolderMixin:
                 media_list.append(_media)
             try:
                 _ = session.commit()
-                return response.Result(code=200, data=media_list)
+                return response.Result(code=0, data=media_list)
             except Exception as err:
                 logger.error(err.__dict__)
                 session.rollback()
-                return response.Result(code=400, msg=err)
+                return response.Result(code=1, msg=err)
 
 
 class SqlAlchemyFolderMixin(BaseFolderMixin):
