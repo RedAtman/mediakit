@@ -112,6 +112,7 @@ class MiddlewareScheduler():
         return next
 
     def _wrap(self, func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
         def f(*args, **kwargs):
             ctx = Context(*args, **kwargs)
             return self._load_middleware(ctx, func)(

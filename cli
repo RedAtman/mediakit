@@ -57,7 +57,7 @@ def create_parser():
         default="all",
         choices=("all", "video", "audio", "image"),
     )
-    parser.add_argument("-w", "--worker", type=int, default=1, help="Number of workers")
+    parser.add_argument("-w", "--max_workers", type=int, default=1, help="Number of workers")
     parser.add_argument(
         "-d", "--daemon", type=bool, default=True, choices=(True, False)
     )

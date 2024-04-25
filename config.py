@@ -43,6 +43,9 @@ class _BaseConfig:
     PROJECT_DESCRIPTION = "Media Handler"
     # PROJECT_AUTHOR = 'media_handler'
 
+    # CPULIMIT
+    CPULIMIT = os.getenv("CPULIMIT", "100")
+
     # SQLITE
     SQLITE_DATABASE = os.getenv("SQLITE_DATABASE", os.path.join(BASE_DIR, "db.sqlite"))
     SQLITE_CONNECTION_POOL_SIZE = int(os.getenv("SQLITE_CONNECTION_POOL_SIZE", 10))
