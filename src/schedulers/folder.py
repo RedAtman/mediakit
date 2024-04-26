@@ -42,7 +42,8 @@ def _query(*args, ctx: Context, **kwargs):
     assert result == 0
     assert result == "Success"
     medias = [folder.MEDIA_CLS(media.path) for media in result.data]
-    assert bool(medias), logger.warning("No media to compress")
+    if not medias:
+        logger.info("No media to compress: %s", folder.path)
     return ctx.next(*args, medias=medias, **kwargs)
 
 

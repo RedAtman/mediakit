@@ -17,9 +17,6 @@ class kwargs:
     action: str = "compress"
 
 
-logger.info(kwargs.action)
-
-
 class TestScheduler(unittest.TestCase):
 
     def test_cli(self):
