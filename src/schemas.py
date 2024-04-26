@@ -32,10 +32,14 @@ class State(BaseModel):
 
 
 if __name__ == "__main__":
+    from config import CONFIG
+
     state = State()
-    logger.info(("state", type(state), state, state.dict()))
-    setattr(state, "key", "value")
-    logger.info(("state", type(state), state, state.dict()))
+    logger.info((type(state), state))
+    logger.info(state.model_dump())
+    setattr(state, "trim", "value")
+    logger.info((type(state), state))
+    logger.info(state.model_dump())
     _dict = {
         "key": "value",
     }
@@ -52,13 +56,13 @@ if __name__ == "__main__":
         )
     )
 
-    logger.debug(State.model_fields.keys())
-    logger.debug("compress" in State.model_fields.keys())
+    logger.info(State.model_fields.keys())
+    logger.info("compress" in State.model_fields.keys())
 
     try:
         # result = State()
         # result = State(compress=2, trim=3)
         result = State(compress=3)
-        logger.json(result)
+        logger.info(result)
     except ValidationError as err:
-        logger.json(err)
+        logger.exception(err)

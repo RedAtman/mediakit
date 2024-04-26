@@ -93,7 +93,7 @@ if __name__ == "__main__":
         # result = session.execute(text('select * from media'))
         # result = session.execute(select(models.Media).where(models.Media.md5 == '3a51af5d5e4d3c8b84185729e91e0170').limit(1))
         params = {
-            "md5": "3a51af5d5e4d3c8b84185729e91e0170",
+            "md5": "9b364cebea51dcd4315ee96d11fc7aff",
         }
         # result = session.query(models.Media).filter_by(**params).all()
         # logger.debug(result)
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         result = (
             session.query(models.Media)
             .filter_by(**params)
-            .update({"state": {"compress": 2}})
+            .update({"state": {"compress": 2, "trim": 0}})
         )
         logger.debug(result)
         # {'_orig': (275265937, 275609729), '_propagate_attrs': immutabledict({'compile_state_plugin': 'orm', 'plugin_subject': <Mapper at 0x1067e8890; Media>}), 'left': Column('state', JSON(), table=<media>), 'right': BindParameter('%(4409755664 state)s', 'compress', type_=JSONStrIndexType()), 'operator': <function json_getitem_op at 0x1037ad800>, 'type': JSON(), 'negate': None, '_is_implicitly_boolean': False, 'modifiers': {}}
@@ -114,7 +114,7 @@ if __name__ == "__main__":
         # Map the result to the model
         # for row in result.fetchall():
         #     logger.debug((type(row), row._mapping, type(row._mapping.get('state')), type(row._asdict().get('state')), ))
-        #     logger.json(models.Media(**row._mapping))
+        #     logger.info(models.Media(**row._mapping))
         #
         # media_list = [models.Media(row.__dict__) for row in result.fetchall()]
-        # logger.json(media_list)
+        # logger.info(media_list)
