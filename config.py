@@ -44,6 +44,7 @@ class _BaseConfig:
     # PROJECT_AUTHOR = 'media_handler'
 
     # CPULIMIT
+    CPULIMIT_BIN_DIR = os.getenv("CPULIMIT_BIN_DIR", "/usr/bin/cpulimit")
     CPULIMIT = os.getenv("CPULIMIT", "100")
 
     # SQLITE

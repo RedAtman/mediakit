@@ -34,10 +34,11 @@ class BaseMedia:
     _LOCK = threading.Lock()
     _executor = partial(CommandExecutor)
 
+    _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
     _CPULIMIT_PREFIX = []
     if CONFIG.CPULIMIT:
         _CPULIMIT_PREFIX = [
-            "cpulimit",
+            _CPULIMIT_BIN,
             "--limit",
             CONFIG.CPULIMIT,
             "--lazy",
