@@ -1,25 +1,26 @@
 import logging
 import logging.config
-from typing import Any, Callable
+import os
 
 from config import CONFIG
 
+
+ENV = os.getenv("ENV")
+FORMATTER = "color" if ENV == "development" else "standard"
 
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": True,
     "formatters": {
         "simple": {
-            # "()": "utils.logger.utils.ColorFormatter",
             "format": "%(asctime)s: [%(levelname)s]: %(name)s: %(message)s",
         },
         "standard": {
-            # "class": "utils.logger.utils.ColorFormatter",
-            "format": "%(asctime)s: [%(levelname)s]: %(pathname)s:%(lineno)d: %(funcName)s: %(message)s",
+            "format": "%(asctime)s:[%(levelname)s]:%(pathname)s:%(lineno)d:%(funcName)s: %(message)s",
         },
         "color": {
             "class": "utils.logger.utils.ColorFormatter",
-            "format": "[%(levelname)s]%(pathname)s:%(lineno)d: %(funcName)s:%(message)s",
+            "format": "[%(levelname)s]%(pathname)s:%(lineno)d:%(funcName)s: %(message)s",
         },
     },
     "filters": {
@@ -46,7 +47,7 @@ LOGGING_CONFIG = {
         },
         "console": {
             "level": "DEBUG",
-            "formatter": "color",
+            "formatter": FORMATTER,
             "class": "logging.StreamHandler",
             # Default is stderr
             "stream": "ext://sys.stdout",
@@ -79,6 +80,17 @@ LOGGING_CONFIG = {
             # 'encoding': 'utf8',
             # 'filters': ['default'],
         },
+        "error": {
+            "formatter": "standard",
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            # Default is stderr
+            # 'stream': 'ext://sys.stdout',
+            "filename": f"{CONFIG.LOG_DIR}/error.log",
+            "when": "midnight",
+            "backupCount": 7,
+            "encoding": "utf8",
+            "filters": ["default"],
+        },
         "critical": {
             "level": "CRITICAL",
             "formatter": "standard",
@@ -86,17 +98,6 @@ LOGGING_CONFIG = {
             # Default is stderr
             # 'stream': 'ext://sys.stdout',
             "filename": f"{CONFIG.LOG_DIR}/critical.log",
-            "when": "midnight",
-            "backupCount": 7,
-            "encoding": "utf8",
-            "filters": ["default"],
-        },
-        "error": {
-            "formatter": "standard",
-            "class": "logging.handlers.TimedRotatingFileHandler",
-            # Default is stderr
-            # 'stream': 'ext://sys.stdout',
-            "filename": f"{CONFIG.LOG_DIR}/error.log",
             "when": "midnight",
             "backupCount": 7,
             "encoding": "utf8",
@@ -146,17 +147,11 @@ LOGGING_CONFIG = {
 }
 
 
-class _Logger(logging.Logger):
-    """Add json type hit to logger."""
-
-    json: Callable[..., Any]
-
-
 logging.config.dictConfig(LOGGING_CONFIG)
 
 
 if __name__ == "__main__":
-    logger: _Logger = logging.getLogger()  # type: ignore
+    logger = logging.getLogger()
     # logger.setLevel(logging.DEBUG)
     logger.debug("Logging is configured.")
     logger.debug("log level: debug")
@@ -165,10 +160,10 @@ if __name__ == "__main__":
     logger.error("log level: error")
     logger.exception("log level: exception")
     logger.critical("log level: critical")
-    logger.json({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
+    logger.info({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
 
     sqlalchemy_logger = logging.getLogger("sqlalchemy.engine")
-    logger.json(sqlalchemy_logger.__dict__)
     sqlalchemy_logger.debug("sqlalchemy debug")
     sqlalchemy_logger.info("sqlalchemy info")
     sqlalchemy_logger.warning("sqlalchemy warning")
+    sqlalchemy_logger.error(sqlalchemy_logger.__dict__)

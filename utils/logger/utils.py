@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -149,7 +149,7 @@ class ColorFormatter(logging.Formatter):
     )
 
     @staticmethod
-    def format_msg(msg: Dict[str, Any]):
+    def format_msg(msg: Union[Dict[str, Any], List[Any]]):
         return highlight(
             pformat(msg, indent=1, width=80, depth=9),
             lexers.JsonnetLexer(),
@@ -192,7 +192,7 @@ class ColorFormatter(logging.Formatter):
         level_color_num = getattr(LevelColor, record.levelname, LevelColor.DEFAULT)
         record.levelname = Color(level_color_num).format(record.levelname, bold=True)
         record.pathname = Color.GREY_OK.format(record.pathname)
-        if isinstance(record.msg, (dict, list)):
+        if record.msg and isinstance(record.msg, (dict, list)):
             record.msg = "\n" + self.format_msg(record.msg)
         else:
             record.msg = Color(level_color_num).format(record.msg)
@@ -206,27 +206,25 @@ def json_wrap(fuc: Callable[..., Any]):
             LevelColor, fuc.__name__.upper(), LevelColor.DEFAULT
         )
         filename, lineno, name, sinfo = self.findCaller(stack_info=True)
-
+        prefix = f"[{Color(level_color).format('JSON')}]: {Color.GREY_OK.format(filename)}:{lineno}: {name}:"
         # Print the stack trace
-        if not isinstance(msg, (list, dict)):
-            print(
-                f"[{Color(level_color).format('JSON')}]: {Color.GREY_OK.format(filename)}:{lineno}: {name}: {Color(level_color).format(msg)}"
+        if isinstance(msg, (list, dict)):
+            # print(
+            #     f"{prefix}\n{ColorFormatter.format_msg(msg)}",
+            #     # end='',
+            # )
+            self._log(
+                level_color, f"{prefix}\n{ColorFormatter.format_msg(msg)}", (), **kwargs
             )
             return
-
-        print(
-            f"[{Color(level_color).format('JSON')}]: {Color.GREY_OK.format(filename)}:{lineno}: {name}: "
-        )
-
-        # Print incoming message.
-        print(
-            ColorFormatter.format_msg(msg),
-            # end='',
-        )
+        msg = f"{prefix} {Color(level_color).format(msg)}"
+        # print(msg)
+        self._log(level_color, msg, (), **kwargs)
 
     return inner
 
 
+# Second method
 # for level in ("debug", "info", "warning", "error", "exception", "critical"):
 #     setattr(logging.Logger, level, json_wrap(getattr(logging.Logger, level)))
 
@@ -245,6 +243,7 @@ if __name__ == "__main__":
         "disable_existing_loggers": False,
         "formatters": {
             "color": {
+                # First method
                 "()": ColorFormatter,
                 "format": ColorFormatter.FORMAT_PATTERN,
             },
@@ -283,9 +282,11 @@ if __name__ == "__main__":
     logger.critical("log level: critical")
     logger.debug({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
     logger.info({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
+    logger.debug([])
+    logger.info({})
 
     sqlalchemy_logger = logging.getLogger("sqlalchemy.engine")
-    sqlalchemy_logger.error(sqlalchemy_logger.__dict__)
     sqlalchemy_logger.debug("sqlalchemy debug")
     sqlalchemy_logger.info("sqlalchemy info")
     sqlalchemy_logger.warning("sqlalchemy warning")
+    sqlalchemy_logger.error(sqlalchemy_logger.__dict__)
