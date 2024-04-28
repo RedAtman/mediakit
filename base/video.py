@@ -131,6 +131,7 @@ class Video(
         )
 
     @decorator.timer
+    @decorator.execute
     def reverse(self):
         """Reverse video stream."""
         new_file_path = self.get_output_path(suffix="reverse")
@@ -183,10 +184,10 @@ class Video(
         #     '-color_trc', '14',
         #     new_file_path,
         # ])
-        CommandExecutor.execute(command)
-        return self.__class__(path=new_file_path)
+        return self, command, new_file_path
 
     @decorator.timer
+    @decorator.execute
     def combine(
         self,
         watermark_path="/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png",
@@ -362,9 +363,7 @@ class Video(
                 new_file_path,
             ]
         )
-
-        CommandExecutor.execute(command)
-        return self.__class__(path=new_file_path)
+        return self, command, new_file_path
 
     @decorator.timer
     def images_to_video(
@@ -397,8 +396,8 @@ class Video(
             # '-shortest',
             new_file_path,
         ]
-        CommandExecutor.execute(command)
-        return self.__class__(path=new_file_path)
+        CommandExecutor.run(command)
+        return self, command, new_file_path
 
     @decorator.timer
     def delete_voice(self):
@@ -411,6 +410,7 @@ class Video(
         ]
 
     @decorator.timer
+    @decorator.execute
     def trim(self, trim_time=(), suffix_number: int = 1):
         """截取视频指定某一段时间
 
@@ -456,8 +456,7 @@ class Video(
         ]
         command = f'{" ".join(self._FFMPEG_PREFIX)} -ss {ss} -to {to} -accurate_seek \
             -i {self.path} -c:v copy -c:a copy {new_file_path}'
-        self.executor.run(command)
-        return self.__class__(path=new_file_path)
+        return self, command, new_file_path
 
     @decorator.timer
     @decorator.execute
@@ -642,10 +641,11 @@ class Video(
         #     sys._getframe().f_code.co_name,
         #     command,
         # )
-        CommandExecutor.execute(command)
-        return cls(path=new_file_path)
+        CommandExecutor.run(command)
+        return cls, command, new_file_path
 
     @decorator.timer
+    @decorator.execute
     def decode(self, ext: str = "mp4"):
         """解码视频"""
         new_file_path = self.dirname + "/" + self.title + "_decode_." + ext
@@ -657,14 +657,13 @@ class Video(
             # '-avoid_negative_ts', '1',
             new_file_path,
         ]
-        CommandExecutor.execute(command)
-        return self.__class__(path=new_file_path)
+        return self, command, new_file_path
 
     def concat(self):
         return "ffmpeg -f concat -i concat.txt -c copy concat.mov"
 
     @decorator.timer
-    # @decorator.execute_shell_command
+    @decorator.execute
     def convert_format(self, ext: str = "mp4", **kwargs):
         """转换视频格式"""
         new_file_path = self.create_file_path(
@@ -685,19 +684,10 @@ class Video(
             # '-avoid_negative_ts', '1',
             new_file_path,
         ]
-        try:
-            self.executor.run(command)
-        except Exception as err:
-            return response.Result(code=400, msg=err)
-        return response.Result(
-            code=200,
-            data={
-                "handler": self,
-                "new_file_path": new_file_path,
-            },
-        )
+        return self, command, new_file_path
 
     @decorator.timer
+    @decorator.execute
     def scale(self, width: int = 1920, height: int = 1080, **kwargs):
         """Scale video resolution."""
         new_file_path = self.create_file_path(
@@ -714,14 +704,4 @@ class Video(
             "hvc1",
             new_file_path,
         ]
-        try:
-            self.executor.run(command)
-        except Exception as err:
-            return response.Result(code=400, msg=err)
-        return response.Result(
-            code=200,
-            data={
-                "handler": self,
-                "new_file_path": new_file_path,
-            },
-        )
+        return self, command, new_file_path

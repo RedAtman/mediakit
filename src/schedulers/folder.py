@@ -51,7 +51,7 @@ def _query(*args, ctx: Context, **kwargs):
 def _callback(future: Future, *args, **kwargs):
     result = future.result()
     assert isinstance(result, response.Result)
-    media = result.data.get("handler")
+    media = result.data.get("media")
     if result == 0:
         media.model.update_state("compress", StateChoices.finished)
         file.soft_remove(media.path)

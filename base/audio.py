@@ -1,6 +1,8 @@
 from typing import Sequence
 
 from src.mixins import whispers
+from utils import decorator
+from utils.command import CommandExecutor
 
 from .media import BaseMedia
 
@@ -26,6 +28,7 @@ class Audio(
     def trim(self, trim_time=()):
         return self._trim(self.path, trim_time=trim_time)
 
+    @decorator.timer
     @classmethod
     def _trim(cls, path: str, trim_time: Sequence[str] = ()):
         """Trim media file.
@@ -45,5 +48,5 @@ class Audio(
         start_time, end_time = trim_time
         new_file_path = cls.create_file_path(path)
         command = f'ffmpeg -y -i "{path}" -c copy -ss {start_time} -to {end_time} "{new_file_path}"'
-        cls._executor.execute(command)
-        return command
+        CommandExecutor.run(command)
+        return cls, command, new_file_path

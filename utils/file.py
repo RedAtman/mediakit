@@ -1,13 +1,23 @@
 import glob
+import hashlib
 import os
 import shutil
 from typing import Any, Dict, Optional
 
 
 __all__ = [
+    "calculate_md5",
     "change_file_extension",
     "soft_remove",
 ]
+
+
+def calculate_md5(file_path: str) -> str:
+    """Calculate the MD5 sum of a file."""
+    with open(file_path, "rb") as file:
+        data = file.read()
+        md5: str = hashlib.md5(data).hexdigest()
+    return md5
 
 
 def change_file_extension(
@@ -35,3 +45,9 @@ def soft_remove(file_path: str) -> None:
     if not os.path.exists(remove_folder):
         os.makedirs(remove_folder)
     shutil.move(file_path, os.path.join(remove_folder, filename))
+
+
+if __name__ == "__main__":
+    # change_file_extension(folder="samples", old_ext="mp4", ext="avi")
+    # soft_remove("samples/zh.mp4")
+    print(calculate_md5("README.md"))

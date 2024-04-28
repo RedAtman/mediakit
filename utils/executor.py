@@ -218,7 +218,7 @@ class TaskManager:
                                 msg=err,
                                 data={
                                     # TODO: Not recommended to use fn.args[0] to obtain the handler
-                                    "handler": future_context.fn.args[0],
+                                    "media": future_context.fn.args[0],
                                 },
                             )
                         )

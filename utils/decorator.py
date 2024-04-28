@@ -6,6 +6,7 @@ import threading
 import time
 from typing import Any, Callable
 
+from .command import CommandExecutor
 from .response import Result
 
 
@@ -68,11 +69,10 @@ class exception:
 def execute(fn: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fn)
     def wrap(self, *args, **kwargs):
-        handler, command, new_file_path = fn(self, *args, **kwargs)
-        # TODO: Decouple the executor from the handler
-        result = handler.executor.run(command)
+        media, command, new_file_path = fn(self, *args, **kwargs)
+        result = CommandExecutor.run(command, monitor=self.monitor)
         return {
-            "handler": handler,
+            "media": media,
             "new_file_path": new_file_path,
             "result": result,
         }

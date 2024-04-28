@@ -1,12 +1,12 @@
-from functools import partial
 import logging
 import os
 import subprocess
 import sys
 import threading
-from typing import List, Optional, Union
+from typing import IO, List, Optional, Sequence, Type, Union
 
-from .tools import ProgressBar
+from .process.parser import BaseStdoutParser
+from .progress import BaseProgress
 
 
 logger = logging.getLogger()
@@ -17,22 +17,46 @@ __all__ = [
 ]
 
 
+class ProgressMonitor:
+
+    def __init__(
+        self,
+        parser_class: Type[BaseStdoutParser],
+        progress_list: Sequence[BaseProgress],
+    ) -> None:
+        if not issubclass(parser_class, BaseStdoutParser):
+            raise TypeError(
+                f"parser_class must be BaseStdoutParser. but got {type(parser_class)}"
+            )
+        self.parser_class = parser_class
+        if not isinstance(progress_list, list):
+            raise TypeError(
+                f"progress_list must be list. but got {type(progress_list)}"
+            )
+        if not all(isinstance(progress, BaseProgress) for progress in progress_list):
+            raise TypeError(
+                f"All progress in progress_list must be BaseProgress. but got {progress_list}"
+            )
+        self.progress_list = progress_list
+
+    def run(self, stdout: IO[str]):
+        parser = self.parser_class(stdout)
+        for current in parser.parse():
+            for progress in self.progress_list:
+                progress.current = current
+
+
 class CommandExecutor:
-    progress_bar = None
 
-    def __init__(self, total: int = 0, title: str = ""):
-        if total > 0 and title:
-            self.progress_bar = partial(ProgressBar, total, title, fmt=ProgressBar.FULL)
-        # logger.info((total, title, self.progress_bar))
-
-    def run(self, command: Union[List[str], str], progress_bar=True):
-        if progress_bar and self.progress_bar:
-            return self.execute(command, progress_bar=self.progress_bar())
-        return self.execute(command)
+    @classmethod
+    def run(
+        cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None
+    ):
+        return cls.execute(command, monitor)
 
     @staticmethod
     def execute(
-        command: Union[List[str], str], progress_bar: Optional[ProgressBar] = None
+        command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None
     ):
         """Execute shell command.
 
@@ -73,16 +97,18 @@ class CommandExecutor:
             # text=True,
             # start_new_session=True,
         ) as process:
-            if progress_bar and process.stdout:
-                while process.stdout.readable():
-                    line = process.stdout.readline()
-                    if not line:
-                        progress_bar.done()
-                        break
-                    # logger.debug(line)
-                    # sys.stdout.write(line)
-                    # sys.stdout.flush()
-                    progress_bar.parse_current(line)
+            if monitor and process.stdout:
+                monitor.run(process.stdout)
+            # if progress_bar and process.stdout:
+            #     while process.stdout.readable():
+            #         line = process.stdout.readline()
+            #         if not line:
+            #             progress_bar.done()
+            #             break
+            #         # logger.debug(line)
+            #         # sys.stdout.write(line)
+            #         # sys.stdout.flush()
+            #         progress_bar.parse_current(line)
 
             _stdout, _stderr = process.communicate()
             stdout = _stdout.strip()

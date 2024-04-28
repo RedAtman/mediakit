@@ -5,14 +5,16 @@ import os
 import sys
 import threading
 import time
-from typing import Optional, Self, Type
+from typing import List, Optional, Self, Type
 
 from config import CONFIG
 from src import models
 from utils import exceptions
-from utils.command import CommandExecutor
+from utils.command import CommandExecutor, ProgressMonitor
 from utils.media import guess
-from utils.tools import calculate_md5
+from utils.process.parser import FfmpegCurrentFrameStdoutParser
+from utils.progress import BaseProgress, MediaStateProgress, StdoutProgress
+from utils.file import calculate_md5
 
 
 logger = logging.getLogger()
@@ -32,7 +34,6 @@ class BaseMedia:
     ]
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
-    _executor = partial(CommandExecutor)
 
     _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
     _CPULIMIT_PREFIX = []
@@ -100,13 +101,15 @@ class BaseMedia:
         return calculate_md5(self.path)
 
     @property
-    def executor(self) -> CommandExecutor:
-        try:
-            frames_count = self.frames_count
-            title = self.path
-            return self._executor(total=frames_count, title=title)
-        except Exception:
-            return self._executor()
+    def progress_list(self) -> List[BaseProgress]:
+        return [
+            StdoutProgress(total=self.frames_count, title=self.path),
+            MediaStateProgress(total=self.frames_count, model=self.model),
+        ]
+
+    @property
+    def monitor(self):
+        return ProgressMonitor(FfmpegCurrentFrameStdoutParser, self.progress_list)
 
     @cached_property
     def frames_count(self):
@@ -138,11 +141,11 @@ class BaseMedia:
         """
         try:
             command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
-            result = CommandExecutor().run(command, progress_bar=False)
+            result = CommandExecutor.run(command)
             return int(result)
         except ValueError:
             command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
-            result = CommandExecutor().run(command, progress_bar=False)
+            result = CommandExecutor.run(command)
             return int(result)
         except Exception as err:
             logger.exception(err)
@@ -173,7 +176,7 @@ class BaseMedia:
             path.strip(),
         ]
         command = f"{cls._FFPROBE_BIN} -v quiet -show_format -show_streams -print_format json {path.strip()}"
-        metadata = CommandExecutor.execute(command)
+        metadata = CommandExecutor.run(command)
         try:
             return json.loads(metadata)
         except Exception as err:

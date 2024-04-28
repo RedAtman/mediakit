@@ -318,5 +318,5 @@ class Folder(
             # '-shortest',
             new_file_path,
         ]
-        CommandExecutor.execute(command)
-        return MEDIA_CLS(path=new_file_path)
+        CommandExecutor.run(command)
+        return cls, command, new_file_path
