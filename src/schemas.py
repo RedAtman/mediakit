@@ -1,23 +1,42 @@
 from enum import IntEnum
 import logging
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError, ValidationInfo, field_validator
 
 
 logger = logging.getLogger()
 
+__all__ = [
+    "StateChoices",
+    "State",
+]
+
 
 class StateChoices(IntEnum):
-    undo = 0
-    running = 1
-    finished = 2
+    failed: int = -2
+    unprocessed: int = -1
+    finished: int = 2
+
+    @classmethod
+    def __str__(cls) -> str:
+        return str({key: value._value_ for key, value in cls._member_map_.items()})
+
+
+_state_field = Field(
+    ge=StateChoices.failed,
+    le=StateChoices.finished,
+    default=StateChoices.unprocessed,
+    # description="-2 is failed, -1 is unprocessed, 0.0 - 1.0 is in progress, 2 is finished.",
+    description=StateChoices.__str__(),
+    validate_default=True,
+)
 
 
 class State(BaseModel):
-    compress: StateChoices = StateChoices.undo
-    trim: StateChoices = StateChoices.undo
-    # compress: StateChoices = Field(StateChoices.undo, description="Error messages if any")
-    # trim: StateChoices = Field(StateChoices.undo, description="Error messages if any")
+    compress: float = _state_field
+    trim: float = _state_field
+    # compress: StateChoices = StateChoices.unprocessed
+    # trim: StateChoices = StateChoices.unprocessed
 
     class Config:
         from_attributes = True
@@ -28,11 +47,19 @@ class State(BaseModel):
     def __getitem__(self, key):
         return self.__dict__.get(key)
 
-    # @validator('compress')
+    @field_validator("compress", "trim")
+    @classmethod
+    def field_validator(cls, value: float, info: ValidationInfo) -> float:
+        assert (
+            StateChoices.failed <= value <= StateChoices.finished
+        ), f"{info.field_name} must be between 0 and 1."
+        return value
 
 
 if __name__ == "__main__":
     from config import CONFIG
+
+    logger.info(StateChoices.__str__())
 
     state = State()
     logger.info((type(state), state))

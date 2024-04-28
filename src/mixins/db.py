@@ -10,6 +10,7 @@ from base import BaseMedia
 from config import CONFIG
 from src import models
 from src.db import DatabaseEngine
+from src.schemas import StateChoices
 from utils import response
 from utils.db import _sqlalchemy, _sqlite, _sqlmodel, base
 
@@ -46,9 +47,9 @@ class BaseFolderMixin:
 
     def get_query_statement(self, key: str):
         MAPPER_QUERY_STATEMENT = {
-            "QUERY_UN_COMPRESS": select(models.Media)
+            "QUERY_UNPROCESSED": select(models.Media)
             .where(models.Media.dirname == self.abspath)
-            .where(models.Media.state.op("->>")("compress").cast(Integer) == 0),  # type: ignore
+            .where(models.Media.state.op("->>")("compress").cast(Integer) == StateChoices.unprocessed),  # type: ignore
         }
         return MAPPER_QUERY_STATEMENT.get(key, None)
 

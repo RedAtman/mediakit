@@ -6,6 +6,7 @@ from typing import Any, Dict
 from config import CONFIG
 from folder import Folder
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
+from src.schemas import StateChoices
 from utils import file, response
 
 from .media import compress as media_compress
@@ -36,8 +37,8 @@ def _scan(*args, ctx: Context, **kwargs):
 
 def _query(*args, ctx: Context, **kwargs):
     folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
-    QUERY_UN_COMPRESS = folder.get_query_statement("QUERY_UN_COMPRESS")
-    result = folder.query(QUERY_UN_COMPRESS)
+    QUERY_UNPROCESSED = folder.get_query_statement("QUERY_UNPROCESSED")
+    result = folder.query(QUERY_UNPROCESSED)
     assert isinstance(result, response.Result)
     assert result == 0
     assert result == "Success"
@@ -50,12 +51,12 @@ def _query(*args, ctx: Context, **kwargs):
 def _callback(future: Future, *args, **kwargs):
     result = future.result()
     assert isinstance(result, response.Result)
-    handler = result.data.get("handler")
+    media = result.data.get("handler")
     if result == 0:
-        handler.media.update_state("compress", 2)
-        file.soft_remove(handler.path)
+        media.media.update_state("compress", StateChoices.finished)
+        file.soft_remove(media.path)
     else:
-        handler.media.update_state("compress", 0)
+        media.media.update_state("compress", StateChoices.failed)
 
 
 def _compress(*args, ctx: Context, medias=[], **kwargs):

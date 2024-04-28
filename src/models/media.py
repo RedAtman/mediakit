@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from typing import Unpack
+from typing import Union, Unpack
 
 from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.sqlite import JSON
@@ -121,10 +121,9 @@ class Media(Base):
                 instance = cls(**kwargs)
                 session.add(instance)
                 session.commit()
-                return instance
             return instance
 
-    def update_state(self, key: str, val: int):
+    def update_state(self, key: str, val: Union[int, float]):
         with db.DatabaseEngine.engine.get_session() as session:
             state: dict = self.state.copy()  # type: ignore
             # state = dict(self.state)
@@ -146,8 +145,8 @@ if __name__ == "__main__":
         dirname="dirname",
         # state={'compress': 'compress', 'trim': 'trim'},
         state=schemas.State(
-            compress=schemas.StateChoices.undo,
-            trim=schemas.StateChoices.undo,
+            compress=schemas.StateChoices.unprocessed,
+            trim=schemas.StateChoices.unprocessed,
         ),
     )
     logger.info(company)
