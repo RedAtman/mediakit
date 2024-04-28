@@ -81,7 +81,11 @@ class BaseMedia:
         logger.debug("BaseMedia: %s", path)
         self.path: str = path
         self.dirname, self.title, self.ext = self.get_file_info(path)
-        self.media: models.Media | None = self._MEDIA_CLS.get(md5=self.md5)
+        self.model: models.Media = self._MEDIA_CLS.get_or_create(
+            md5=self.md5,
+            title=self.title + "." + self.ext,
+            dirname=self.dirname,
+        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.path})"

@@ -15,7 +15,7 @@ logger = logging.getLogger()
 def update_state(
     self: Video, *args, ctx: Context, key="compress", val=StateChoices.unprocessed, **kwargs
 ):
-    result = self.media.update_state(key, val)
+    result = self.model.update_state(key, val)
     assert isinstance(result, response.Result)
     assert result == 0
     return ctx.next(self, *args, **kwargs)
