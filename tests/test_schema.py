@@ -11,7 +11,7 @@ class SchemaTest(unittest.TestCase):
 
     def test_validate(self):
         _state = {
-            "compress": schemas.StateChoices.running,
+            "compress": schemas.StateChoices.finished,
             "trim": 2,
         }
         state = schemas.State(**_state)
@@ -20,7 +20,7 @@ class SchemaTest(unittest.TestCase):
         assert state.compress == _state["compress"]
 
         _state = {
-            "compress": schemas.StateChoices.running,
+            "compress": schemas.StateChoices.finished,
             "trim": 2,
         }
         from pydantic import ValidationError
