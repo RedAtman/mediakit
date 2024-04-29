@@ -1,24 +1,28 @@
-import abc
+import functools
 import re
 import sys
-from typing import IO, Any, Dict, Tuple
+from typing import IO, Any, Callable, Dict, Tuple, Union
 
 
-class CallHookMetaClass(type):
-    """Hook __call__ method to call __after_init__ method after __init__ method.
-    """
-    def __call__(cls, *args, **kwargs):
-        obj = type.__call__(cls, *args, **kwargs)
-        obj.__after_init__()
-        return obj
+def wrapper_setter(func: Callable) -> Callable:
+    @functools.wraps(func)
+    def wrapper(self: "BaseProgress", value):
+        value = getattr(self, f"__before_{func.__name__}_setter__")(value)
+        result = func(self, value)
+        result = getattr(self, f"__after_{func.__name__}_setter__")(value)
+        return result
+
+    return wrapper
 
 
-class BaseProgress(metaclass=CallHookMetaClass):
+class BaseProgress:
     """Base class for progress.
 
     Args:
         metaclass (_type_, optional): _description_. Defaults to CallHookMetaClass.
     """
+
+    PERCENT_STEP = 0.001
 
     def __init__(self, total: int, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]):
         if not isinstance(total, int):
@@ -27,6 +31,9 @@ class BaseProgress(metaclass=CallHookMetaClass):
             raise ValueError(f"total must be greater than 0. but got {total}")
         self.total: int = total
         self._current: int = 0
+        self._percent: float = 0.0
+        # for percent step
+        self._previous_step_percent: float = self._percent - self.PERCENT_STEP
 
     # current = property(fget=lambda self: self._current)
 
@@ -35,19 +42,38 @@ class BaseProgress(metaclass=CallHookMetaClass):
         return self._current
 
     @current.setter
+    @wrapper_setter
     def current(self, value: int):
+        if not isinstance(value, int):
+            raise TypeError(f"current must be int. but got {type(value)}")
         self._current = value
-        self.call()
+        self.percent = self.current / self.total
 
     @property
     def percent(self) -> float:
-        return self.current / self.total
+        return self._percent
 
-    @abc.abstractmethod
-    def call(self):
-        raise NotImplementedError
+    @percent.setter
+    @wrapper_setter
+    def percent(self, value: float):
+        self._percent = value
+        if abs(value - self._previous_step_percent) >= self.PERCENT_STEP:
+            self.__after_percent_step__()
+            self._previous_step_percent = value
 
-    def __after_init__(self):
+    def __before_current_setter__(self, value: int):
+        return value
+
+    def __after_current_setter__(self, value: int):
+        return value
+
+    def __before_percent_setter__(self, value: Union[int, float]):
+        return value
+
+    def __after_percent_setter__(self, value: Union[int, float]):
+        return value
+
+    def __after_percent_step__(self):
         return
 
 
@@ -96,18 +122,21 @@ class StdoutProgress(BaseProgress):
             fmt,
         )
 
-    def __after_init__(self):
-        self._call()
-
-    def call(self):
+    def cursor_up(self, num: int = 1):
         # Cursor up one line: to use ANSI escape sequences
         # sys.stdout.write("\033[F")
-        print("\033[F", file=self.output, end="")
+        for _ in range(num):
+            print("\033[F", file=self.output, end="")
 
         # print the progress bar
-        self._call()
+        # self.run()
 
-    def _call(self):
+    def __after_percent_step__(self):
+        if self.percent != 0:
+            self.cursor_up()
+        self.run()
+
+    def run(self):
         size = int(self.width * self.percent)
 
         args = {
@@ -132,7 +161,10 @@ class MediaStateProgress(BaseProgress):
         super().__init__(total)
         self.model = model
 
-    def call(self):
+    def __after_percent_step__(self):
+        self.run()
+
+    def run(self):
         self.model.update_state("compress", self.percent)
 
 
@@ -140,17 +172,18 @@ if __name__ == "__main__":
     import time
 
     print(StdoutProgress)
-    progress = StdoutProgress(10)
-    for i in range(0, 11):
-        progress.current = i
-        time.sleep(0.1)
-    print(progress)
+    length = 1000
+    stdout_progress = StdoutProgress(length)
+    print(stdout_progress)
     # media = Media.get(md5="9b364cebea51dcd4315ee96d11fc7aff")
-    model = Media.get(md5="2d17da54164e43c9962decd2103a4798")
-    print(model)
-    print(MediaStateProgress)
-    progress = MediaStateProgress(100, model)
-    for i in range(0, 101):
-        progress.current = i
+    # model = Media.get(md5="2d17da54164e43c9962decd2103a4798")
+    model = Media.get(md5="ff336438daffba071044501e06af9324")
+    # print(model)
+    media_progress = MediaStateProgress(length, model)
+    # print(media_progress)
+    for i in range(length + 1):
+        # print(i)
+        stdout_progress.current = i
+        media_progress.current = i
+        # print(i)
         time.sleep(0.1)
-    print(progress)
