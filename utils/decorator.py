@@ -4,10 +4,10 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Dict, Type
 
-from .command import CommandExecutor
-from .response import Result
+from utils.command import CommandExecutor
+from utils.response import Result
 
 
 logger = logging.getLogger()
@@ -80,11 +80,11 @@ def execute(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrap
 
 
-class class_property:  # pylint: disable=invalid-name
+class class_property:
     def __init__(self, f):
         self.f = f
 
-    def __get__(self, obj, owner):
+    def __get__(self, obj, owner) -> Any:
         return self.f(owner)
 
 
@@ -115,3 +115,40 @@ class class_property:  # pylint: disable=invalid-name
 #         '__get__': lambda self, cls, owner: self.fget.__get__(None, owner)()
 #     }
 # )
+
+
+def singleton(cls: Type[Any]):
+    _mapper_cls_instance: Dict[Any, Any] = {}
+
+    @functools.wraps(cls)
+    def instance(*args, **kwargs):
+        if cls not in _mapper_cls_instance:
+            _mapper_cls_instance[cls] = cls(*args, **kwargs)
+        return _mapper_cls_instance[cls]
+
+    return instance
+
+
+if __name__ == "__main__":
+
+    class A:
+
+        @class_property
+        def attr(cls):
+            print("class_property", cls, type(cls))
+            return 1
+
+    a = A()
+    print(a.attr)
+    print(A.attr)
+    print(a.attr == A.attr)
+
+    @singleton
+    class B:
+        def __init__(self, name):
+            self.name = name
+
+    b1 = B("b1")
+    b2 = B("b2")
+    print(b1.name, b2.name)
+    print(b1 is b2)
