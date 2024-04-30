@@ -37,11 +37,11 @@ class BaseMedia:
 
     _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
     _CPULIMIT_PREFIX = []
-    if CONFIG.CPULIMIT:
+    if CONFIG.CPULIMIT_LIMIT:
         _CPULIMIT_PREFIX = [
             _CPULIMIT_BIN,
             "--limit",
-            CONFIG.CPULIMIT,
+            CONFIG.CPULIMIT_LIMIT,
             "--lazy",
             # "--",
         ]

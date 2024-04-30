@@ -45,7 +45,7 @@ class _BaseConfig:
 
     # CPULIMIT
     CPULIMIT_BIN_DIR = os.getenv("CPULIMIT_BIN_DIR", "/usr/bin/cpulimit")
-    CPULIMIT = os.getenv("CPULIMIT", "100")
+    CPULIMIT_LIMIT = os.getenv("CPULIMIT_LIMIT", "100")
 
     # SQLITE
     SQLITE_DATABASE = os.getenv("SQLITE_DATABASE", os.path.join(BASE_DIR, "db.sqlite"))
