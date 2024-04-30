@@ -9,9 +9,8 @@ from sqlalchemy.ext.hybrid import hybrid_property
 
 from config import CONFIG
 from src import db, schemas
+from src.models._type import MediaParams
 from utils import response
-
-from ._type import MediaParams
 
 
 logger = logging.getLogger()
@@ -152,3 +151,9 @@ if __name__ == "__main__":
     logger.info(company)
     logger.info(company.__dict__)
     logger.info(company.state)
+    instance = Media.get(md5="md5")
+    instance2 = Media.get(md5="md5")
+    logger.info((id(instance), instance))
+    logger.info((id(instance2), instance2))
+    logger.info(instance == instance2)
+    logger.info(instance is instance2)
