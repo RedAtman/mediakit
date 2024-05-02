@@ -46,6 +46,7 @@ def extension_to_category(ext: str):
         ".m2ts",
         ".clpi",
         ".vob",
+        ".rm",
         ".rmvb",
         ".ifo",
         ".bup",
