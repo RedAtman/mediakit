@@ -13,9 +13,9 @@ __all__ = [
 
 
 class StateChoices(IntEnum):
-    failed: int = -2
-    unprocessed: int = -1
-    finished: int = 2
+    failed = -2
+    unprocessed= -1
+    finished = 2
 
     @classmethod
     def __str__(cls) -> str:

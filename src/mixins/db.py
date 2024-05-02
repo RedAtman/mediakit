@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from typing import Any, Generator, List, Optional, Type
+from typing import Any, Dict, Generator, List, Optional, Type
 
 from sqlalchemy import Integer, TextClause, select
 from sqlalchemy.sql.expression import Update
@@ -28,6 +28,7 @@ class BaseFolderMixin:
     path: str
     abspath: str
     engine: base.BaseEngine = DatabaseEngine.engine
+    VALID_QUERY_TYPE = (Select, Update, str, TextClause)
 
     @classmethod
     def medias_(
@@ -45,13 +46,15 @@ class BaseFolderMixin:
     _DB_MODEL: models.Base = models.Media
     _DB_TABLE = _DB_MODEL.__tablename__
 
-    def get_query_statement(self, key: str):
+    def get_query_statement(
+        self, key: str
+    ) -> Select[_sqlite.Tuple[models.Media]] | None:
         MAPPER_QUERY_STATEMENT = {
             "QUERY_UNPROCESSED": select(models.Media)
             .where(models.Media.dirname == self.abspath)
             .where(models.Media.state.op("->>")("compress").cast(Integer) == StateChoices.unprocessed),  # type: ignore
         }
-        return MAPPER_QUERY_STATEMENT.get(key, None)
+        return MAPPER_QUERY_STATEMENT.get(key)
 
     @staticmethod
     def media__(path: str, media_type: str = "video"):
@@ -62,7 +65,9 @@ class BaseFolderMixin:
         return media
 
     def query(
-        self, statement: Select | Update | str | TextClause, params: dict[str, Any] = {}
+        self,
+        statement: Select[Any] | Update | str | TextClause,
+        params: Dict[str, Any] = {},
     ):
         return self.engine.query(statement, params)
 

@@ -28,16 +28,21 @@ def _core(*args, ctx: Context, result=None, **kwargs):
     return result
 
 
-def _scan(*args, ctx: Context, **kwargs):
-    folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
+def _scan(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
+    _folder = kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER)
+    if not isinstance(_folder, str):
+        raise TypeError(f"Expected a string for path, but got {type(_folder).__name__}")
+    folder = Folder(_folder)
     result = folder.scan_media()
     # result = Folder.scan_media__()
-    return ctx.next(*args, **kwargs)
+    del kwargs["folder"]
+    return ctx.next(*args, folder=folder, **kwargs)
 
 
-def _query(*args, ctx: Context, **kwargs):
-    folder = Folder(kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER))
+def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: Dict[str, Any]):
     QUERY_UNPROCESSED = folder.get_query_statement("QUERY_UNPROCESSED")
+    if not isinstance(QUERY_UNPROCESSED, folder.VALID_QUERY_TYPE):
+        raise ValueError("Invalid query statement")
     result = folder.query(QUERY_UNPROCESSED)
     assert isinstance(result, response.Result)
     assert result == 0

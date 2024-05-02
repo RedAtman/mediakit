@@ -158,7 +158,7 @@ class Folder(
         tasks: List[Callable] = [],
         max_workers: int = CONFIG.MAX_WORKERS,
         callback_list: List[Callable[..., Any]] = [],
-        **kwargs: Any,
+        **kwargs: Dict[str, Any],
     ):
         task_manager = executor.TaskManager(max_workers)
         _ = list(

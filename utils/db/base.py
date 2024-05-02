@@ -1,7 +1,7 @@
 import abc
 from contextlib import contextmanager
 import logging
-from typing import Any, Generator, Type
+from typing import Any, Dict, Generator, Type
 
 from sqlalchemy import MetaData, TextClause
 from sqlalchemy.engine import Engine
@@ -23,7 +23,9 @@ class BaseEngine(abc.ABC):
 
     @abc.abstractmethod
     def query__(
-        self, statement: Select | Update | str | TextClause, params: dict[str, Any] = {}
+        self,
+        statement: Select[Any] | Update | str | TextClause,
+        params: Dict[str, Any] = {},
     ):
         pass
 
@@ -47,6 +49,8 @@ class BaseEngine(abc.ABC):
             session.close()
 
     def query(
-        self, statement: Select | Update | str | TextClause, params: dict[str, Any] = {}
+        self,
+        statement: Select[Any] | Update | str | TextClause,
+        params: Dict[str, Any] = {},
     ):
         return self.query__(statement, params)
