@@ -101,6 +101,8 @@ class BaseFolderMixin:
     ):
         if medias is None:
             raise TypeError("medias is None.")
+        # TODO: Consider to discard this method.
+        return list(medias)
         with cls.engine.get_session() as session:
             media_list: list[models.Base] = []
             for media in medias:
