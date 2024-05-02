@@ -44,6 +44,7 @@ class _BaseConfig:
     # PROJECT_AUTHOR = 'media_handler'
 
     # CPULIMIT
+    CPULIMIT_ENABLE = os.getenv("CPULIMIT_ENABLE", "False")
     CPULIMIT_BIN_DIR = os.getenv("CPULIMIT_BIN_DIR", "/usr/bin/cpulimit")
     CPULIMIT_LIMIT = os.getenv("CPULIMIT_LIMIT", "100")
 
@@ -69,7 +70,7 @@ class _BaseConfig:
 
     # MEDIA FILE
     MEDIA_FILE_PATH = os.getenv("MEDIA_FILE_PATH", "samples/zh.mp4")
-    MEDIA_FILE_FOLDER = os.getenv("MEDIA_FILE_FOLDER", "samples")
+    MEDIA_FILE_FOLDER: str = os.getenv("MEDIA_FILE_FOLDER", "samples")
 
     # WHISPER
     WHISPER_LIB = os.getenv("WHISPER_LIB", "Whisper")

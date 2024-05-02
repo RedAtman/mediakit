@@ -1,4 +1,4 @@
-from functools import cached_property, partial
+from functools import cached_property
 import json
 import logging
 import os
@@ -11,10 +11,10 @@ from config import CONFIG
 from src import models
 from utils import exceptions
 from utils.command import CommandExecutor, ProgressMonitor
+from utils.file import calculate_md5
 from utils.media import guess
 from utils.process.parser import FfmpegCurrentFrameStdoutParser
 from utils.progress import BaseProgress, MediaStateProgress, StdoutProgress
-from utils.file import calculate_md5
 
 
 logger = logging.getLogger()
@@ -37,7 +37,7 @@ class BaseMedia:
 
     _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
     _CPULIMIT_PREFIX = []
-    if CONFIG.CPULIMIT_LIMIT:
+    if CONFIG.CPULIMIT_ENABLE:
         _CPULIMIT_PREFIX = [
             _CPULIMIT_BIN,
             "--limit",
