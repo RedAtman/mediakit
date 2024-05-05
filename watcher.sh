@@ -9,6 +9,11 @@ then
     echo $(date +"%Y-%m-%d %H:%M:%S:") "ffmpeg is running"
     exit 1
 fi
+if pgrep -x "ffprobe" > /dev/null
+then
+    echo $(date +"%Y-%m-%d %H:%M:%S:") "ffprobe is running"
+    exit 1
+fi
 
 cd ~/Dropbox/dev/tools/media_handler
 
