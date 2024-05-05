@@ -48,6 +48,13 @@ class RelativePathFilter(logging.Filter):
         return super().filter(record)
 
 
+class RelPathFilter(logging.Filter):
+
+    def filter(self, record):
+        record.relpath = os.path.relpath(record.pathname)
+        return super().filter(record)
+
+
 class LevelColorFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord):

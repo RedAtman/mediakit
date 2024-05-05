@@ -2,11 +2,14 @@ import logging
 import logging.config
 import os
 
-from config import CONFIG
-
 
 ENV = os.getenv("ENV")
 FORMATTER = "color" if ENV == "development" else "standard"
+LOG_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "log"
+)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+BACKUP_COUNT = 9
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -20,16 +23,12 @@ LOGGING_CONFIG = {
         },
         "color": {
             "class": "utils.logger.utils.ColorFormatter",
-            "format": "[%(levelname)s]%(pathname)s:%(lineno)d:%(funcName)s: %(message)s",
+            "format": "[%(levelname)s]%(relpath)s:%(lineno)d:%(funcName)s: %(message)s",
         },
     },
     "filters": {
-        "default": {"()": "utils.logger.utils.RelativePathFilter"},
-        # "debug": {"()": "utils.logger.utils.RelativePathFilter"},
-        # "info": {"()": "utils.logger.utils.RelativePathFilter"},
-        # "warning": {"()": "utils.logger.utils.RelativePathFilter"},
-        # "error": {"()": "utils.logger.utils.RelativePathFilter"},
-        # "critical": {"()": "utils.logger.utils.RelativePathFilter"},
+        # "default": {"()": logging.Filter},
+        "relpath": {"()": "utils.logger.utils.RelPathFilter"},
     },
     "handlers": {
         "default": {
@@ -39,69 +38,65 @@ LOGGING_CONFIG = {
             # 'stream': 'ext://sys.stdout',
             # 'class': 'logging.StreamHandler',
             "class": "logging.handlers.TimedRotatingFileHandler",
-            "filename": f"{CONFIG.LOG_DIR}/default.log",
+            "filename": f"{LOG_DIR}/default.log",
             "when": "midnight",
-            "backupCount": 7,
+            "backupCount": BACKUP_COUNT,
             "encoding": "utf8",
-            "filters": ["default"],
-        },
-        "console": {
-            "level": "DEBUG",
-            "formatter": FORMATTER,
-            "class": "logging.StreamHandler",
-            # Default is stderr
-            "stream": "ext://sys.stdout",
-            # 'filters': ['debug'],
+            # "filters": ["default"],
         },
         "info": {
             "level": "INFO",
             "formatter": "standard",
             # Default is stderr
-            "stream": "ext://sys.stdout",
-            "class": "logging.StreamHandler",
-            # 'class': 'logging.handlers.TimedRotatingFileHandler',
-            # 'filename': f'{CONFIG.LOG_DIR}/info.log',
-            # 'when': 'midnight',
-            # 'backupCount': 2,
-            # 'encoding': 'utf8',
-            # 'filters': ['default'],
+            # "stream": "ext://sys.stdout",
+            # "class": "logging.StreamHandler",
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "when": "midnight",
+            "backupCount": BACKUP_COUNT,
             # 'maxBytes': 5*1024*1024,
+            "filename": f"{LOG_DIR}/info.log",
+            "encoding": "utf8",
+            # 'filters': ['default'],
         },
         "warning": {
             "level": "WARNING",
             "formatter": "standard",
             # Default is stderr
-            "stream": "ext://sys.stdout",
-            "class": "logging.StreamHandler",
-            # 'class': 'logging.handlers.TimedRotatingFileHandler',
-            # 'filename': f'{CONFIG.LOG_DIR}/warning.log',
-            # 'when': 'midnight',
-            # 'backupCount': 7,
-            # 'encoding': 'utf8',
-            # 'filters': ['default'],
+            # "stream": "ext://sys.stdout",
+            # "class": "logging.StreamHandler",
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "when": "midnight",
+            "backupCount": BACKUP_COUNT,
+            # 'maxBytes': 5*1024*1024,
+            "encoding": "utf8",
+            "filename": f"{LOG_DIR}/warning.log",
+            # "filters": ["default"],
         },
         "error": {
+            "level": "ERROR",
             "formatter": "standard",
-            "class": "logging.handlers.TimedRotatingFileHandler",
             # Default is stderr
             # 'stream': 'ext://sys.stdout',
-            "filename": f"{CONFIG.LOG_DIR}/error.log",
+            "class": "logging.handlers.TimedRotatingFileHandler",
             "when": "midnight",
-            "backupCount": 7,
+            "backupCount": BACKUP_COUNT,
+            # 'maxBytes': 5*1024*1024,
+            "filename": f"{LOG_DIR}/error.log",
             "encoding": "utf8",
-            "filters": ["default"],
+            # "filters": ["default"],
         },
         "critical": {
             "level": "CRITICAL",
             "formatter": "standard",
-            "class": "logging.handlers.TimedRotatingFileHandler",
             # Default is stderr
             # 'stream': 'ext://sys.stdout',
-            "filename": f"{CONFIG.LOG_DIR}/critical.log",
+            "class": "logging.handlers.TimedRotatingFileHandler",
             "when": "midnight",
-            "backupCount": 7,
+            "backupCount": BACKUP_COUNT,
+            # 'maxBytes': 5*1024*1024,
+            "filename": f"{LOG_DIR}/critical.log",
             "encoding": "utf8",
-            "filters": ["default"],
+            # "filters": ["default"],
         },
         "critical_mail": {
             "level": "CRITICAL",
@@ -111,21 +106,31 @@ LOGGING_CONFIG = {
             "fromaddr": "xxx@domain.com",
             "toaddrs": ["xxx@domain.com", "xxx@domain.com"],
             "subject": "Critical error with application name",
-            "filters": ["default"],
+            # "filters": ["default"],
+        },
+        "console": {
+            "level": "DEBUG",
+            # "formatter": FORMATTER,
+            "formatter": "color",
+            # Default is stderr
+            # "stream": "ext://sys.stdout",
+            "class": "logging.StreamHandler",
+            "filters": ["relpath"],
         },
     },
     "loggers": {
         # root logger
         "": {
             "handlers": [
-                "default",
+                # "default",
+                "info",
+                "warning",
+                "error",
+                "critical",
+                # Keep console at the end. for colored output only at stdout.
                 "console",
-                # 'info',
-                # 'warning',
-                # 'critical',
-                # 'error',
             ],
-            "level": CONFIG.LOG_LEVEL,
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "script": {"handlers": ["default"], "level": "INFO", "propagate": False},
