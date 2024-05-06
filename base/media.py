@@ -37,6 +37,7 @@ class BaseMedia:
 
     _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
     _CPULIMIT_PREFIX = []
+    logger.warning("CPULIMIT_ENABLE: %s", CONFIG.CPULIMIT_ENABLE)
     if CONFIG.CPULIMIT_ENABLE:
         _CPULIMIT_PREFIX = [
             _CPULIMIT_BIN,
@@ -103,7 +104,7 @@ class BaseMedia:
     @property
     def progress_list(self) -> List[BaseProgress]:
         return [
-            StdoutProgress(total=self.frames_count, title=self.path),
+            StdoutProgress(total=self.frames_count, title=self.path, fmt=StdoutProgress.FULL),
             MediaStateProgress(total=self.frames_count, model=self.model),
         ]
 

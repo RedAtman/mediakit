@@ -140,9 +140,9 @@ class StdoutProgress(BaseProgress):
         size = int(self.width * self.percent)
 
         args = {
-            "total": self.total,
             "bar": "[" + self.SYMBOL * size + " " * (self.width - size) + "]",
             "current": self.current,
+            "total": self.total,
             "percent": self.percent * 100,
             "remaining": self.total - self.current,
             "title": self.title,
@@ -173,12 +173,16 @@ if __name__ == "__main__":
 
     print(StdoutProgress)
     length = 1000
-    stdout_progress = StdoutProgress(length)
+    stdout_progress = StdoutProgress(length, fmt=StdoutProgress.FULL)
     print(stdout_progress)
-    # media = Media.get(md5="9b364cebea51dcd4315ee96d11fc7aff")
-    # model = Media.get(md5="2d17da54164e43c9962decd2103a4798")
-    model = Media.get(md5="ff336438daffba071044501e06af9324")
-    # print(model)
+    model = Media.get_or_create(
+        **{
+            "md5": "test",
+            "title": "test",
+            "dirname": "test",
+        }
+    )
+    # print(model.__dict__)
     media_progress = MediaStateProgress(length, model)
     # print(media_progress)
     for i in range(length + 1):
@@ -187,3 +191,5 @@ if __name__ == "__main__":
         media_progress.current = i
         # print(i)
         time.sleep(0.1)
+    result = model.delete()
+    print(result)

@@ -132,6 +132,12 @@ class Media(Base):
             session.commit()
             return response.Result(code=0, data={"media": self})
 
+    def delete(self):
+        with db.DatabaseEngine.engine.get_session() as session:
+            session.delete(self)
+            session.commit()
+            return response.Result(code=0, data={"media": self})
+
 
 if __name__ == "__main__":
     from utils.db import _sqlmodel
