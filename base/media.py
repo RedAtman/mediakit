@@ -104,7 +104,9 @@ class BaseMedia:
     @property
     def progress_list(self) -> List[BaseProgress]:
         return [
-            StdoutProgress(total=self.frames_count, title=self.path, fmt=StdoutProgress.FULL),
+            StdoutProgress(
+                total=self.frames_count, title=self.path, fmt=StdoutProgress.FULL
+            ),
             MediaStateProgress(total=self.frames_count, model=self.model),
         ]
 
@@ -147,7 +149,13 @@ class BaseMedia:
         except ValueError:
             command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
             result = CommandExecutor.run(command)
-            return int(result)
+            if result.isdigit():
+                return int(result)
+            default_frames_count = 1000000
+            logger.warning(
+                f"Cannot get frames count: {self.path}, set to {default_frames_count}."
+            )
+            return default_frames_count
         except Exception as err:
             logger.exception(err)
             raise err
