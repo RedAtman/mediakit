@@ -1,7 +1,7 @@
 from enum import IntEnum
 import logging
 
-from pydantic import BaseModel, Field, ValidationError, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
 
 logger = logging.getLogger()
@@ -14,7 +14,7 @@ __all__ = [
 
 class StateChoices(IntEnum):
     failed = -2
-    unprocessed= -1
+    unprocessed = -1
     finished = 2
 
     @classmethod
@@ -33,13 +33,12 @@ _state_field = Field(
 
 
 class State(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     compress: float = _state_field
     trim: float = _state_field
     # compress: StateChoices = StateChoices.unprocessed
     # trim: StateChoices = StateChoices.unprocessed
-
-    class Config:
-        from_attributes = True
 
     def __str__(self) -> str:
         return f"<{self.__class__.__name__}({self.__dict__})>"
@@ -50,9 +49,7 @@ class State(BaseModel):
     @field_validator("compress", "trim")
     @classmethod
     def field_validator(cls, value: float, info: ValidationInfo) -> float:
-        assert (
-            StateChoices.failed <= value <= StateChoices.finished
-        ), f"{info.field_name} must be between 0 and 1."
+        assert StateChoices.failed <= value <= StateChoices.finished, f"{info.field_name} must be between 0 and 1."
         return value
 
 

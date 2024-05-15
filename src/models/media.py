@@ -4,8 +4,8 @@ from typing import Union, Unpack
 
 from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.sqlite import JSON
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import declarative_base
 
 from config import CONFIG
 from src import db, schemas
