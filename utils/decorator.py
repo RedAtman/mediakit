@@ -24,9 +24,7 @@ def timer(fn: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fn)
     def wrap(self, *args, **kwargs):
         start_time = time.time()
-        logger.debug(
-            "Task start(%s): %s, %s", fn.__name__, start_time, datetime.datetime.now()
-        )
+        logger.debug("Task start(%s): %s, %s", fn.__name__, start_time, datetime.datetime.now())
         result = fn(self, *args, **kwargs)
         cost_seconds = time.time() - start_time
         logger.info(
@@ -47,22 +45,21 @@ class exception:
     def __init__(self, fn):
         self.fn = fn
 
-    def __call__(self, *args, **kwargs):
-        # logger.debug((self, self.fn, args, kwargs))
+    def __call__(self, *args: Any, **kwargs: Any):
         try:
             data = self.fn(*args, **kwargs)
             result = Result(0, data=data)
             return result
         except KeyboardInterrupt as err:
             logger.exception(err)
-            result = Result(601, err)
+            result = Result(601, msg=err)
             return result
         except Exception as err:
             logger.exception(err)
             result = Result(1, err)
             return result
 
-    def __get__(self, obj, objtype):
+    def __get__(self, obj, obj_type):
         return functools.partial(self.__call__, obj)
 
 
@@ -70,7 +67,7 @@ def execute(fn: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fn)
     def wrap(self, *args, **kwargs):
         media, command, new_file_path = fn(self, *args, **kwargs)
-        result = CommandExecutor.run(command, monitor=self.monitor)
+        result = CommandExecutor.run(command, getattr(self, "monitor", None))
         return {
             "media": media,
             "new_file_path": new_file_path,
@@ -91,7 +88,7 @@ class class_property:
 # class class_property:
 #     """Class property decorator.
 
-#     Example:
+#     e.g.
 #         class A:
 #             @class_property
 #             def x(cls):

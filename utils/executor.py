@@ -1,10 +1,4 @@
-from concurrent.futures import (
-    FIRST_EXCEPTION,
-    Future,
-    ProcessPoolExecutor,
-    ThreadPoolExecutor,
-    wait,
-)
+from concurrent.futures import FIRST_EXCEPTION, Future, ProcessPoolExecutor, ThreadPoolExecutor, wait
 import ctypes
 from dataclasses import dataclass
 import inspect
@@ -32,9 +26,7 @@ def _async_raise(tid, exctype) -> None:
     """Raises an exception in the threads with id tid"""
     if not inspect.isclass(exctype):
         raise TypeError("Only types can be raised (not instances)")
-    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-        ctypes.c_long(tid), ctypes.py_object(exctype)
-    )
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), ctypes.py_object(exctype))
     if res == 0:
         raise ValueError("invalid thread id")
     elif res != 1:
@@ -95,9 +87,7 @@ class BoundedExecutor:
         self.lock = multiprocessing.Manager().Lock()
 
     # See concurrent.futures.Executor#submit
-    def submit(
-        self, fn, *args, callback_list: List[FunctionType | MethodType] = [], **kwargs
-    ):
+    def submit(self, fn, *args, callback_list: List[FunctionType | MethodType] = [], **kwargs):
         """Start a new task, blocks if queue is full."""
         self.semaphore.acquire()
         try:
@@ -137,11 +127,7 @@ class TaskManager:
 
     # PoolExecutor = ProcessPoolExecutor
     def __init__(self, max_workers: int = 1):
-        max_workers = (
-            max_workers
-            if max_workers <= multiprocessing.cpu_count()
-            else multiprocessing.cpu_count()
-        )
+        max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
@@ -150,13 +136,7 @@ class TaskManager:
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
-    def submit(
-        self,
-        fn: Callable[..., Any],
-        *args: Any,
-        callback_list: List[Callable[..., Any]] = [],
-        **kwargs: Any
-    ):
+    def submit(self, fn: Callable[..., Any], *args: Any, callback_list: List[Callable[..., Any]] = [], **kwargs: Any):
         """Start a new task, blocks if queue is full."""
         with self.semaphore:
             _future: Future[Any] = self.executor.submit(fn, *args, **kwargs)
@@ -183,13 +163,7 @@ class TaskManager:
         #     os.getpid()
         # )
 
-    def submit_all(
-        self,
-        tasks: List[Callable[[], str]],
-        is_wait: bool = True,
-        *args: Any,
-        **kwargs: Any
-    ):
+    def submit_all(self, tasks: List[Callable[[], str]], is_wait: bool = True, *args: Any, **kwargs: Any):
         with self.executor:
             _ = [self.submit(task, *args, **kwargs) for task in tasks]
 
@@ -212,16 +186,15 @@ class TaskManager:
                     if not future.done():
                         future_context = self.mapper_future_args[future]
                         future.cancel()
-                        future.set_result(
-                            Result(
-                                601,
-                                msg=err,
-                                data={
-                                    # TODO: Not recommended to use fn.args[0] to obtain the handler
-                                    "media": future_context.fn.args[0],
-                                },
-                            )
+                        result = Result(
+                            601,
+                            msg=err,
+                            data={
+                                # TODO: Not recommended to use fn.args[0] to obtain the handler
+                                "media": future_context.fn.args[0],
+                            },
                         )
+                        future.set_result(result)
             except Exception as err:
                 logger.exception(err)
                 yield Result(1, err)

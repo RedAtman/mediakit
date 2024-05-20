@@ -1,4 +1,5 @@
 import datetime
+import logging
 from typing import List
 import wave
 
@@ -9,32 +10,34 @@ from speech_recognition import AudioData
 import whisper
 
 from config import CONFIG
-from logger import logger
+
+
+logger = logging.getLogger(__name__)
 
 
 class VoiceAssistant:
 
     def __init__(self, model: str = CONFIG.WHISPER_MODEL):
         # device = "cuda" if torch.cuda.is_available() else "cpu"
-        device = 'cpu'
+        device = "cpu"
         # self.model = whisper.load_model('medium.en', device=device)
         self.model: whisper.Whisper = whisper.load_model(model, device=device)
-        logger.info(f'Loaded model: {self.model}')
+        logger.info(f"Loaded model: {self.model}")
         self.speaker: pyttsx3.Engine = pyttsx3.init()
         if not isinstance(self.speaker, pyttsx3.Engine):
-            raise TypeError('Not a pyttsx3.Engine')
+            raise TypeError("Not a pyttsx3.Engine")
         self.set_language()
         self.start = True
 
-    def set_language(self, language: str = 'zh_CN'):
-        voices = self.speaker.getProperty('voices')
+    def set_language(self, language: str = "zh_CN"):
+        voices = self.speaker.getProperty("voices")
         # logger.info(('Available voices:', voices))
         # Look for Chinese (zh-cn) voice
         for voice in voices:
             # logger.debug(('Voice:', voice, voice.id, voice.languages))
             if language in voice.languages:
-                logger.info(('Using voice:', voice, voice.id, voice.languages))
-                self.speaker.setProperty('voice', voice.id)
+                logger.info(("Using voice:", voice, voice.id, voice.languages))
+                self.speaker.setProperty("voice", voice.id)
                 break
 
     def startup(self):
@@ -50,19 +53,18 @@ class VoiceAssistant:
                 q = r.recognize_google(said, language="zh-CN")
                 return q
             except sr.UnknownValueError:
-                print('抱歉 我不太理解您的意思')
+                print("抱歉 我不太理解您的意思")
                 return "I am waiting"
             except sr.RequestError:
-                print('Service is down.')
+                print("Service is down.")
                 self.transform()
                 return "I am waiting"
             except:
                 return "I am waiting"
 
     def whisper_ai(self):
-        result = self.model.transcribe(
-            "samples/voice.wav", language="zh", fp16=False, verbose=True)
-        return result['text']
+        result = self.model.transcribe("samples/voice.wav", language="zh", fp16=False, verbose=True)
+        return result["text"]
 
     def query_day(self):
         day = datetime.date.today()
@@ -71,7 +73,7 @@ class VoiceAssistant:
         #     0:'Monday',1:'Tuesday',2:'Wednesday',3:'Thursday',4:'Friday',5:'Saturday',6:'Sunday'
         # }
         try:
-            self.speaking(f'今天是星期{weekday}')
+            self.speaking(f"今天是星期{weekday}")
         except Exception as err:
             logger.exception(err)
 
@@ -100,11 +102,7 @@ class VoiceAssistant:
 
         p = pyaudio.PyAudio()
 
-        stream = p.open(format=FORMAT,
-                        channels=CHANNELS,
-                        rate=RATE,
-                        input=True,
-                        frames_per_buffer=CHUNK)
+        stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
 
         print("* recording")
         frames: List[bytes] = []
@@ -117,29 +115,29 @@ class VoiceAssistant:
         stream.close()
         p.terminate()
 
-        with wave.open(WAVE_OUTPUT_FILENAME, 'wb') as wf:
+        with wave.open(WAVE_OUTPUT_FILENAME, "wb") as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(p.get_sample_size(FORMAT))
             wf.setframerate(RATE)
-            wf.writeframes(b''.join(frames))
+            wf.writeframes(b"".join(frames))
 
     def run(self):
         self.startup()
-        while(self.start):
+        while self.start:
             s = self.transform().lower()
             if "你好" in s:
                 self.record()
                 q = self.whisper_ai().lower()
                 print(q)
-                if '星期几' in q:
+                if "星期几" in q:
                     self.query_day()
                     continue
 
-                elif '几点' in q:
+                elif "几点" in q:
                     self.query_time()
                     continue
 
-                elif "关机" in q or 'shutdown' in q:
+                elif "关机" in q or "shutdown" in q:
                     self.speaking("好的 即将关机")
                     break
                 # elif "from wikipedia" in q:

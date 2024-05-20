@@ -25,18 +25,12 @@ class ProgressMonitor:
         progress_list: Sequence[BaseProgress],
     ) -> None:
         if not issubclass(parser_class, BaseStdoutParser):
-            raise TypeError(
-                f"parser_class must be BaseStdoutParser. but got {type(parser_class)}"
-            )
+            raise TypeError(f"parser_class must be BaseStdoutParser. but got {type(parser_class)}")
         self.parser_class = parser_class
         if not isinstance(progress_list, list):
-            raise TypeError(
-                f"progress_list must be list. but got {type(progress_list)}"
-            )
+            raise TypeError(f"progress_list must be list. but got {type(progress_list)}")
         if not all(isinstance(progress, BaseProgress) for progress in progress_list):
-            raise TypeError(
-                f"All progress in progress_list must be BaseProgress. but got {progress_list}"
-            )
+            raise TypeError(f"All progress in progress_list must be BaseProgress. but got {progress_list}")
         self.progress_list = progress_list
 
     def run(self, stdout: IO[str]):
@@ -49,15 +43,11 @@ class ProgressMonitor:
 class CommandExecutor:
 
     @classmethod
-    def run(
-        cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None
-    ):
+    def run(cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None):
         return cls.execute(command, monitor)
 
     @staticmethod
-    def execute(
-        command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None
-    ):
+    def execute(command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None):
         """Execute shell command.
 
         Args:
@@ -114,17 +104,15 @@ class CommandExecutor:
             stdout = _stdout.strip()
 
             if process.returncode != 0:
-                logger.exception(
-                    "process: %s, returncode: %s, command: %s, stdout: %s, stderr: %s",
-                    process.__dict__,
-                    process.returncode,
-                    command,
-                    stdout,
-                    _stderr,
-                )
-                raise subprocess.CalledProcessError(
-                    process.returncode, command, output=stdout, stderr=_stderr
-                )
+                # logger.exception(
+                #     "process: %s, returncode: %s, command: %s, stdout: %s, stderr: %s",
+                #     process.__dict__,
+                #     process.returncode,
+                #     command,
+                #     stdout,
+                #     _stderr,
+                # )
+                raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=_stderr)
 
             # logger.debug(stdout)
             return stdout
