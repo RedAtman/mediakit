@@ -62,6 +62,11 @@ class BaseMedia:
         # "-threads", "16",
         # "-threads:v",
     ]
+    _FFPROBE_PREFIX: list[str] = [
+        _FFPROBE_BIN,
+        "-v",
+        _LOG_LEVEL,
+    ]
 
     # TODO: Type[super]?
     _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
@@ -104,9 +109,7 @@ class BaseMedia:
     @property
     def progress_list(self) -> List[BaseProgress]:
         return [
-            StdoutProgress(
-                total=self.frames_count, title=self.path, fmt=StdoutProgress.FULL
-            ),
+            StdoutProgress(total=self.frames_count, title=self.path, fmt=StdoutProgress.FULL),
             MediaStateProgress(total=self.frames_count, model=self.model),
         ]
 
@@ -146,19 +149,16 @@ class BaseMedia:
             command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
             result = CommandExecutor.run(command)
             return int(result)
-        except ValueError:
+        except Exception as err:
+            logger.warning("Cannot get frames count: %s", self.path)
+            logger.exception(err)
             command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
             result = CommandExecutor.run(command)
             if result.isdigit():
                 return int(result)
             default_frames_count = 1000000
-            logger.warning(
-                f"Cannot get frames count: {self.path}, set to {default_frames_count}."
-            )
+            logger.warning(f"Cannot get frames count: {self.path}, set to {default_frames_count}.")
             return default_frames_count
-        except Exception as err:
-            logger.exception(err)
-            raise err
 
     @cached_property
     def metadata(self):
@@ -180,6 +180,7 @@ class BaseMedia:
             "quiet",
             "-show_format",
             "-show_streams",
+            # "-print_fps",
             "-print_format",
             "json",
             path.strip(),
@@ -208,9 +209,7 @@ class BaseMedia:
     @cached_property
     def bitrate(self):
         """Get media file bitrate. Unit:kb/s"""
-        bitrate = self.metadata.get("streams")[0].get("bit_rate") or self.metadata.get(
-            "format"
-        ).get("bit_rate")
+        bitrate = self.metadata.get("streams")[0].get("bit_rate") or self.metadata.get("format").get("bit_rate")
         return float(bitrate)
 
     @cached_property
@@ -297,9 +296,7 @@ class BaseMedia:
 
         with cls._LOCK:
             while True:
-                file_path = os.path.join(
-                    dirname, f"{title}-{suffix}_{suffix_number}.{ext}"
-                )
+                file_path = os.path.join(dirname, f"{title}-{suffix}_{suffix_number}.{ext}")
                 # file_path = os.path.join(dirname, f"{title}.{ext}")
                 if not os.path.exists(file_path):
                     break
