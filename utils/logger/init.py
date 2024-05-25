@@ -5,9 +5,7 @@ import os
 
 ENV = os.getenv("ENV")
 FORMATTER = "color" if ENV == "development" else "standard"
-LOG_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "log"
-)
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "logs")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 BACKUP_COUNT = 9
 
@@ -22,13 +20,13 @@ LOGGING_CONFIG = {
             "format": "%(asctime)s:[%(levelname)s]:%(pathname)s:%(lineno)d:%(funcName)s: %(message)s",
         },
         "color": {
-            "class": "utils.logger.utils.ColorFormatter",
+            "class": "utils.logger.formatters.ColorFormatter",
             "format": "[%(levelname)s]%(relpath)s:%(lineno)d:%(funcName)s: %(message)s",
         },
     },
     "filters": {
         # "default": {"()": logging.Filter},
-        "relpath": {"()": "utils.logger.utils.RelPathFilter"},
+        "relpath": {"()": "utils.logger.filters.RelPathFilter"},
     },
     "handlers": {
         "default": {
