@@ -44,6 +44,8 @@ class CommandExecutor:
 
     @classmethod
     def run(cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None):
+        if "|" in command:
+            return cls.pipe_execute(command)
         return cls.execute(command, monitor)
 
     @staticmethod
@@ -116,3 +118,15 @@ class CommandExecutor:
 
             # logger.debug(stdout)
             return stdout
+
+    @staticmethod
+    def pipe_execute(command: Union[List[str], str]):
+        """Execute shell command containing `|`."""
+        assert "|" in command, f"command must contain '|'. but got {command}"
+        if isinstance(command, str):
+            command = command.split(" ")
+        index = command.index("|")
+        command1, command2 = command[:index], command[index + 1 :]
+        process1 = subprocess.Popen(command1, stdout=subprocess.PIPE)
+        process = subprocess.run(command2, stdin=process1.stdout, stdout=subprocess.PIPE)
+        return process.stdout.decode("utf-8").strip()
