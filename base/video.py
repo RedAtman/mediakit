@@ -1,7 +1,7 @@
 import functools
 import logging
 import time
-from typing import List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 from base.media import BaseMedia
 from src.mixins import whispers
@@ -125,6 +125,36 @@ class Video(
                 self.get_output_path(suffix="set_metadata"),
             ]
         )
+
+    @property
+    def fps(self):
+        result: Dict[str, Any] = self._fps()
+        assert isinstance(result, dict), f"result must be dict, but got {result}"
+        fps = result.get("result")
+        assert isinstance(fps, str), f"fps must be str, but got {fps}"
+        assert fps.isdigit(), f"fps must be digit, but got {fps}"
+        return float(fps)
+
+    @decorator.timer
+    @decorator.execute
+    def _fps(self):
+        """Get video fps."""
+        command = [
+            self._FFPROBE_BIN,
+            "-v",
+            "error",
+            "-select_streams",
+            "v",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            "-show_entries",
+            "stream=r_frame_rate",
+            self.path,
+            "|",
+            "bc",
+            # "-l",
+        ]
+        return self, command, None
 
     @decorator.timer
     @decorator.execute
