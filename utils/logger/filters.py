@@ -1,4 +1,5 @@
 import logging
+import operator as _operator
 import os
 import sys
 
@@ -31,10 +32,74 @@ class RelPathFilter(logging.Filter):
         return super().filter(record)
 
 
-class LevelColorFilter(logging.Filter):
+class LevelMatchFilter(logging.Filter):
+
+    def __init__(self, level: str, operator: str):
+        self.level: str = level
+        self.levelno: int = logging.getLevelName(level.upper())
+        # Comparison Operations: eq, ne, lt, le, gt, ge
+        operator_fuc = getattr(_operator, operator)
+        if not operator_fuc:
+            raise ValueError(f"Invalid operator: {operator}, must be one of: eq, ne, lt, le, gt, ge")
+        assert isinstance(operator_fuc, type(_operator.eq))
+        self.operator = operator_fuc
 
     def filter(self, record: logging.LogRecord):
-        super().filter(record)
-        if self.__class__.__name__.upper().startswith(record.levelname):
+        if self.operator(record.levelno, self.levelno):
             return True
         return False
+
+
+if __name__ == "__main__":
+    import logging.config
+
+    LOGGING_CONFIG = {
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "simple": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            },
+        },
+        "filters": {
+            "debug": {"()": LevelMatchFilter, "level": "debug", "operator": "eq"},
+            "info": {"()": LevelMatchFilter, "level": "info", "operator": "eq"},
+            "warning": {"()": LevelMatchFilter, "level": "warning", "operator": "eq"},
+        },
+        "handlers": {
+            "debug": {
+                "class": "logging.FileHandler",
+                "filename": "debug.log",
+                "level": "DEBUG",
+                "filters": ["debug"],
+                "formatter": "simple",
+            },
+            "info": {
+                "class": "logging.FileHandler",
+                "filename": "info.log",
+                "level": "INFO",
+                "filters": ["info"],
+                "formatter": "simple",
+            },
+            "warning": {
+                "class": "logging.FileHandler",
+                "filename": "warning.log",
+                "level": "WARNING",
+                "filters": ["warning"],
+                "formatter": "simple",
+            },
+        },
+        "root": {
+            "handlers": ["debug", "info", "warning"],
+            "level": "DEBUG",
+        },
+    }
+
+    logging.config.dictConfig(LOGGING_CONFIG)
+    logger = logging.getLogger("test")
+    logger = logging.getLogger(__name__)
+    logger.debug("This is a debug message")
+    logger.info("This is an info message")
+    logger.warning("This is a warning message")
+    logger.error("This is an error message")
+    logger.critical("This is a critical message")
