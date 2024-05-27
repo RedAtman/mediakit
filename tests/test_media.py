@@ -9,7 +9,7 @@ from config import CONFIG
 logger = logging.getLogger()
 
 
-class TestVideo(TestCase):
+class VideoTest(TestCase):
 
     @mock.patch.object(CONFIG, "MEDIA_FILE_PATH", "samples/zh.mp4")
     def setUp(self) -> None:
@@ -49,6 +49,11 @@ class TestVideo(TestCase):
         result = self.video.metadata
         logger.info(result)
         assert isinstance(result, dict)
+
+    def test_fps(self):
+        result: float = self.video.fps
+        logger.info(result)
+        assert isinstance(result, float)
 
     def test_reverse(self):
         result = self.video.reverse()
