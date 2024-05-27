@@ -22,9 +22,7 @@ class Folder(
 ):
     def __init__(self, path: str, media_type: str = "video"):
         super().__init__(path)
-        self.MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
-            media_type, BaseMedia
-        )
+        self.MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
 
     @functools.cached_property
     def medias(self):
@@ -32,12 +30,8 @@ class Folder(
 
     @classmethod
     # @functools.cache
-    def medias_(
-        cls, path: str, media_type: str = "video"
-    ) -> Generator[BaseMedia, Any, None]:
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
-            media_type, BaseMedia
-        )
+    def medias_(cls, path: str, media_type: str = "video") -> Generator[BaseMedia, Any, None]:
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         for file in cls.get_files(path):
             try:
                 media = MEDIA_CLS(file)
@@ -108,9 +102,7 @@ class Folder(
                 **kwargs,
             )
         """
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
-            media_type, BaseMedia
-        )
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         _media_method = getattr(MEDIA_CLS, media_method, None)
         if _media_method is None:
             logger.warning("Unimplemented method: %s", media_method)
@@ -119,9 +111,7 @@ class Folder(
             logger.warning(f"{MEDIA_CLS} has not implemented {_media_method} method.")
             raise TypeError
         medias = cls.medias_(path, media_type)
-        logger.debug(
-            ("run_", MEDIA_CLS, medias, type(medias), path, media_type, callback_list)
-        )
+        logger.debug(("run_", MEDIA_CLS, medias, type(medias), path, media_type, callback_list))
         return cls.run__(
             media_method,
             *args,
@@ -161,9 +151,7 @@ class Folder(
         **kwargs: Dict[str, Any],
     ):
         task_manager = executor.TaskManager(max_workers)
-        _ = list(
-            task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
-        )
+        _ = list(task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs))
         return [future.result() for future in task_manager.futures]
 
     @property
@@ -286,14 +274,10 @@ class Folder(
         self._convert_images_to_video(self.path, image_format, bit_rate)
 
     @classmethod
-    def _convert_images_to_video(
-        cls, images_path: str, image_format: str, bit_rate="5000k", media_type="image"
-    ):
+    def _convert_images_to_video(cls, images_path: str, image_format: str, bit_rate="5000k", media_type="image"):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         new_file_path = f"{images_path}/output_{bit_rate}_1920_{create_time}.mp4"
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
-            media_type, BaseMedia
-        )
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         command = MEDIA_CLS._FFMPEG_PREFIX + [
             # 关闭每帧都提醒是否overwrite
             "-pattern_type",

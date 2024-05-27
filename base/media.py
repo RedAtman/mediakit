@@ -37,7 +37,6 @@ class BaseMedia:
 
     _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
     _CPULIMIT_PREFIX = []
-    logger.warning("CPULIMIT_ENABLE: %s", CONFIG.CPULIMIT_ENABLE)
     if CONFIG.CPULIMIT_ENABLE:
         _CPULIMIT_PREFIX = [
             _CPULIMIT_BIN,
@@ -150,13 +149,11 @@ class BaseMedia:
             result = CommandExecutor.run(command)
             return int(result)
         except Exception as err:
-            logger.warning("Cannot get frames count: %s", self.path)
-            logger.exception(err)
             command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
             result = CommandExecutor.run(command)
             if result.isdigit():
                 return int(result)
-            default_frames_count = 1000000
+            default_frames_count = 10000000
             logger.warning(f"Cannot get frames count: {self.path}, set to {default_frames_count}.")
             return default_frames_count
 
@@ -180,7 +177,6 @@ class BaseMedia:
             "quiet",
             "-show_format",
             "-show_streams",
-            # "-print_fps",
             "-print_format",
             "json",
             path.strip(),

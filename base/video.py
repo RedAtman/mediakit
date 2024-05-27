@@ -5,7 +5,7 @@ from typing import List, Optional, Set, Union
 
 from base.media import BaseMedia
 from src.mixins import whispers
-from utils import decorator, response, translator
+from utils import decorator, translator
 from utils.command import CommandExecutor
 
 from .media import BaseMedia
@@ -93,18 +93,14 @@ class Video(
 
                 meta_concat = functools.reduce(concat, list(meta.values()))
 
-                order_metadata.extend(
-                    ["-metadata", str(key) + "=" + ",".join(meta_concat)]
-                )
+                order_metadata.extend(["-metadata", str(key) + "=" + ",".join(meta_concat)])
                 self.keywords_list.update(meta_concat)
 
         keywords_en_list = translator.Translator.translate(self.keywords_list)
         self.keywords_list.update(keywords_en_list)
         self.keywords_list = {i.strip() for i in self.keywords_list}
 
-        order_metadata.extend(
-            ["-metadata", "keywords" + "=" + ",".join(self.keywords_list)]
-        )
+        order_metadata.extend(["-metadata", "keywords" + "=" + ",".join(self.keywords_list)])
 
         return order_metadata
 
@@ -233,9 +229,7 @@ class Video(
             filter_complex.extend(
                 [
                     """atempo=2,[1:v][0:v]scale2ref=h=ow/mdar:w=iw/9[logo][video]""",
-                    """[logo]format=argb,colorchannelmixer=aa="""
-                    + str(watermark_transparent)
-                    + "[logo]",
+                    """[logo]format=argb,colorchannelmixer=aa=""" + str(watermark_transparent) + "[logo]",
                     """[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7""",
                 ]
             )
@@ -286,21 +280,15 @@ class Video(
 
             # video_step_one.append(
             #     'scale=' + '4096:-1' + '[video_step_zero];[video_step_zero]' + 'crop=' + ':'.join(map(lambda x: str(x), ret)))
-            video_step_one.append(
-                f'scale=4096:-1[video_step_zero];[video_step_zero]crop={":".join(map(str, ret))}'
-            )
+            video_step_one.append(f'scale=4096:-1[video_step_zero];[video_step_zero]crop={":".join(map(str, ret))}')
 
         if reverse:
             video_step_one.append("reverse")
 
         if video_step_one:
             # print('filter_complex', filter_complex)
-            filter_complex[0] = (
-                "[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]"
-            )
-            filter_complex.insert(
-                0, "[0:v]" + ",".join(video_step_one) + "[video_step_one]"
-            )
+            filter_complex[0] = "[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]"
+            filter_complex.insert(0, "[0:v]" + ",".join(video_step_one) + "[video_step_one]")
 
         # if vf:
         #     # 反转视频流及相关视频压缩控制（为了兼容apple设备）
@@ -366,9 +354,7 @@ class Video(
         return self, command, new_file_path
 
     @decorator.timer
-    def images_to_video(
-        self, images_path: str, image_format: str, bit_rate: str = "5000k"
-    ):
+    def images_to_video(self, images_path: str, image_format: str, bit_rate: str = "5000k"):
         create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
         new_file_path = f"{images_path}/output_{bit_rate}_1920_{create_time}.mp4"
         command = self._FFMPEG_PREFIX + [
@@ -425,9 +411,7 @@ class Video(
         if not isinstance(trim_time, (tuple, list)) and len(trim_time) != 2:
             raise ValueError("参数[time]必须为长度为2的tuple或list")
         ss, to = trim_time
-        new_file_path = self.create_file_path(
-            self.path, suffix="trim", suffix_number=suffix_number
-        )
+        new_file_path = self.create_file_path(self.path, suffix="trim", suffix_number=suffix_number)
         command = self._FFMPEG_PREFIX + [
             # 截取时间
             "-ss",
@@ -468,9 +452,7 @@ class Video(
         -c:v: libx264, libx265, qtrle, libvpx, libvpx-vp9
         """
         suffix, vcodec, preset = "compress", "libx265", "medium"
-        new_file_path = self.create_file_path(
-            self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext
-        )
+        new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
 
         # More smaller size, but more time, more CPU usage.
         command = self._FFMPEG_PREFIX + [
@@ -666,9 +648,7 @@ class Video(
     @decorator.execute
     def convert_format(self, ext: str = "mp4", **kwargs):
         """转换视频格式"""
-        new_file_path = self.create_file_path(
-            self.path, suffix=f"[convert.{ext}]", ext=ext
-        )
+        new_file_path = self.create_file_path(self.path, suffix=f"[convert.{ext}]", ext=ext)
         vcodec = "copy"
         vcodec = "libx265"
         command = self._FFMPEG_PREFIX + [
@@ -690,9 +670,7 @@ class Video(
     @decorator.execute
     def scale(self, width: int = 1920, height: int = 1080, **kwargs):
         """Scale video resolution."""
-        new_file_path = self.create_file_path(
-            self.path, suffix=f"[scale.{width}x{height}]", ext="mp4"
-        )
+        new_file_path = self.create_file_path(self.path, suffix=f"[scale.{width}x{height}]", ext="mp4")
         command = self._FFMPEG_PREFIX + [
             "-i",
             self.path,
