@@ -43,8 +43,18 @@ class ProgressMonitor:
 class CommandExecutor:
 
     @classmethod
-    def run(cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None):
-        if "|" in command:
+    def run(cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None, mode="standard"):
+        """Run shell command.
+
+        Args:
+            command (Union[List[str], str]): _description_
+            monitor (Optional[ProgressMonitor], optional): _description_. Defaults to None.
+            mode (str, optional): _description_. Defaults to "standard". Options: ["standard", "pipe"]
+
+        Returns:
+            _type_: _description_
+        """
+        if mode == "pipe":
             return cls.pipe_execute(command)
         return cls.execute(command, monitor)
 

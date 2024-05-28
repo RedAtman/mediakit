@@ -128,15 +128,12 @@ class Video(
 
     @property
     def fps(self):
-        result: Dict[str, Any] = self._fps()
-        assert isinstance(result, dict), f"result must be dict, but got {result}"
-        fps = result.get("result")
-        assert isinstance(fps, str), f"fps must be str, but got {fps}"
-        assert fps.isdigit(), f"fps must be digit, but got {fps}"
+        fps: Dict[str, Any] = self._fps()
+        assert isinstance(fps, str), f"fps must be str, but got: {type(fps)}: {fps}"
+        assert fps.isdigit(), f"fps must be digit, but got: {type(fps)}: {fps}"
         return float(fps)
 
     @decorator.timer
-    @decorator.execute
     def _fps(self):
         """Get video fps."""
         command = [
@@ -154,7 +151,7 @@ class Video(
             "bc",
             # "-l",
         ]
-        return self, command, None
+        return CommandExecutor.run(command, mode="pipe")
 
     @decorator.timer
     @decorator.execute
@@ -474,7 +471,7 @@ class Video(
 
     @decorator.timer
     @decorator.execute
-    def compress(self, ext: str = "mp4"):
+    def compress(self, ext: str = "mp4", fps: int = 24):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
@@ -493,7 +490,9 @@ class Video(
             # '-vf', "scale=trunc(iw/4)*2:trunc(ih/4)*2",
             # # To scale to One-third size
             # '-vf', "scale=trunc(iw/6)*2:trunc(ih/6)*2",
-            # '-r', '24',  # Change FPS
+            # Change FPS
+            "-r",
+            str(fps),
             # More faster, but more bigger size.
             # '-vcodec', 'libx264',
             # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
