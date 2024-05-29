@@ -2,7 +2,7 @@ import hashlib
 from itertools import chain
 import json
 import logging
-from typing import Any, List, Set, Tuple, Union
+from typing import List, Set, Tuple, Union
 
 import requests
 
@@ -13,7 +13,7 @@ logger = logging.getLogger()
 
 
 class Translator:
-    """百度通用翻译接口封装类。
+    """Translator class to translate text to English. based on Baidu translate API.
     e.g.
     >>> from utils import Translator
     >>> translator = Translator()
@@ -35,24 +35,32 @@ class Translator:
 
     @classmethod
     def sign(cls, q: str):
-        """生成百度翻译api要求的sign(md5值)。
-        :param q: :String: 待翻译文字。
-        :return :String: 已翻译文字。
+        """Generate sign(md5) for Baidu translate API.
+
+        Args:
+            q (str): Text to translate.
+
+        Returns:
+            str: Sign(md5) for Baidu translate API.
         """
         sign = CONFIG.BAIDU_TRANSLATE_APP_ID + q + CONFIG.BAIDU_TRANSLATE_SALT + CONFIG.BAIDU_TRANSLATE_SECRET_KEY
         return hashlib.md5(sign.encode()).hexdigest()
 
     @classmethod
-    def translate(cls, text: Union[Any, List, Set, Tuple]) -> Any:
-        """发送翻译请求、解析翻译结果。输入默认检测语种，输出英文。
-        :param: text(String & List & Set): 待翻译文字。
-        :return(List): 已翻译文字。
+    def translate(cls, text: Union[str, List[str], Set[str], Tuple[str, ...]]) -> List[str]:
+        """Translate text to target language.
+
+        Args:
+            text (Union[str, List[str], Set[str], Tuple[str, ...]): Text to translate.
+
+        Returns:
+            List[str]: Translated text.
         """
         if isinstance(text, (list, tuple, set)):
             text = ",".join(text)
 
         if not isinstance(text, str):
-            raise TypeError("text must be str, list or set")
+            raise TypeError("text must be str, list, set or tuple.")
 
         data = {
             "q": text,
@@ -63,7 +71,6 @@ class Translator:
             "sign": cls.sign(text),
         }
 
-        # 获取翻译结果
         repose = requests.post(CONFIG.BAIDU_TRANSLATE_API, data=data, timeout=10)
         content = repose.json()
         trans_result = content.get("trans_result", [])
@@ -71,9 +78,9 @@ class Translator:
 
         result = None
         try:
-            result = json.loads(json.dumps(_))
-            result = list(chain(*result))
+            result_list = json.loads(json.dumps(_))
+            result = list(chain(*result_list))
+            return result
         except ValueError as err:
             logger.exception(err)
             raise err
-        return result
