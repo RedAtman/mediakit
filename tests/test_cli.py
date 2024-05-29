@@ -1,11 +1,11 @@
 import logging
-import unittest
+from unittest import TestCase
 
 
 logger = logging.getLogger()
 
 
-class ParserTest(unittest.TestCase):
+class TestParser(TestCase):
     def setUp(self):
         from utils.cli import create_parser
 

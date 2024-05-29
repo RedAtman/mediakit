@@ -9,7 +9,7 @@ from config import CONFIG
 logger = logging.getLogger()
 
 
-class VideoTest(TestCase):
+class TestVideo(TestCase):
 
     @mock.patch.object(CONFIG, "MEDIA_FILE_PATH", "samples/zh.mp4")
     def setUp(self) -> None:
