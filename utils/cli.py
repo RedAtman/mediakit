@@ -50,17 +50,15 @@ def create_parser():
         choices=("all", "video", "audio", "image"),
     )
     parser.add_argument(
-        "-w", "--max_workers", type=int, default=1, help="Number of workers"
+        "-w",
+        "--max_workers",
+        type=int,
+        default=CONFIG.MAX_WORKERS,
+        help="Number of workers",
     )
-    parser.add_argument(
-        "-d", "--daemon", type=bool, default=True, choices=(True, False)
-    )
+    parser.add_argument("-d", "--daemon", type=bool, default=True, choices=(True, False))
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
-    parser.add_argument(
-        "--old_ext", type=str, default=argparse.SUPPRESS, help="Old extension"
-    )
-    parser.add_argument(
-        "--ext", type=str, default=argparse.SUPPRESS, help="New extension"
-    )
+    parser.add_argument("--old_ext", type=str, default=argparse.SUPPRESS, help="Old extension")
+    parser.add_argument("--ext", type=str, default=argparse.SUPPRESS, help="New extension")
     return parser

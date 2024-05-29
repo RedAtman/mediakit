@@ -21,7 +21,7 @@ def main():
     args = parser.parse_args()
     # logger.debug(args)
     # logger.debug(args.action)
-    logger.debug(args.__dict__)
+    # logger.debug(args.__dict__)
     scheduler = getattr(folder, args.action)
     # logger.debug(scheduler)
     result = getattr(scheduler, "core")(**args.__dict__)
