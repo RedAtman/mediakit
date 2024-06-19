@@ -1,12 +1,47 @@
 [tool.pyright]
 typeCheckingMode = "basic"
 
+
+# PDM example
+[tool.pdm]
+distribution = true
+[tool.pdm.scripts]
+isort = "isort acme"
+black = "black acme"
+format = { composite = ["isort", "black"] }
+check_isort = "isort --check acme tests"
+check_black = "black --check acme tests"
+vulture = "vulture --min-confidence 100 acme tests"
+ruff = "ruff check acme tests"
+fix = "ruff check --fix acme tests"
+codespell = "codespell --toml ./pyproject.toml"
+lint = { composite = [
+    "vulture",
+    "codespell",
+    "ruff",
+    "check_isort",
+    "check_black",
+] }
+
+
 [tool.black]
 line-length = 120
+# target-version = ['py310']
+# include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # The following are specific to Black, you probably don't want those.
+  tests/data
+  | profiling
+)/
+'''
 
 
 [tool.autoflake]
 check = true
+in-place = true
+recursive = true
+expand-star-imports = true
 # remove_all_unused_imports = true
 remove-all-unused-imports = true
 # remove_unused_variables = true
@@ -51,6 +86,8 @@ python_files = ["test_*.py", "tests.py", "test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 norecursedirs = [
+    ".vscode",
+    "__pycache__",
     "node_modules",
     "venv",
     "env",
@@ -62,15 +99,25 @@ norecursedirs = [
     "dist",
     ".*",
 ]
+# Warnings that should be ignored
+filterwarnings = ["ignore::DeprecationWarning"]
 
 
 [tool.isort]
 # reference: https://pycqa.github.io/isort/docs/configuration/options.html
 # settings_file = ".isort.cfg"
-profile = "black"
-# reverse_sort = true
 atomic = true
+check = true
 line_length = 120
+indent_style = "space"
+indent_size = 4
+skip_gitignore = true
+profile = "black"
+pythonpath = ["/opt/homebrew/Caskroom/miniconda/base/bin/python"]
+interpreter = "/opt/homebrew/Caskroom/miniconda/base/bin/python"
+src_paths = ["isort", "test"]
+# reverse_sort = true
+server_enabled = false
 # tuple_bracket_spacing = true
 # tuple_brackets = false
 force_grid_wrap = 0
@@ -92,7 +139,7 @@ force_single_line = false
 # 是否在导入语句过多时分割成多行
 combine_as_imports = false
 known_third_party = ["django", "rest_framework"]
-known_first_party = ["my_module1"]
+known_first_party = ["black", "blib2to3", "blackd", "_black_version"]
 known_local_folder = ["my_module3"]
 known_django = "django"
 lines_after_imports = 2
@@ -107,6 +154,8 @@ skip = [
     "static",
     "templates",
     'node_modules',
+    "build",
+    ".tox",
     'venv',
     'env',
     "apps/*/migrations",
@@ -114,7 +163,46 @@ skip = [
     "apps/*/templates",
 ]
 extend_skip = ['.md', '.json', '.gitignore', '.dockerignore']
-skip_glob = ['docs/*']
+skip_glob = ['docs/*', "tests/data", "profiling"]
 extend_skip_glob = ['my_*_module.py']
 # 是否在导入中添加导入时间戳注释: 要求 isort=>5.5.0
 # annotate = true
+
+
+[tool.codespell]
+# codespell supports pyproject.toml since version 2.2.2
+# NOTE: the "tomli" package must be installed for this to work
+# https://github.com/codespell-project/codespell#using-a-config-file
+# NOTE: ignore words for codespell must be lowercase
+check-filenames = ""
+ignore-words-list = "word,another,something"
+skip = "htmlcov,.doctrees,*.pyc,*.class,*.ico,*.out,*.PNG,*.inv,*.png,*.jpg,*.dot"
+
+[project]
+name = "media_handler"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    {name = "redatman", email = "evicwork@gmail.com"},
+]
+dependencies = [
+    "requests==2.31.0",
+    "sqlalchemy==2.0.27",
+    "sqlmodel==0.0.16",
+    "pygments==2.17.2",
+    "pydantic==2.6.1",
+    "openai-whisper==20231117",
+    "faster-whisper==0.10.0",
+    "whisper-cpp-pybind==0.1.2",
+    "SpeechRecognition==3.10.1",
+    "PyAudio==0.2.14",
+    "pyttsx3==2.90",
+    "pyobjc==9.0.1",
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["flit_core>=3.2,<4"]
+build-backend = "flit_core.buildapi"
