@@ -1,6 +1,6 @@
 from functools import cached_property
 import logging
-from typing import Any
+from typing import Any, Dict
 
 import sqlalchemy as db
 from sqlalchemy import TextClause, text
@@ -53,9 +53,7 @@ class Engine(BaseEngine):
             # autoflush=False,
         )
 
-    def query__(
-        self, statement: Select | Update | str | TextClause, params: dict[str, Any] = {}
-    ):
+    def query__(self, statement: Select | Update | str | TextClause, params: Dict[str, Any] = {}):
         if isinstance(statement, str):
             statement = text(statement)
         with self.get_session() as session:
@@ -78,11 +76,11 @@ class Engine(BaseEngine):
                     result = {}
                 session.commit()
             except sqlalchemy.exc.NoResultFound as err:
-                logger.error(err)
-                return response.Result(code=400, msg=err)
+                logger.exception(err)
+                return response.Result(code=600, msg=err)
             except Exception as err:
-                logger.error(err)
-                return response.Result(code=400, msg=err)
+                logger.exception(err)
+                return response.Result(code=600, msg=err)
             return response.Result(code=0, data=result)
 
 
@@ -102,11 +100,7 @@ if __name__ == "__main__":
         # result = session.query(update(models.Media).values(data=models.Media.state + literal({"compress":3}, JSON)),)
 
         # result = session.query(models.Media).filter_by(**params).all()
-        result = (
-            session.query(models.Media)
-            .filter_by(**params)
-            .update({"state": {"compress": 2, "trim": 0}})
-        )
+        result = session.query(models.Media).filter_by(**params).update({"state": {"compress": 2, "trim": 0}})
         logger.debug(result)
         # {'_orig': (275265937, 275609729), '_propagate_attrs': immutabledict({'compile_state_plugin': 'orm', 'plugin_subject': <Mapper at 0x1067e8890; Media>}), 'left': Column('state', JSON(), table=<media>), 'right': BindParameter('%(4409755664 state)s', 'compress', type_=JSONStrIndexType()), 'operator': <function json_getitem_op at 0x1037ad800>, 'type': JSON(), 'negate': None, '_is_implicitly_boolean': False, 'modifiers': {}}
         session.commit()
