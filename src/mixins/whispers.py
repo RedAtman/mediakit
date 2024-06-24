@@ -2,7 +2,7 @@ from functools import lru_cache
 import logging
 from typing import Any, Protocol
 
-from whisper import Whisper
+# from whisper import Whisper
 
 from config import CONFIG
 
@@ -20,7 +20,7 @@ class MixinMediaWhisperProtocol(Protocol):
     path: str
     dirname: str
 
-    def whisper_model(self) -> Whisper: ...
+    # def whisper_model(self) -> Whisper: ...
     def _speech_to_text(self) -> dict: ...
     def speech_to_text(self) -> Any: ...
     def save_text(self, ext: str = "txt", **kwargs: Any) -> Any: ...
@@ -32,7 +32,7 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
     # _speech_to_text: Callable
 
     @property
-    def whisper_model(self) -> Whisper:
+    def whisper_model(self):
         import whisper
 
         return whisper.load_model(CONFIG.WHISPER_MODEL)
@@ -148,11 +148,9 @@ class MixinMediaWhisperCPP(MixinMediaWhisper):
 
     @property
     def whisper_model(self):
-        from whisper_cpp import Whisper  # pylint: disable=import-outside-toplevel
+        from whisper_cpp import Whisper
 
-        return Whisper(
-            "/Users/nut/Dropbox/dev/github/openai_whisper/whisper.cpp/models/ggml-large-v3.bin"
-        )
+        return Whisper(CONFIG.WHISPER_CPP_MODEL)
 
     @property
     def transcribe_kwargs(self):

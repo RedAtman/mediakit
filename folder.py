@@ -5,7 +5,8 @@ import os
 import time
 from typing import Any, Callable, Dict, Generator, List, Optional, Type
 
-from base import BaseFolder, BaseMedia
+from base.folder import BaseFolder
+from base.media import BaseMedia
 from config import CONFIG
 from src.mixins.db import SqlAlchemyFolderMixin
 from utils import decorator, exceptions, executor

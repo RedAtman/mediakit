@@ -6,7 +6,7 @@ from sqlalchemy import Integer, TextClause, select
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
 
-from base import BaseMedia
+from base.media import BaseMedia
 from config import CONFIG
 from src import models
 from src.db import DatabaseEngine
@@ -31,9 +31,7 @@ class BaseFolderMixin:
     VALID_QUERY_TYPE = (Select, Update, str, TextClause)
 
     @classmethod
-    def medias_(
-        cls, path: str, media_type: str = "video"
-    ) -> Generator[BaseMedia, Any, None]: ...
+    def medias_(cls, path: str, media_type: str = "video") -> Generator[BaseMedia, Any, None]: ...
 
     @staticmethod
     def query__(
@@ -46,9 +44,7 @@ class BaseFolderMixin:
     _DB_MODEL: models.Base = models.Media
     _DB_TABLE = _DB_MODEL.__tablename__
 
-    def get_query_statement(
-        self, key: str
-    ) -> Select[_sqlite.Tuple[models.Media]] | None:
+    def get_query_statement(self, key: str) -> Select[_sqlite.Tuple[models.Media]] | None:
         MAPPER_QUERY_STATEMENT = {
             "QUERY_UNPROCESSED": select(models.Media)
             .where(models.Media.dirname == self.abspath)
@@ -58,9 +54,7 @@ class BaseFolderMixin:
 
     @staticmethod
     def media__(path: str, media_type: str = "video"):
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
-            media_type, BaseMedia
-        )
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         media = MEDIA_CLS(path)
         return media
 
@@ -171,9 +165,7 @@ class SqliteFolderMixin(BaseFolderMixin):
     # TODO: remove all update_state method.
     @classmethod
     def update_state_(cls, media: BaseMedia, key: str, value: Any):
-        result = cls.engine.execute_query(
-            f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5,)
-        )
+        result = cls.engine.execute_query(f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5,))
         logger.info(
             (
                 "result",
@@ -191,17 +183,13 @@ class SqliteFolderMixin(BaseFolderMixin):
 
     def query_state(self, path, media_type: str = "video"):
         """Query media state."""
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(
-            media_type, BaseMedia
-        )
+        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         media = MEDIA_CLS(path)
         return self._query_state(media)
 
     @classmethod
     def _query_state(cls, media: BaseMedia):
-        result = cls.engine.execute_query(
-            f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5,)
-        )
+        result = cls.engine.execute_query(f"SELECT * FROM {cls._DB_TABLE} WHERE md5 = ?", (media.md5,))
         logger.info(
             (
                 "result",
