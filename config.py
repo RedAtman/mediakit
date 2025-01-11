@@ -1,3 +1,4 @@
+from importlib import import_module
 import json
 import os
 import sys
@@ -103,9 +104,6 @@ class Production(_BaseConfig):
 
 env: str = os.getenv("ENV", "development")
 CONFIG: Type[_BaseConfig] = _BaseConfig.mapping.get(env, Development)
-
-
-from importlib import import_module
 
 
 import_module("utils.logger.init")
