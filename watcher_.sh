@@ -47,9 +47,11 @@ PYTHON="/opt/homebrew/Caskroom/miniconda/base/envs/media_handler/bin/python"
 function excute_command() {
     run_context "ffmpeg"
     run_context "ffprobe"
-    echo "Executing command: $1"
+    echo "Executing command: $PYTHON $1"
     # eval $PYTHON cli compress -t video -f $1 >> log/watcher.log 2>&1
     eval $PYTHON cli compress -t video -w 1 -f \"$1\"
+    # result=$?
+    # echo "Result: $result"
     return $?  # Return the exit status of the last command
     # eval $1
     # return 1
