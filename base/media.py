@@ -25,7 +25,7 @@ __all__ = [
 
 
 class BaseMedia:
-    """docstring for BaseMedia"""
+    """Base media class."""
 
     _INCLUDE_TYPE = [
         "image",
@@ -37,11 +37,11 @@ class BaseMedia:
 
     _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
     _CPULIMIT_PREFIX = []
-    if CONFIG.CPULIMIT_ENABLE:
+    if CONFIG.CPULIMIT_LIMIT:
         _CPULIMIT_PREFIX = [
             _CPULIMIT_BIN,
             "--limit",
-            CONFIG.CPULIMIT_LIMIT,
+            str(CONFIG.CPULIMIT_LIMIT),
             "--lazy",
             # "--",
         ]
@@ -66,6 +66,8 @@ class BaseMedia:
         "-v",
         _LOG_LEVEL,
     ]
+    logger.debug(("_FFMPEG_PREFIX", _FFMPEG_PREFIX))
+    # logger.debug("FFMPEG: %s", " ".join(_FFMPEG_PREFIX))
 
     # TODO: Type[super]?
     _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
@@ -95,6 +97,19 @@ class BaseMedia:
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.path})"
+
+    @property
+    def _ffmpeg_prefix(self) -> List[str]:
+        _CPULIMIT_PREFIX = []
+        logger.info("CPULIMIT: %s", CONFIG.CPULIMIT_LIMIT)
+        if CONFIG.CPULIMIT_LIMIT:
+            _CPULIMIT_PREFIX = [
+                self._CPULIMIT_BIN,
+                "--limit",
+                str(CONFIG.CPULIMIT_LIMIT),
+                "--lazy",
+            ]
+        return _CPULIMIT_PREFIX + self._FFMPEG_PREFIX
 
     @cached_property
     def md5(self):
@@ -148,7 +163,7 @@ class BaseMedia:
             command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
             result = CommandExecutor.run(command)
             return int(result)
-        except Exception as err:
+        except Exception:
             command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
             result = CommandExecutor.run(command)
             if result.isdigit():
