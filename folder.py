@@ -106,11 +106,9 @@ class Folder(
         MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         _media_method = getattr(MEDIA_CLS, media_method, None)
         if _media_method is None:
-            logger.warning("Unimplemented method: %s", media_method)
-            raise NotImplementedError
+            raise NotImplementedError(f"{MEDIA_CLS} has not implemented {media_method} method.")
         if not isinstance(_media_method, Callable):
-            logger.warning(f"{MEDIA_CLS} has not implemented {_media_method} method.")
-            raise TypeError
+            raise TypeError(f"{MEDIA_CLS} has not implemented {_media_method} method.")
         medias = cls.medias_(path, media_type)
         logger.debug(("run_", MEDIA_CLS, medias, type(medias), path, media_type, callback_list))
         return cls.run__(
