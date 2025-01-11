@@ -284,7 +284,7 @@ class Video(
                     """[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7""",
                 ]
             )
-        if not audio_path is None:
+        if audio_path is not None:
             command.extend(
                 [
                     "-ss",
