@@ -28,15 +28,23 @@ def _core(*args, ctx: Context, result=None, **kwargs):
     return result
 
 
+def _config(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
+    cpulimit = kwargs.pop("cpulimit")
+    if isinstance(cpulimit, str) and cpulimit.isdigit():
+        cpulimit = int(cpulimit)
+    if isinstance(cpulimit, int) and cpulimit > 0:
+        CONFIG.CPULIMIT_LIMIT = cpulimit
+    logger.debug(CONFIG.CPULIMIT_LIMIT)
+    return ctx.next(*args, **kwargs)
+
+
 def _scan(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
     _folder = kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER)
-    if not isinstance(_folder, str):
-        raise TypeError(f"Expected a string for path, but got {type(_folder).__name__}")
+    assert isinstance(_folder, str), "Expected a string for path, but got %s" % type(_folder).__name__
     folder = Folder(_folder)
-    result = folder.scan_media()
-    # result = Folder.scan_media__()
-    del kwargs["folder"]
-    return ctx.next(*args, folder=folder, **kwargs)
+    _ = folder.scan_media()
+    kwargs["folder"] = folder
+    return ctx.next(*args, **kwargs)
 
 
 def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: Dict[str, Any]):
@@ -64,7 +72,7 @@ def _callback(future: Future, *args, **kwargs):
         media.model.update_state("compress", StateChoices.failed)
 
 
-def _compress(*args, ctx: Context, medias=[], **kwargs):
+def _compress(*args, ctx: Context, medias: list = [], **kwargs):
     scheduler = getattr(media_compress, "core")
     tasks = [partial(scheduler, media) for media in medias]
     result = Folder.run___(
@@ -82,6 +90,7 @@ def _compress(*args, ctx: Context, medias=[], **kwargs):
 
 # Scan to find un-compressed media. Then compress them.
 compress = MiddlewareScheduler()
+compress.add_middleware(_config)
 compress.add_middleware(_scan)
 compress.add_middleware(_query)
 compress.add_func("core")(_compress)
@@ -143,9 +152,7 @@ convert_format.add_func("core")(_core)
 convert_format.initialize()
 
 
-def _save_text(
-    *args, ctx: Context, action: str = "convert_format", folder: str = "", **kwargs
-):
+def _save_text(*args, ctx: Context, action: str = "convert_format", folder: str = "", **kwargs):
     result = Folder.run_(
         *args,
         media_method="save_text",
@@ -162,7 +169,5 @@ save_text.initialize()
 
 
 if __name__ == "__main__":
-    result = getattr(compress, "core")(
-        folder=CONFIG.MEDIA_FILE_FOLDER, type="video", worker=1
-    )
+    result = getattr(compress, "core")(folder=CONFIG.MEDIA_FILE_FOLDER, type="video", worker=1)
     logger.info(result)
