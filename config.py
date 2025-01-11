@@ -4,17 +4,19 @@ import sys
 from typing import Type
 
 
-try:
+def load_env():
     from dotenv import load_dotenv
+
+    load_dotenv()
+
+
+try:
+    load_env()
 except ImportError:
     import subprocess
 
     subprocess.run(["pip", "install", "python-dotenv"], check=True)
-    from dotenv import load_dotenv
-
-    load_dotenv()
-else:
-    load_dotenv()
+    load_env()
 
 __all__ = [
     "CONFIG",
@@ -34,7 +36,7 @@ class _BaseConfig:
     # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     sys.path.insert(0, BASE_DIR)
-    LOG_DIR = os.path.join(BASE_DIR, "log")
+    LOG_DIR = os.path.join(BASE_DIR, "logs")
     os.makedirs(LOG_DIR, exist_ok=True)
     LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 
@@ -44,9 +46,8 @@ class _BaseConfig:
     # PROJECT_AUTHOR = 'media_handler'
 
     # CPULIMIT
-    CPULIMIT_ENABLE = os.getenv("CPULIMIT_ENABLE", "False")
-    CPULIMIT_BIN_DIR = os.getenv("CPULIMIT_BIN_DIR", "/usr/bin/cpulimit")
-    CPULIMIT_LIMIT = os.getenv("CPULIMIT_LIMIT", "100")
+    CPULIMIT_BIN_DIR: str = os.getenv("CPULIMIT_BIN_DIR", "/usr/bin/cpulimit")
+    CPULIMIT_LIMIT: int = int(os.getenv("CPULIMIT_LIMIT", 100))
 
     # SQLITE
     SQLITE_DATABASE = os.getenv("SQLITE_DATABASE", os.path.join(BASE_DIR, "db.sqlite"))
@@ -75,6 +76,7 @@ class _BaseConfig:
     # WHISPER
     WHISPER_LIB = os.getenv("WHISPER_LIB", "Whisper")
     WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+    WHISPER_CPP_MODEL = os.getenv("WHISPER_CPP_MODEL", "base")
 
     # LLAMA
     LLAMA_MODEL = os.getenv("LLAMA_MODEL", "base")
@@ -95,7 +97,8 @@ class Testing(_BaseConfig):
 class Production(_BaseConfig):
     """Production environment configuration"""
 
-    LOG_LEVEL = "WARNING"
+    # LOG_LEVEL = "WARNING"
+    pass
 
 
 env: str = os.getenv("ENV", "development")
