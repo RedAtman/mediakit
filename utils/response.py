@@ -116,6 +116,8 @@ class Response(_BaseResponse):
         msg: Optional[Union[str, BaseException]] = None,
         data: Optional[Any] = None,
     ):
+        if data is None:
+            data = {}
         if not isinstance(data, (dict, list)):
             raise TypeError(f"{self.__class__} data must be dict or list. Got: {type(data)}")
         return super().check_kwargs(code, msg, data)
@@ -147,3 +149,6 @@ if __name__ == "__main__":
     # result = Result(code=100, msg='Hello', data={'a': 1, 'b': 2})
     result["data"] = {"c": 1, "d": 2}
     print(result)
+
+    response = Response(200)
+    print(response)
