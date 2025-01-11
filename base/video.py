@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import functools
 import logging
 import time
@@ -15,6 +16,29 @@ logger = logging.getLogger()
 __all__ = [
     "Video",
 ]
+
+
+@dataclass
+class Resolutions:
+    QVGA: str = "320x240"
+    QQVGA: str = "352x288"
+    HVGA: str = "480x320"
+    QHVGA: str = "480x360"
+    WQVGA: str = "400x240"
+    QWVGA: str = "480x320"
+    VGA: str = "640x480"
+    WVGA: str = "800x480"
+    FWVGA: str = "854x480"
+    SVGA: str = "800x600"
+    WSVGA: str = "1024x600"
+    WSXGA: str = "1280x720"
+    WXGA: str = "1280x800"
+    SXGA: str = "1280x1024"
+    WSXGA_plus: str = "1400x1050"
+    WXGA_plus: str = "1440x900"
+    SXGA_plus: str = "1600x1200"
+    HDTV_720p: str = "1280x720"
+    HDTV_standard: str = "1920x1080"
 
 
 class Video(
@@ -471,7 +495,7 @@ class Video(
 
     @decorator.timer
     @decorator.execute
-    def compress(self, ext: str = "mp4", fps: int = 24):
+    def compress(self, ext: str = "mp4", resolution: str = Resolutions.HDTV_720p, fps: int = 24):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
@@ -482,7 +506,7 @@ class Video(
         new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
 
         # More smaller size, but more time, more CPU usage.
-        command = self._FFMPEG_PREFIX + [
+        command = self._ffmpeg_prefix + [
             # '-hwaccel', 'auto',
             "-i",
             self.path,
@@ -490,6 +514,9 @@ class Video(
             # '-vf', "scale=trunc(iw/4)*2:trunc(ih/4)*2",
             # # To scale to One-third size
             # '-vf', "scale=trunc(iw/6)*2:trunc(ih/6)*2",
+            # Change resolution
+            # "-s",
+            # "",
             # Change FPS
             "-r",
             str(fps),
