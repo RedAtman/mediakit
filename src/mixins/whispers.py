@@ -1,11 +1,11 @@
-from functools import lru_cache
 import logging
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Protocol
 
-# from whisper import Whisper
+from whisper.model import Whisper
 
 from config import CONFIG
-
 
 logger = logging.getLogger()
 
@@ -19,9 +19,10 @@ __all__ = [
 class MixinMediaWhisperProtocol(Protocol):
     path: str
     dirname: str
+    whisper_model: Whisper
 
     # def whisper_model(self) -> Whisper: ...
-    def _speech_to_text(self) -> dict: ...
+    def transcribe(self) -> dict: ...
     def speech_to_text(self) -> Any: ...
     def save_text(self, ext: str = "txt", **kwargs: Any) -> Any: ...
 
@@ -32,7 +33,7 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
     # _speech_to_text: Callable
 
     @property
-    def whisper_model(self):
+    def whisper_model(self) -> Whisper:
         import whisper
 
         return whisper.load_model(CONFIG.WHISPER_MODEL)
@@ -56,22 +57,20 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
         }
 
     @lru_cache(maxsize=9)
-    def _speech_to_text(self):
-        result = self.whisper_model.transcribe(
+    def transcribe(self):
+        return self.whisper_model.transcribe(
             self.path,
             **self.transcribe_kwargs,
         )
-        return result
 
     # @lru_cache(maxsize=9)
     def speech_to_text(self):
-        result = self._speech_to_text()
+        result = self.transcribe()
         if isinstance(result, dict):
             return result.get("text", "")
         return result
 
-    def save_text(self, ext: str = "txt", **kwargs: Any):
-        result = self._speech_to_text()
+    def _save_text(self, result, ext: str = "txt", **kwargs: Any):  # -> dict[str, str | list[Any]]:
         # get srt writer for the current directory
         from whisper.utils import get_writer
 
@@ -87,6 +86,10 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
             },
         )
         return result
+
+    def save_text(self, ext: str = "txt", **kwargs: Any):
+        result = self.transcribe()
+        return self._save_text(result, ext, **kwargs)
 
 
 class MixinMediaFasterWhisper(MixinMediaWhisper):
@@ -120,25 +123,36 @@ class MixinMediaFasterWhisper(MixinMediaWhisper):
         }
 
     @lru_cache(maxsize=9)
-    def _speech_to_text(self):
-        """适配 whisper 的 transcribe 方法返回的result格式"""
-        segments, info = super()._speech_to_text()
+    def save_text(self, incremental=True, ext="txt", **kwargs: Any):
+        """保存转录结果到文本文件
+        :param incremental: 是否实时保存
+        :param ext: 文件扩展名
+        :param kwargs: 额外参数
+        """
+        # 注意：此处的transcribe方法返回值是基于faster_whisper的
+        segments, info = self.transcribe()
         logger.info(
             "Detected language '%s' with probability %f",
             info.language,
             info.language_probability,
         )
-        # for segment in segments:
-        #     logger.info(type(segment), segment.__dict__)
-        #     print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
-        # return segments, info
-        segments = [{"start": i.start, "end": i.end, "text": i.text} for i in segments]
-        result = {
+        if incremental:
+            # 初始化输出文件
+            txt_file = Path(self.dirname) / f"{Path(self.path).stem}_transcript_incremental.txt"
+            txt_file.write_text("", encoding="utf-8")
+
+            for segment in segments:
+                # 实时写入每个片段
+                with txt_file.open("a", encoding="utf-8") as f:
+                    f.write(f"{segment.text}\n")
+
+                logger.info("[%.2fs -> %.2fs] %s", segment.start, segment.end, segment.text)
+
+        return {
             "language": info.language,
             "text": "\n".join([segment["text"] for segment in segments]),
-            "segments": segments,
+            "segments": [{"start": s.start, "end": s.end, "text": s.text} for s in segments],
         }
-        return result
 
 
 class MixinMediaWhisperCPP(MixinMediaWhisper):
