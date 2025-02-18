@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+from importlib import import_module
 from typing import Any, Callable, Dict, Generator, List, Optional, Type
 
 from base.folder import BaseFolder
@@ -13,7 +14,6 @@ from utils import decorator, exceptions, executor
 from utils.command import CommandExecutor
 from utils.tools import Dict2Obj
 
-
 logger = logging.getLogger()
 
 
@@ -23,7 +23,19 @@ class Folder(
 ):
     def __init__(self, path: str, media_type: str = "video"):
         super().__init__(path)
-        self.MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        self.media_type: str = media_type
+        self.MEDIA_CLS: Type[BaseMedia] = self.media_cls(media_type)
+
+    @staticmethod
+    def media_cls(media_type: str = "video"):
+        try:
+            module = import_module(f"base.{media_type}")
+        except ModuleNotFoundError:
+            raise NotImplementedError(f"{media_type} is not in base.")
+        try:
+            return getattr(module, media_type.capitalize())
+        except AttributeError:
+            raise NotImplementedError(f"{media_type.capitalize()} is not in {module}.")
 
     @functools.cached_property
     def medias(self):
@@ -32,7 +44,7 @@ class Folder(
     @classmethod
     # @functools.cache
     def medias_(cls, path: str, media_type: str = "video") -> Generator[BaseMedia, Any, None]:
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        MEDIA_CLS: Type[BaseMedia] = cls.media_cls(media_type)
         for file in cls.get_files(path):
             try:
                 media = MEDIA_CLS(file)
@@ -61,7 +73,7 @@ class Folder(
         return self.run_(
             media_method,
             path=self.path,
-            media_type=self.MEDIA_CLS.__name__.lower(),
+            media_type=self.media_type,
         )
 
     @classmethod
@@ -103,7 +115,7 @@ class Folder(
                 **kwargs,
             )
         """
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        MEDIA_CLS: Type[BaseMedia] = cls.media_cls(media_type)
         _media_method = getattr(MEDIA_CLS, media_method, None)
         if _media_method is None:
             raise NotImplementedError(f"{MEDIA_CLS} has not implemented {media_method} method.")

@@ -70,12 +70,7 @@ class BaseMedia:
     # logger.debug("FFMPEG: %s", " ".join(_FFMPEG_PREFIX))
 
     # TODO: Type[super]?
-    _SUBCLASS_MAPPER: dict[str, Type[Self]] = {}
     _MEDIA_CLS: Type[models.Media] = models.Media
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls._SUBCLASS_MAPPER[cls.__name__.lower()] = cls
 
     def __init__(self, path: str):
         super().__init__()

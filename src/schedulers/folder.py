@@ -152,10 +152,11 @@ convert_format.add_func("core")(_core)
 convert_format.initialize()
 
 
-def _save_text(*args, ctx: Context, action: str = "convert_format", folder: str = "", **kwargs):
+def _save_text(*args, ctx: Context, action: str = "convert_format", folder: str = "", type: str = "video", **kwargs):
     result = Folder.run_(
         *args,
         media_method="save_text",
+        media_type=type,
         path=folder,
         **kwargs,
     )
