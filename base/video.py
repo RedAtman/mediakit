@@ -501,6 +501,8 @@ class Video(
         to higher bitrates, and hence produce higher quality videos.
 
         -c:v: libx264, libx265, qtrle, libvpx, libvpx-vp9
+        hardware acceleration:
+        -c:v: hevc_videotoolbox, h264_videotoolbox
         """
         suffix, vcodec, preset = "compress", "libx265", "medium"
         new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
