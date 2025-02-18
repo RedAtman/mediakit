@@ -40,9 +40,9 @@ class MixinMediaWhisper(MixinMediaWhisperProtocol):
     @property
     def transcribe_kwargs(self) -> dict[str, str]:
         return {
-            "initial_prompt": "两条商业金句,条条扎心:\
-                1. 商业最大的问题不在商业本身,商业是靠人性打仗的哲学,靠人性脱颖而出的艺术.\
-                2. 在80%的时间里,你不是在跟人打交道,而是在和人性打交道.",
+            "initial_prompt": "两条商业金句，条条扎心：\
+                1. 商业最大的问题不在商业本身，商业是靠人性打仗的哲学，靠人性脱颖而出的艺术。\
+                2. 在80%的时间里，你不是在跟人打交道，而是在和人性打交道。",
             # 引导模型解析对话式语音结果
             # 'initial_prompt': '- 今天星期几？- 星期五。'
             # 'verbose': None,
