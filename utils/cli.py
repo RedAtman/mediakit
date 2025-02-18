@@ -56,6 +56,13 @@ def create_parser():
         default=CONFIG.MAX_WORKERS,
         help="Number of workers",
     )
+    parser.add_argument(
+        "-c",
+        "--cpulimit",
+        type=int,
+        default=CONFIG.CPULIMIT_LIMIT,
+        help="CPU limit",
+    )
     parser.add_argument("-d", "--daemon", type=bool, default=True, choices=(True, False))
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
