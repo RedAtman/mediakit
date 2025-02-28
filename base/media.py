@@ -1,11 +1,12 @@
-from functools import cached_property
 import json
 import logging
 import os
 import sys
 import threading
 import time
-from typing import List, Optional, Self, Type
+from functools import cached_property
+from pathlib import Path
+from typing import List, Optional, Type
 
 from config import CONFIG
 from src import models
@@ -15,7 +16,6 @@ from utils.file import calculate_md5
 from utils.media import guess
 from utils.process.parser import FfmpegCurrentFrameStdoutParser
 from utils.progress import BaseProgress, MediaStateProgress, StdoutProgress
-
 
 logger = logging.getLogger()
 
@@ -82,7 +82,7 @@ class BaseMedia:
         if guess(path) not in self._INCLUDE_TYPE:
             raise exceptions.NotMediaException(101, f"File is not media file: {path}")
         logger.debug("BaseMedia: %s", path)
-        self.path: str = path
+        self.path: str = Path(path).absolute().as_posix()
         self.dirname, self.title, self.ext = self.get_file_info(path)
         self.model: models.Media = self._MEDIA_CLS.get_or_create(
             md5=self.md5,
