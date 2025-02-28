@@ -1,44 +1,22 @@
-from dataclasses import dataclass
 import functools
 import logging
 import time
 from typing import Any, Dict, List, Optional, Set, Union
 
+import ffmpeg
+
 from base.media import BaseMedia
 from src.mixins import whispers
 from utils import decorator, translator
 from utils.command import CommandExecutor
+from utils.video import VideoResolution
 
 from .media import BaseMedia
-
 
 logger = logging.getLogger()
 __all__ = [
     "Video",
 ]
-
-
-@dataclass
-class Resolutions:
-    QVGA: str = "320x240"
-    QQVGA: str = "352x288"
-    HVGA: str = "480x320"
-    QHVGA: str = "480x360"
-    WQVGA: str = "400x240"
-    QWVGA: str = "480x320"
-    VGA: str = "640x480"
-    WVGA: str = "800x480"
-    FWVGA: str = "854x480"
-    SVGA: str = "800x600"
-    WSVGA: str = "1024x600"
-    WSXGA: str = "1280x720"
-    WXGA: str = "1280x800"
-    SXGA: str = "1280x1024"
-    WSXGA_plus: str = "1400x1050"
-    WXGA_plus: str = "1440x900"
-    SXGA_plus: str = "1600x1200"
-    HDTV_720p: str = "1280x720"
-    HDTV_standard: str = "1920x1080"
 
 
 class Video(
@@ -176,6 +154,14 @@ class Video(
             # "-l",
         ]
         return CommandExecutor.run(command, mode="pipe")
+
+    @property
+    def resolution(self) -> None | tuple[int, int]:
+        probe = ffmpeg.probe(self.path)
+        video_streams = [stream for stream in probe['streams'] if stream['codec_type'] == 'video']
+        if not video_streams:
+            raise ValueError("No video streams found")
+        return video_streams[0]['width'], video_streams[0]['height']
 
     @decorator.timer
     @decorator.execute
@@ -495,7 +481,7 @@ class Video(
 
     @decorator.timer
     @decorator.execute
-    def compress(self, ext: str = "mp4", resolution: str = Resolutions.HDTV_720p, fps: int = 24):
+    def compress(self, ext: str = "mp4", resolution=VideoResolution.HD, fps: int = 24):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
@@ -504,6 +490,15 @@ class Video(
         hardware acceleration:
         -c:v: hevc_videotoolbox, h264_videotoolbox
         """
+
+        if self.resolution is not None:
+            weight, height = self.resolution
+        else:
+            logger.error("Resolution is None")
+            raise ValueError("Resolution is None")
+
+        if weight * height < resolution.pixels:
+            resolution = False
         suffix, vcodec, preset = "compress", "libx265", "medium"
         new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
 
@@ -517,8 +512,8 @@ class Video(
             # # To scale to One-third size
             # '-vf', "scale=trunc(iw/6)*2:trunc(ih/6)*2",
             # Change resolution
-            # "-s",
-            # "",
+            "-s" if resolution else " ",
+            "{width}x{height}" if resolution else " ",
             # Change FPS
             "-r",
             str(fps),
