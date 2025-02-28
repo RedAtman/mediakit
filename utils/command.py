@@ -8,7 +8,6 @@ from typing import IO, List, Optional, Sequence, Type, Union
 from .process.parser import BaseStdoutParser
 from .progress import BaseProgress
 
-
 logger = logging.getLogger()
 
 
@@ -76,6 +75,9 @@ class CommandExecutor:
         """
         if not isinstance(command, (list, str)):
             raise TypeError(f"command must be list or str. but got {type(command)}")
+
+        if isinstance(command, list):
+            command = list(filter(lambda x: x != ' ', command))
 
         logger.info(
             "Process: %s, Thread: %s, Caller: %s:%s:%s, Command: %s",
