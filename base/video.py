@@ -492,12 +492,12 @@ class Video(
         """
 
         if self.resolution is not None:
-            weight, height = self.resolution
+            width, height = self.resolution
         else:
             logger.error("Resolution is None")
             raise ValueError("Resolution is None")
 
-        if weight * height < resolution.pixels:
+        if width * height < resolution.pixels:
             resolution = False
         suffix, vcodec, preset = "compress", "libx265", "medium"
         new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
@@ -513,7 +513,7 @@ class Video(
             # '-vf', "scale=trunc(iw/6)*2:trunc(ih/6)*2",
             # Change resolution
             "-s" if resolution else " ",
-            "{width}x{height}" if resolution else " ",
+            f"{width}x{height}" if resolution else " ",
             # Change FPS
             "-r",
             str(fps),
