@@ -3,15 +3,15 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Set, Union
 
-import ffmpeg
-
 from base.media import BaseMedia
+import ffmpeg
 from src.mixins import whispers
 from utils import decorator, translator
 from utils.command import CommandExecutor
 from utils.video import VideoResolution
 
 from .media import BaseMedia
+
 
 logger = logging.getLogger()
 __all__ = [
@@ -156,7 +156,7 @@ class Video(
         return CommandExecutor.run(command, mode="pipe")
 
     @property
-    def resolution(self) -> None | tuple[int, int]:
+    def resolution(self) -> tuple[int, int]:
         probe = ffmpeg.probe(self.path)
         video_streams = [stream for stream in probe['streams'] if stream['codec_type'] == 'video']
         if not video_streams:
@@ -490,19 +490,6 @@ class Video(
         hardware acceleration:
         -c:v: hevc_videotoolbox, h264_videotoolbox
         """
-
-        if self.resolution is not None:
-            width, height = self.resolution
-        else:
-            logger.error("Resolution is None")
-            raise ValueError("Resolution is None")
-
-        if width * height < resolution.pixels:
-            resolution = False
-        suffix, vcodec, preset = "compress", "libx265", "medium"
-        new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
-
-        # More smaller size, but more time, more CPU usage.
         command = self._ffmpeg_prefix + [
             # '-hwaccel', 'auto',
             "-i",
@@ -511,31 +498,46 @@ class Video(
             # '-vf', "scale=trunc(iw/4)*2:trunc(ih/4)*2",
             # # To scale to One-third size
             # '-vf', "scale=trunc(iw/6)*2:trunc(ih/6)*2",
-            # Change resolution
-            "-s" if resolution else " ",
-            f"{width}x{height}" if resolution else " ",
-            # Change FPS
-            "-r",
-            str(fps),
-            # More faster, but more bigger size.
-            # '-vcodec', 'libx264',
-            # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
-            # -preset: ultrafast, superfast, veryfast, faster, fast, medium(default), slow, slower, veryslow, placebo
-            # '-vcodec', vcodec,
-            "-c:v",
-            vcodec,
-            "-preset",
-            preset,
-            # Use RGBA pixel format to keep transparency
-            # '-pix_fmt', 'rgba',
-            # Ensure that the output video has a preview image
-            "-tag:v",
-            "hvc1",
-            # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
-            # '-crf', '24',
-            # '-avoid_negative_ts', 'make_zero',
-            new_file_path,
         ]
+
+        # Change resolution if needed
+        width, height = self.resolution
+        if resolution.width >= width:
+            pass
+        elif resolution.pixels >= (width * height):
+            pass
+            # command.extend(["-s", f"{width}x{height}"])
+        else:
+            command.extend(["-s", f"{resolution.width}x{resolution.height}"])
+
+        suffix, vcodec, preset = "compress", "libx265", "medium"
+        new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
+
+        command.extend(
+            [
+                # Change FPS
+                "-r",
+                str(fps),
+                # More faster, but more bigger size.
+                # '-vcodec', 'libx264',
+                # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
+                # -preset: ultrafast, superfast, veryfast, faster, fast, medium(default), slow, slower, veryslow, placebo
+                # '-vcodec', vcodec,
+                "-c:v",
+                vcodec,
+                "-preset",
+                preset,
+                # Use RGBA pixel format to keep transparency
+                # '-pix_fmt', 'rgba',
+                # Ensure that the output video has a preview image
+                "-tag:v",
+                "hvc1",
+                # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
+                # '-crf', '24',
+                # '-avoid_negative_ts', 'make_zero',
+                new_file_path,
+            ]
+        )
 
         # videotoolbox
         # More faster, more smaller size.
