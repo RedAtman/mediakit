@@ -52,7 +52,7 @@ class BaseMedia:
         raise FileNotFoundError(f"File not found at path: {_FFMPEG_BIN}")
     if not os.path.exists(_FFPROBE_BIN):
         raise FileNotFoundError(f"File not found at path: {_FFPROBE_BIN}")
-    logger.info("_FFPROBE_BIN: %s", _FFPROBE_BIN)
+    logger.debug("_FFPROBE_BIN: %s", _FFPROBE_BIN)
     _FFMPEG_PREFIX: list[str] = _CPULIMIT_PREFIX + [
         _FFMPEG_BIN,
         "-y",
@@ -82,7 +82,7 @@ class BaseMedia:
             raise exceptions.NotMediaException(101, f"Path is not a file: {path}")
         if guess(path) not in self._INCLUDE_TYPE:
             raise exceptions.NotMediaException(101, f"File is not media file: {path}")
-        logger.debug("BaseMedia: %s", path)
+        logger.info("BaseMedia: %s", path)
         self.path: str = Path(path).absolute().as_posix()
         self.dirname, self.title, self.ext = self.get_file_info(path)
         self.model: models.Media = self._MEDIA_CLS.get_or_create(
@@ -96,16 +96,7 @@ class BaseMedia:
 
     @property
     def _ffmpeg_prefix(self) -> List[str]:
-        _CPULIMIT_PREFIX = []
-        logger.info("CPULIMIT: %s", CONFIG.CPULIMIT_LIMIT)
-        if CONFIG.CPULIMIT_LIMIT:
-            _CPULIMIT_PREFIX = [
-                self._CPULIMIT_BIN,
-                "--limit",
-                str(CONFIG.CPULIMIT_LIMIT),
-                "--lazy",
-            ]
-        return _CPULIMIT_PREFIX + self._FFMPEG_PREFIX
+        return self._FFMPEG_PREFIX
 
     @cached_property
     def md5(self):
