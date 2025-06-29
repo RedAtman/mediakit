@@ -41,8 +41,12 @@ def _config(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
 def _scan(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
     _folder = kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER)
     assert isinstance(_folder, str), "Expected a string for path, but got %s" % type(_folder).__name__
-    folder = Folder(_folder)
-    _ = folder.scan_media()
+    try:
+        folder = Folder(_folder)
+    except FileNotFoundError as exc:
+        logger.warning("Folder not found: %s", _folder)
+        return
+    folder.scan_media()
     kwargs["folder"] = folder
     return ctx.next(*args, **kwargs)
 
