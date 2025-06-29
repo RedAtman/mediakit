@@ -1,9 +1,7 @@
-# import os
-
-
 class Handler(object):
-    """ffmpeg 处理媒体类
+    """
+    ffmpeg 处理媒体类
     """
 
-    def __init__(self, ):
+    def __init__(self):
         pass

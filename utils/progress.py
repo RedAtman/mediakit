@@ -1,7 +1,7 @@
 import functools
 import re
 import sys
-from typing import IO, Any, Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, IO, Tuple, Union
 
 
 def wrapper_setter(func: Callable) -> Callable:

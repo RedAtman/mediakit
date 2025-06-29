@@ -2,19 +2,12 @@ from contextlib import contextmanager
 import logging
 from typing import Any, AsyncGenerator, Iterator
 
+from config import CONFIG
 from sqlalchemy import select, text
 import sqlalchemy.exc
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.orm import Session, scoped_session, sessionmaker
-import sqlalchemy.orm.exc
-from sqlmodel import Session, SQLModel, create_engine, select
-
-from config import CONFIG
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.orm import scoped_session, Session, sessionmaker
+from sqlmodel import create_engine, select, Session, SQLModel
 from utils import response
 
 from .base import BaseEngine

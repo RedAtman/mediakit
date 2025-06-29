@@ -2,15 +2,13 @@ from functools import cached_property
 import logging
 from typing import Any, Dict
 
+from config import CONFIG
 import sqlalchemy as db
-from sqlalchemy import TextClause, text
+from sqlalchemy import text, TextClause
 import sqlalchemy.exc
 from sqlalchemy.orm import sessionmaker
-import sqlalchemy.orm.exc
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
-
-from config import CONFIG
 from src import models
 from utils import response
 from utils.db.base import BaseEngine

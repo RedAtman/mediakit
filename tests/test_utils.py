@@ -1,9 +1,9 @@
 import logging
 import time
-from unittest import TestCase, main
+from unittest import main, TestCase
 
 from config import CONFIG
-from utils.tools import Dict2Obj, ProgressBar, loading_bar, progressbar
+from utils.tools import Dict2Obj, loading_bar, progressbar
 
 
 logger = logging.getLogger()

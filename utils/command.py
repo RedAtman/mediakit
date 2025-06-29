@@ -8,6 +8,7 @@ from typing import IO, List, Optional, Sequence, Type, Union
 from .process.parser import BaseStdoutParser
 from .progress import BaseProgress
 
+
 logger = logging.getLogger()
 
 

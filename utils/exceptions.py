@@ -29,9 +29,7 @@ class _BaseException(Exception):
         """"""
         if code not in self.mapper__code_msg:
             # logger.error(sys._getframe().f_back.f_code.co_name)
-            raise UnknownCodeException(
-                code, self.__class__.__name__, self.mapper__code_msg
-            )
+            raise UnknownCodeException(code, self.__class__.__name__, self.mapper__code_msg)
         self.code = code
         self.msg = msg or self.mapper__code_msg.get(code, "")
 

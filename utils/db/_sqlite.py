@@ -23,7 +23,8 @@ class Engine:
         logger.debug("Engine: %s", self)
 
     def create_connection_pool(
-        self, pool_size: int = CONFIG.SQLITE_CONNECTION_POOL_SIZE
+        self,
+        pool_size: int = CONFIG.SQLITE_CONNECTION_POOL_SIZE,
     ):
         with self.lock:
             for _ in range(pool_size):
