@@ -2,7 +2,7 @@ import hashlib
 import http.client
 import json
 import random
-import urllib
+from urllib import parse
 
 
 class BaiduTranslator:
@@ -21,7 +21,7 @@ class BaiduTranslator:
             + "?appid="
             + self.appid
             + "&q="
-            + urllib.parse.quote(q)
+            + parse.quote(q)
             + "&from="
             + fromLang
             + "&to="
@@ -51,6 +51,7 @@ class BaiduTranslator:
 
 if __name__ == "__main__":
     import os
+
     appid = os.environ.get("BAIDU_TRANSLATE_APP_ID")
     secretKey = os.environ.get("BAIDU_TRANSLATE_SECRET_KEY")
     translator = BaiduTranslator(appid, secretKey)
