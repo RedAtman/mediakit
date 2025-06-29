@@ -21,3 +21,12 @@ pip install -r requirements.txt
 conda activate media_handler &&
 python cli compress -t video -f /path/to/video/directory
 ```
+
+### Timed execution
+
+** macOS **
+
+```sh
+launchctl load macOS/LaunchAgents/media_handler.plist
+launchctl unload macOS/LaunchAgents/media_handler.plist
+```
