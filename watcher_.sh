@@ -4,6 +4,7 @@
 
 export ENV="development"
 export ENV="production"
+echo $(date +"%Y-%m-%d %H:%M:%S:") "ENV: $ENV"
 current_directory=$(dirname "$0")
 # echo "Current file path: $current_directory"
 cd $current_directory
@@ -23,7 +24,7 @@ run_context $current_file_name
 CONFIG_FILE="var/folder.sh"
 # CONDA_ENV="media_handler"
 # PYTHON=$(which python)"
-PYTHON="/opt/homebrew/Caskroom/miniconda/base/envs/media_handler/bin/python"
+PYTHON="/opt/homebrew/Caskroom/miniconda/base/envs/mh/bin/python"
 # eval $PYTHON cli compress -t video -f "./samples/zh.mp4"
 
 # # Find the path to the conda executable
@@ -44,10 +45,11 @@ PYTHON="/opt/homebrew/Caskroom/miniconda/base/envs/media_handler/bin/python"
 # echo "Use python interpreter: $PYTHON"
 
 
-function excute_command() {
+function execute_command() {
     run_context "ffmpeg"
     run_context "ffprobe"
     echo "Executing command: $PYTHON $1"
+    # echo "Executing command: $(date +"%Y-%m-%d %H:%M:%S:") $1"
     # eval $PYTHON cli compress -t video -f $1 >> log/watcher.log 2>&1
     eval $PYTHON cli compress -t video -w 1 -f \"$1\"
     # result=$?
@@ -73,5 +75,5 @@ while read -u 10 line; do
         continue
     fi
 
-    excute_command "$line"
+    execute_command "$line"
 done 10<$CONFIG_FILE
