@@ -52,6 +52,7 @@ class BaseMedia:
         raise FileNotFoundError(f"File not found at path: {_FFMPEG_BIN}")
     if not os.path.exists(_FFPROBE_BIN):
         raise FileNotFoundError(f"File not found at path: {_FFPROBE_BIN}")
+    logger.info("_FFPROBE_BIN: %s", _FFPROBE_BIN)
     _FFMPEG_PREFIX: list[str] = _CPULIMIT_PREFIX + [
         _FFMPEG_BIN,
         "-y",
@@ -66,7 +67,7 @@ class BaseMedia:
         "-v",
         _LOG_LEVEL,
     ]
-    logger.debug(("_FFMPEG_PREFIX", _FFMPEG_PREFIX))
+    # logger.debug(("_FFMPEG_PREFIX", _FFMPEG_PREFIX))
     # logger.debug("FFMPEG: %s", " ".join(_FFMPEG_PREFIX))
 
     # TODO: Type[super]?

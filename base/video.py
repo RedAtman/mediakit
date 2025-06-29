@@ -157,7 +157,7 @@ class Video(
 
     @property
     def resolution(self) -> tuple[int, int]:
-        probe = ffmpeg.probe(self.path)
+        probe = ffmpeg.probe(self.path, cmd=self._FFPROBE_BIN)
         video_streams = [stream for stream in probe['streams'] if stream['codec_type'] == 'video']
         if not video_streams:
             raise ValueError("No video streams found")
@@ -510,7 +510,7 @@ class Video(
         else:
             command.extend(["-s", f"{resolution.width}x{resolution.height}"])
 
-        suffix, vcodec, preset = "compress", "libx265", "medium"
+        suffix, vcodec, preset = "compress", "libx265", "slow"
         new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
 
         command.extend(
