@@ -66,7 +66,8 @@ class Engine(BaseEngine):
                     # )
                     _result = session.execute(statement, params)
                     result = _result.__dict__
-                    if result.get("rowcount") is 0:
+                    rowcount = result.get("rowcount")
+                    if not isinstance(rowcount, int) or rowcount == 0:
                         return response.Result(code=404)
                 elif isinstance(statement, TextClause):
                     result = session.execute(statement, params)
