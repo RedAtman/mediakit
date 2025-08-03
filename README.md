@@ -27,6 +27,8 @@ python cli compress -t video -f /path/to/video/directory
 ** macOS **
 
 ```sh
-launchctl load macOS/LaunchAgents/media_handler.plist
-launchctl unload macOS/LaunchAgents/media_handler.plist
+# Install
+launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/media_handler.plist
+# Uninstall
+launchctl bootout gui/$(id -u) macOS/LaunchAgents/media_handler.plist
 ```
