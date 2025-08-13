@@ -1,15 +1,13 @@
 import datetime
 import logging
-from typing import List
 import wave
 
+from config import CONFIG
 import pyaudio
 import pyttsx3
 import speech_recognition as sr
 from speech_recognition import AudioData
 import whisper
-
-from config import CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -105,7 +103,7 @@ class VoiceAssistant:
         stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
 
         print("* recording")
-        frames: List[bytes] = []
+        frames: list[bytes] = []
         for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
             data: bytes = stream.read(CHUNK)
             frames.append(data)

@@ -4,7 +4,7 @@ Design Pattern: Middleware. A middleware is a function that wraps around a core 
 """
 
 import functools
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable
 
 from utils.method import check_method_bound_to
 
@@ -19,8 +19,8 @@ class Context:
     def __init__(self, *args, **kwargs):
         # _next: Next middleware or core function
         self._next: Callable[..., Any] = lambda *args, **kwargs: None
-        self._args: Tuple[Any, ...] = args
-        self._kwargs: Dict[str, Any] = kwargs
+        self._args: tuple[Any, ...] = args
+        self._kwargs: dict[str, Any] = kwargs
         # self.set_args(args)
 
     # args = property(lambda self: self._args) # type: ignore
@@ -31,7 +31,7 @@ class Context:
         return self._args
 
     @args.setter
-    def args(self, args: Tuple[Any, ...]):
+    def args(self, args: tuple[Any, ...]):
         if not isinstance(args, tuple):
             raise TypeError(f"args must be tuple, not {type(args)}")
         self._args = args
@@ -69,9 +69,9 @@ class MiddlewareScheduler:
 
     def __init__(self):
         # All middlewares
-        self._middlewares: List[Callable[..., Any]] = []
+        self._middlewares: list[Callable[..., Any]] = []
         # All core functions
-        self._functions: Dict[str, Callable[..., Any]] = {}
+        self._functions: dict[str, Callable[..., Any]] = {}
 
     def add_middleware(self, middleware_func: Callable[..., Any]) -> Callable[..., Any]:
         """Add middleware to scheduler. The middleware will be called in reversed order.
@@ -123,7 +123,7 @@ class MiddlewareScheduler:
 
         return f
 
-    # def initialize(self, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]):
+    # def initialize(self, *args: Tuple[Any, ...], **kwargs: dict[str, Any]):
     def initialize(self):
         for name, func in self._functions.items():
             self.__setattr__(name, self._wrap(func))
@@ -144,12 +144,12 @@ if __name__ == "__main__":
 
     class Obj:
         # @classmethod
-        def the_2nd_middleware(cls, *args: Tuple[Any, ...], ctx: Context, **kwargs: Dict[str, Any]):
+        def the_2nd_middleware(self, *args: tuple[Any, ...], ctx: Context, **kwargs: dict[str, Any]):
             print("the_2nd_middleware")
             # print("The 2nd one", cls, ctx)
             # print("The 2nd one", ctx.__dict__)
             # print("The 2nd one", args, kwargs)
-            return ctx.next(cls, *args, **kwargs)
+            return ctx.next(self, *args, **kwargs)
 
     obj = Obj()
 

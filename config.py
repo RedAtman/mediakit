@@ -2,7 +2,6 @@ from importlib import import_module
 import json
 import os
 import sys
-from typing import Type
 
 
 def load_env():
@@ -103,7 +102,7 @@ class Production(_BaseConfig):
 
 
 env: str = os.getenv("ENV", "development")
-CONFIG: Type[_BaseConfig] = _BaseConfig.mapping.get(env, Development)
+CONFIG: type[_BaseConfig] = _BaseConfig.mapping.get(env, Development)
 
 
 import_module("utils.logger.init")

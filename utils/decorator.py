@@ -4,7 +4,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Callable, Dict, Type
+from typing import Any, Callable
 
 from utils.command import CommandExecutor
 from utils.response import Result
@@ -114,8 +114,8 @@ class class_property:
 # )
 
 
-def singleton(cls: Type[Any]):
-    _mapper_cls_instance: Dict[Any, Any] = {}
+def singleton(cls: type[Any]):
+    _mapper_cls_instance: dict[Any, Any] = {}
 
     @functools.wraps(cls)
     def instance(*args, **kwargs):

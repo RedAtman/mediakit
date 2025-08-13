@@ -1,13 +1,12 @@
 from datetime import datetime
 import logging
-from typing import Any, Dict, Generator, List, Optional, Type
-
-from sqlalchemy import Integer, TextClause, select
-from sqlalchemy.sql.expression import Update
-from sqlalchemy.sql.selectable import Select
+from typing import Any, Generator
 
 from base.media import BaseMedia
 from config import CONFIG
+from sqlalchemy import Integer, select, TextClause
+from sqlalchemy.sql.expression import Update
+from sqlalchemy.sql.selectable import Select
 from src import models
 from src.db import DatabaseEngine
 from src.schemas import StateChoices
@@ -54,14 +53,14 @@ class BaseFolderMixin:
 
     @staticmethod
     def media__(path: str, media_type: str = "video"):
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        MEDIA_CLS: type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         media = MEDIA_CLS(path)
         return media
 
     def query(
         self,
         statement: Select[Any] | Update | str | TextClause,
-        params: Dict[str, Any] = {},
+        params: dict[str, Any] = {},
     ):
         return self.engine.query(statement, params)
 
@@ -76,7 +75,7 @@ class BaseFolderMixin:
     def scan_media_(
         cls,
         path: str = CONFIG.MEDIA_FILE_FOLDER,
-        medias: Optional[Generator[BaseMedia, None, None]] = None,
+        medias: Generator[BaseMedia, None, None] | None = None,
         media_type: str = "video",
     ):
         medias = cls.medias_(path, media_type)
@@ -91,7 +90,7 @@ class BaseFolderMixin:
     @classmethod
     def scan_media__(
         cls,
-        medias: Optional[Generator[BaseMedia, None, None]] = None,
+        medias: Generator[BaseMedia, None, None] | None = None,
     ):
         if medias is None:
             raise TypeError("medias is None.")
@@ -131,7 +130,7 @@ class SqliteFolderMixin(BaseFolderMixin):
     @classmethod
     def scan_media__(
         cls,
-        medias: Optional[Generator[BaseMedia, None, None]] = None,
+        medias: Generator[BaseMedia, None, None] | None = None,
     ):
         if medias is None:
             logger.warning("medias is None.")
@@ -148,7 +147,7 @@ class SqliteFolderMixin(BaseFolderMixin):
             )
         """
         )
-        result_list: List[Any] = []
+        result_list: list[Any] = []
         for media in medias:
             result = cls.engine.execute_insert_update_delete(
                 f"INSERT OR IGNORE INTO {cls._DB_TABLE} (title, md5, dirname, created_date) VALUES (?, ?, ?, ?)",
@@ -183,7 +182,7 @@ class SqliteFolderMixin(BaseFolderMixin):
 
     def query_state(self, path, media_type: str = "video"):
         """Query media state."""
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
+        MEDIA_CLS: type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
         media = MEDIA_CLS(path)
         return self._query_state(media)
 

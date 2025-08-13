@@ -2,7 +2,7 @@ import glob
 import hashlib
 import os
 import shutil
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 __all__ = [
@@ -21,9 +21,9 @@ def calculate_md5(file_path: str) -> str:
 
 
 def change_file_extension(
-    folder: Optional[str] = None,
-    old_ext: Optional[str] = None,
-    ext: Optional[str] = None,
+    folder: str | None = None,
+    old_ext: str | None = None,
+    ext: str | None = None,
     **kwargs: Any,
 ):
     if not folder or not old_ext or not ext:
@@ -31,7 +31,7 @@ def change_file_extension(
     # Create a case-insensitive glob pattern: samples/*.[mM][pP][44]
     old_ext_pattern = "".join([f"[{c.lower()}{c.upper()}]" for c in old_ext])
     pathname_pattern: str = os.path.join(folder, f"*.{old_ext_pattern}")
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for filename in glob.glob(pathname_pattern):
         base = os.path.splitext(filename)[0]
         os.rename(filename, base + f".{ext}")

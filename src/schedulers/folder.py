@@ -1,7 +1,7 @@
 from concurrent.futures import Future
 from functools import partial
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from config import CONFIG
 from folder import Folder
@@ -28,7 +28,7 @@ def _core(*args, ctx: Context, result=None, **kwargs):
     return result
 
 
-def _config(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
+def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
     cpulimit = kwargs.pop("cpulimit")
     if isinstance(cpulimit, str) and cpulimit.isdigit():
         cpulimit = int(cpulimit)
@@ -38,7 +38,7 @@ def _config(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
     return ctx.next(*args, **kwargs)
 
 
-def _scan(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
+def _scan(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
     _folder = kwargs.get("folder", CONFIG.MEDIA_FILE_FOLDER)
     assert isinstance(_folder, str), "Expected a string for path, but got %s" % type(_folder).__name__
     try:
@@ -51,7 +51,7 @@ def _scan(*args: Any, ctx: Context, **kwargs: Dict[str, Any]):
     return ctx.next(*args, **kwargs)
 
 
-def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: Dict[str, Any]):
+def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: dict[str, Any]):
     QUERY_UNPROCESSED = folder.get_query_statement("QUERY_UNPROCESSED")
     if not isinstance(QUERY_UNPROCESSED, folder.VALID_QUERY_TYPE):
         raise ValueError("Invalid query statement")
@@ -139,7 +139,7 @@ def _convert_format(
     ctx: Context,
     action: str = "convert_format",
     folder: str = "",
-    **kwargs: Dict[str, Any],
+    **kwargs: dict[str, Any],
 ):
     result = Folder.run_(
         media_method=action,

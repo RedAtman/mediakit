@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from sqlalchemy import event
@@ -11,4 +11,4 @@ logger = logging.getLogger()
 
 @event.listens_for(Media, "before_update")
 def on_media_before_update(mapper, connection, target):
-    target.updated_at = datetime.utcnow()
+    target.updated_at = datetime.now(timezone.utc)

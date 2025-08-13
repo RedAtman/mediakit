@@ -1,7 +1,7 @@
 from enum import IntEnum
 from http import HTTPStatus
 from itertools import chain
-from typing import Any, Dict, Optional, Union
+from typing import Any, Union
 
 
 class _StatusConstructor(IntEnum):
@@ -61,9 +61,9 @@ class _BaseResponse(dict):
     def __init__(
         self,
         code: Union[int, ENUM_TYPE] = 0,
-        msg: Optional[Union[str, BaseException]] = None,
-        data: Optional[Any] = None,
-        **kwargs: Dict[str, Any],
+        msg: Union[str, BaseException] | None = None,
+        data: Any = None,
+        **kwargs: dict[str, Any],
     ):
         kwargs = self.check_kwargs(code, msg, data)
         super().__init__(kwargs)
@@ -84,8 +84,8 @@ class _BaseResponse(dict):
     def check_kwargs(
         self,
         code: Union[int, ENUM_TYPE] = 0,
-        msg: Optional[Union[str, BaseException]] = None,
-        data: Optional[Any] = None,
+        msg: Union[str, BaseException] | None = None,
+        data: Any = None,
     ):
         if isinstance(code, int):
             code = self.ENUM_TYPE(code)
@@ -113,8 +113,8 @@ class Response(_BaseResponse):
     def check_kwargs(
         self,
         code: Union[int, ENUM_TYPE] = 0,
-        msg: Optional[Union[str, BaseException]] = None,
-        data: Optional[Any] = None,
+        msg: Union[str, BaseException] | None = None,
+        data: Any = None,
     ):
         if data is None:
             data = {}

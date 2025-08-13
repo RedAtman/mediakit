@@ -2,11 +2,10 @@ import hashlib
 from itertools import chain
 import json
 import logging
-from typing import List, Set, Tuple, Union
-
-import requests
+from typing import Union
 
 from config import CONFIG
+import requests
 
 
 logger = logging.getLogger()
@@ -47,7 +46,7 @@ class Translator:
         return hashlib.md5(sign.encode()).hexdigest()
 
     @classmethod
-    def translate(cls, text: Union[str, List[str], Set[str], Tuple[str, ...]]) -> List[str]:
+    def translate(cls, text: Union[str, list[str], set[str], tuple[str, ...]]) -> list[str]:
         """Translate text to target language.
 
         Args:

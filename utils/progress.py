@@ -1,7 +1,7 @@
 import functools
 import re
 import sys
-from typing import Any, Callable, Dict, IO, Tuple, Union
+from typing import Any, Callable, IO, Union
 
 
 def wrapper_setter(func: Callable) -> Callable:
@@ -24,7 +24,7 @@ class BaseProgress:
 
     PERCENT_STEP = 0.001
 
-    def __init__(self, total: int, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]):
+    def __init__(self, total: int, *args: tuple[Any, ...], **kwargs: dict[str, Any]):
         if not isinstance(total, int):
             raise TypeError(f"total must be int. but got {type(total)}")
         if total <= 0:

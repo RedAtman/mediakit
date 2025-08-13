@@ -8,7 +8,7 @@ import os
 import sys
 import threading
 from types import FunctionType, MethodType
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable
 
 from utils.response import Result
 
@@ -87,7 +87,7 @@ class BoundedExecutor:
         self.lock = multiprocessing.Manager().Lock()
 
     # See concurrent.futures.Executor#submit
-    def submit(self, fn, *args, callback_list: List[FunctionType | MethodType] = [], **kwargs):
+    def submit(self, fn, *args, callback_list: list[FunctionType | MethodType] = [], **kwargs):
         """Start a new task, blocks if queue is full."""
         self.semaphore.acquire()
         try:
@@ -131,12 +131,12 @@ class TaskManager:
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
-        self.futures: List[Future[str]] = []
-        self.mapper_future_args: Dict[Future[Any], FutureContext] = {}
+        self.futures: list[Future[str]] = []
+        self.mapper_future_args: dict[Future[Any], FutureContext] = {}
         # from multiprocessing import Manager
         # self.futures = Manager.list([])
 
-    def submit(self, fn: Callable[..., Any], *args: Any, callback_list: List[Callable[..., Any]] = [], **kwargs: Any):
+    def submit(self, fn: Callable[..., Any], *args: Any, callback_list: list[Callable[..., Any]] = [], **kwargs: Any):
         """Start a new task, blocks if queue is full."""
         with self.semaphore:
             _future: Future[Any] = self.executor.submit(fn, *args, **kwargs)
@@ -163,7 +163,7 @@ class TaskManager:
         #     os.getpid()
         # )
 
-    def submit_all(self, tasks: List[Callable[[], str]], is_wait: bool = True, *args: Any, **kwargs: Any):
+    def submit_all(self, tasks: list[Callable[[], str]], is_wait: bool = True, *args: Any, **kwargs: Any):
         with self.executor:
             _ = [self.submit(task, *args, **kwargs) for task in tasks]
 

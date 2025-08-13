@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 
 class CallHookMetaClass(type):
@@ -15,7 +15,7 @@ class CallHookMetaClass(type):
 class Singleton(type):
     """Singleton class implementation. Keep only one instance of the class."""
 
-    _mapper_cls_instance: Dict[Any, Any] = {}
+    _mapper_cls_instance: dict[Any, Any] = {}
 
     def __call__(cls: "Singleton", *args, **kwargs):
         if cls not in cls._mapper_cls_instance:
