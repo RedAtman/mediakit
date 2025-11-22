@@ -119,7 +119,11 @@ class Media(Base):
             if not instance:
                 instance = cls(**kwargs)
                 session.add(instance)
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as exc:
+                    logger.error(exc)
+                    session.rollback()
             return instance
 
     def update_state(self, key: str, val: Union[int, float]):
