@@ -6,8 +6,10 @@ export ENV="development"
 export ENV="production"
 echo $(date +"%Y-%m-%d %H:%M:%S:") "ENV: $ENV"
 current_directory=$(dirname "$0")
-# echo "Current file path: $current_directory"
+echo "Current file path: $current_directory"
+which pip
 cd $current_directory
+source .venv/bin/activate
 function run_context() {
     # Check if the script is already running
     local name=$1
@@ -24,7 +26,7 @@ run_context $current_file_name
 CONFIG_FILE="var/folder.sh"
 # CONDA_ENV="media_handler"
 # PYTHON=$(which python)"
-PYTHON="/opt/homebrew/Caskroom/miniconda/base/envs/mh/bin/python"
+PYTHON=".venv/bin/python"
 # eval $PYTHON cli compress -t video -f "./samples/zh.mp4"
 
 # # Find the path to the conda executable
