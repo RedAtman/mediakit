@@ -122,7 +122,7 @@ class Media(Base):
                 try:
                     session.commit()
                 except Exception as exc:
-                    logger.error(exc)
+                    logger.error(f"{exc}, MD5: {kwargs.get('md5')}")
                     session.rollback()
             return instance
 
