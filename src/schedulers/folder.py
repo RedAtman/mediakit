@@ -44,7 +44,7 @@ def _scan(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
     try:
         folder = Folder(_folder)
     except FileNotFoundError as exc:
-        logger.warning("Folder not found: %s", _folder)
+        # logger.warning("Folder not found: %s", _folder)
         return
     folder.scan_media()
     kwargs["folder"] = folder
@@ -61,12 +61,16 @@ def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: dict[str, Any]):
     assert result == "Success"
     medias = [folder.MEDIA_CLS(media.path) for media in result.data]
     if not medias:
-        logger.info("No media to compress: %s", folder.path)
+        pass
+        # logger.info("No media to compress: %s", folder.path)
     return ctx.next(*args, medias=medias, **kwargs)
 
 
 def _callback(future: Future, *args, **kwargs):
     result = future.result()
+    if result.data is None:
+        logger.warning(f"No media to compress: {args}, {kwargs}")
+        return
     assert isinstance(result, response.Result)
     media = result.data.get("media")
     if result == 0:
