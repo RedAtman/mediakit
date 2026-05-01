@@ -18,7 +18,7 @@ utils/
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| FFmpeg execution | `utils/command.py` | Subprocess management with cpulimit support |
+| FFmpeg execution | `utils/command.py` | Subprocess management with dynamic CPU throttling |
 | Media types | `utils/media.py` | 300+ extension mapping if-elif chain |
 | Parallel tasks | `utils/executor.py` | Multi-threaded TaskManager |
 | Logging init | `utils/logger/init.py` | dictConfig setup (223L) |

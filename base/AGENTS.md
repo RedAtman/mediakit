@@ -26,7 +26,6 @@ Core class hierarchy for media objects and test infrastructure.
 - FFmpeg commands built as lists for `subprocess`.
 - `BaseMedia._LOCK` used for thread safety.
 - `Video` methods often use `_run_command` from parent.
-- `BaseMedia` uses `_CPULIMIT_PREFIX` if configured.
 - `Video` inherits from `BaseMedia` and `MixinMediaFasterWhisper`.
 - `BaseMedia` raises `NotMediaException` for invalid files.
 - `BaseMedia` uses `Path(path).absolute().as_posix()` for consistency.

@@ -8,9 +8,8 @@ More features will be added in the future.
 
 ```sh
 brew install ffmpeg
-brew install cpulimit
 
-conda create -n media_handler python=3.11.5 -y &&
+conda create -n media_handler python=3.12 -y &&
 conda activate media_handler &&
 pip install -r requirements.txt
 ```
@@ -57,3 +56,13 @@ launchctl bootout gui/$(id -u) macOS/LaunchAgents/media_handler.plist
 - watcher.sh 会自动激活 .venv 环境并调用 watcher_.sh
 - watcher_.sh 会检测脚本是否已在运行，避免重复进程
 - 支持通过 crontab 或手动运行 watcher.sh 进行调试
+
+### Dynamic CPU Throttling
+
+An in-process dynamic CPU throttler monitors each ffmpeg process's CPU usage and sends SIGSTOP/SIGCONT to maintain target utilization:
+
+- **Auto mode**: Adjusts per-worker budget based on system load (high→25%, moderate→50%, low→100% per core)
+- **Manual override via SIGUSR1**: Cycles through profiles (unlimited → 100% → 50% → 25% per core)
+  - `kill -SIGUSR1 <pid>` while a job is running
+- **File override**: `touch /tmp/media_handler_cpu_<percentage>` to set a specific limit
+- **Parallel workers**: Budget is evenly distributed across all workers (min 25% per worker)

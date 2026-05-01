@@ -6,7 +6,7 @@
 
 ## OVERVIEW
 
-media_handler — Python 3.12+ CLI tool for batch media operations (compress, convert, scale, trim). Uses ffmpeg via subprocess with cpulimit, SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
+media_handler — Python 3.12+ CLI tool for batch media operations (compress, convert, scale, trim). Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
 
 ## STRUCTURE
 
