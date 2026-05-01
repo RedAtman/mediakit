@@ -4,6 +4,7 @@ log/
 tmp/
 main.py
 reference.md
+.opencode/
 
 # IDE
 .vscode/
