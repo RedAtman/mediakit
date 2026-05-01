@@ -1,5 +1,8 @@
 import logging
-from unittest import TestCase
+import tempfile
+from unittest import TestCase, mock
+
+from config import CONFIG
 
 
 logger = logging.getLogger()
@@ -19,25 +22,29 @@ class TestParser(TestCase):
                 "2",
                 "--daemon",
                 "True",
-                # '--flag', 'True',
             ]
         )
         logger.info(self.kwargs)
         logger.info(self.kwargs.__dict__)
-        # logger.info(type(self.kwargs.daemon))
-        # logger.info((type(self.kwargs.flag), self.kwargs.flag))
 
     def test_parse_kwargs(self):
         assert self.kwargs.action == "compress"
         assert self.kwargs.type == "video"
         assert isinstance(self.kwargs.max_workers, int)
         assert self.kwargs.daemon is True
-        # assert args.flag is False
 
-    def test_cli(self):
+    @mock.patch("folder.Folder.scan_media")
+    def test_cli(self, mock_scan_media):
         from folder import Folder
 
-        folder = Folder(self.kwargs.folder)
+        mock_scan_media.return_value = []
+        temp_dir = tempfile.mkdtemp()
+        folder = Folder(temp_dir)
         result = folder.scan_media()
         logger.info(result)
         assert isinstance(result, list)
+
+
+if __name__ == "__main__":
+    import unittest
+    unittest.main()

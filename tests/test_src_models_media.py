@@ -1,8 +1,10 @@
 import logging
 import unittest
+import uuid
 
 from src.models import Media
 from src.schemas import StateChoices
+from utils import response
 
 
 logger = logging.getLogger()
@@ -10,9 +12,22 @@ logger = logging.getLogger()
 
 class MediaTest(unittest.TestCase):
     def setUp(self):
-        self.model: Media = Media.get_or_create(md5="3a51af5d5e4d3c8b84185729e91e0170")
+        # Use a unique md5 for each test to avoid UNIQUE constraint violations
+        self.test_md5 = str(uuid.uuid4())
+        self.model: Media = Media.get_or_create(
+            md5=self.test_md5,
+            title="test_video",
+            dirname="/tmp/test",
+        )
+
+    def tearDown(self):
+        # Clean up the test record
+        try:
+            self.model.delete()
+        except Exception:
+            pass
 
     def test_update_state(self):
         result = self.model.update_state("compress", StateChoices.finished)
         logger.debug(result)
-        assert isinstance(result, Media)
+        assert isinstance(result, response.Result)

@@ -3,6 +3,7 @@ import time
 from unittest import main, TestCase
 
 from config import CONFIG
+from utils.progress import StdoutProgress
 from utils.tools import Dict2Obj, loading_bar, progressbar
 
 
@@ -27,7 +28,7 @@ class TestUtils(TestCase):
 
     def test_progress_bar(self):
         total = 20
-        progress = ProgressBar(total)
+        progress = StdoutProgress(total)
         for i in range(0, total):
             progress.current = i
             time.sleep(0.1)
