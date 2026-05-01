@@ -217,7 +217,7 @@ dependencies = [
     "PyAudio==0.2.14",
     "pyttsx3==2.90",
     # MacOS seems to need this for pyttsx3
-    "pyobjc==9.0.1",
+    # "pyobjc==9.0.1",
 ]
 [project.optional-dependencies]
 dev = ["black==25.1.0", "isort==6.0.1", "uv==0.7.17"]
