@@ -9,15 +9,13 @@ More features will be added in the future.
 ```sh
 brew install ffmpeg
 
-conda create -n media_handler python=3.12 -y &&
-conda activate media_handler &&
-pip install -r requirements.txt
+uv venv .venv && source .venv/bin/activate && uv sync
 ```
 
 ## Usage
 
 ```sh
-conda activate media_handler &&
+source .venv/bin/activate &&
 python cli compress -t video -f /path/to/video/directory
 ```
 
