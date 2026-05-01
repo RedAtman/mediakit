@@ -1,15 +1,17 @@
 import functools
 import re
 import sys
-from typing import Any, Callable, IO, Union
+from typing import IO, Any, Callable, Union
+
+from src.models import Media
 
 
 def wrapper_setter(func: Callable) -> Callable:
     @functools.wraps(func)
-    def wrapper(self: "BaseProgress", value):
-        value = getattr(self, f"__before_{func.__name__}_setter__")(value)
+    def wrapper(self: 'BaseProgress', value):
+        value = getattr(self, f'__before_{func.__name__}_setter__')(value)
         result = func(self, value)
-        result = getattr(self, f"__after_{func.__name__}_setter__")(value)
+        result = getattr(self, f'__after_{func.__name__}_setter__')(value)
         return result
 
     return wrapper
@@ -26,9 +28,9 @@ class BaseProgress:
 
     def __init__(self, total: int, *args: tuple[Any, ...], **kwargs: dict[str, Any]):
         if not isinstance(total, int):
-            raise TypeError(f"total must be int. but got {type(total)}")
+            raise TypeError(f'total must be int. but got {type(total)}')
         if total <= 0:
-            raise ValueError(f"total must be greater than 0. but got {total}")
+            raise ValueError(f'total must be greater than 0. but got {total}')
         self.total: int = total
         self._current: int = 0
         self._percent: float = 0.0
@@ -45,7 +47,7 @@ class BaseProgress:
     @wrapper_setter
     def current(self, value: int):
         if not isinstance(value, int):
-            raise TypeError(f"current must be int. but got {type(value)}")
+            raise TypeError(f'current must be int. but got {type(value)}')
         self._current = value
         self.percent = self.current / self.total
 
@@ -97,16 +99,16 @@ class StdoutProgress(BaseProgress):
     """
 
     WIDTH: int = 50
-    SYMBOL: str = "█"
-    SYMBOL: str = "#"
+    SYMBOL: str = '█'
+    SYMBOL: str = '#'
     assert len(SYMBOL) == 1
-    DEFAULT: str = "%(bar)s%(percent)3d%%: %(title)s"
-    FULL: str = "%(bar)s %(current)d/%(total)d (%(percent)3d%%) %(remaining)d %(title)s"
+    DEFAULT: str = '%(bar)s%(percent)3d%%: %(title)s'
+    FULL: str = '%(bar)s %(current)d/%(total)d (%(percent)3d%%) %(remaining)d %(title)s'
 
     def __init__(
         self,
         total: int,
-        title: str = "",
+        title: str = '',
         width: int = WIDTH,
         fmt: str = DEFAULT,
         # output: IO[str] = sys.stderr,
@@ -116,17 +118,13 @@ class StdoutProgress(BaseProgress):
         self.title = title or self.__class__.__name__
         self.width = width
         self.output: IO[str] = output
-        self.fmt = re.sub(
-            r"(?P<name>%\(.+?\))d",
-            rf"\g<name>{len(str(total))}d",
-            fmt,
-        )
+        self.fmt = re.sub(r'(?P<name>%\(.+?\))d', rf'\g<name>{len(str(total))}d', fmt)
 
     def cursor_up(self, num: int = 1):
         # Cursor up one line: to use ANSI escape sequences
         # sys.stdout.write("\033[F")
         for _ in range(num):
-            print("\033[F", file=self.output, end="")
+            print('\033[F', file=self.output, end='')
 
         # print the progress bar
         # self.run()
@@ -140,23 +138,30 @@ class StdoutProgress(BaseProgress):
         size = int(self.width * self.percent)
 
         args = {
-            "bar": "[" + self.SYMBOL * size + " " * (self.width - size) + "]",
-            "current": self.current,
-            "total": self.total,
-            "percent": self.percent * 100,
-            "remaining": self.total - self.current,
-            "title": self.title,
+            'bar': '[' + self.SYMBOL * size + ' ' * (self.width - size) + ']',
+            'current': self.current,
+            'total': self.total,
+            'percent': self.percent * 100,
+            'remaining': self.total - self.current,
+            'title': self.title,
         }
 
         # print(self.fmt % args, file=self.output, end="\n")
         print(self.fmt % args, file=self.output)
 
-
-from src.models import Media
+    def done(self):
+        args = {
+            'bar': '[' + self.SYMBOL * self.width + ']',
+            'current': self.total,
+            'total': self.total,
+            'percent': 100.0,
+            'remaining': 0,
+            'title': self.title,
+        }
+        print(self.fmt % args, file=self.output)
 
 
 class MediaStateProgress(BaseProgress):
-
     def __init__(self, total: int, model: Media):
         super().__init__(total)
         self.model = model
@@ -165,23 +170,17 @@ class MediaStateProgress(BaseProgress):
         self.run()
 
     def run(self):
-        self.model.update_state("compress", self.percent)
+        self.model.update_state('compress', self.percent)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import time
 
     print(StdoutProgress)
     length = 1000
     stdout_progress = StdoutProgress(length, fmt=StdoutProgress.FULL)
     print(stdout_progress)
-    model = Media.get_or_create(
-        **{
-            "md5": "test",
-            "title": "test",
-            "dirname": "test",
-        }
-    )
+    model = Media.get_or_create(**{'md5': 'test', 'title': 'test', 'dirname': 'test'})
     # print(model.__dict__)
     media_progress = MediaStateProgress(length, model)
     # print(media_progress)
