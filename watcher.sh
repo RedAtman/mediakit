@@ -2,5 +2,8 @@
 
 # crontab -e
 # */1 * * * * cd /Users/nut/Dropbox/dev/tools/media_handler && /bin/bash watcher.sh
-
-sh watcher_.sh | /usr/sbin/rotatelogs -D -l -f logs/watcher.log.%Y-%m-%d.log 86400
+# current_directory=$(dirname "$0")
+# # echo "Current file path: $current_directory"
+# cd $current_directory
+source .venv/bin/activate
+. watcher_.sh | /usr/sbin/rotatelogs -D -l -f logs/watcher.log.%Y-%m-%d.log 86400
