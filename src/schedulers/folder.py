@@ -8,8 +8,18 @@ from folder import Folder
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
 from src.schemas import StateChoices
 from utils import file, response
+from utils.command import CommandExecutor
+from utils.throttle import CPULimiterCoordinator
 
 from .media import compress as media_compress
+
+
+# Global CPU throttling coordinator
+_coordinator = CPULimiterCoordinator(
+    default_limit=CONFIG.CPU_LIMIT,
+    auto_mode=True,
+)
+CommandExecutor.coordinator = _coordinator
 
 
 __all__ = [
@@ -29,12 +39,12 @@ def _core(*args, ctx: Context, result=None, **kwargs):
 
 
 def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
-    cpulimit = kwargs.pop("cpulimit")
-    if isinstance(cpulimit, str) and cpulimit.isdigit():
-        cpulimit = int(cpulimit)
-    if isinstance(cpulimit, int) and cpulimit > 0:
-        CONFIG.CPULIMIT_LIMIT = cpulimit
-    logger.debug(CONFIG.CPULIMIT_LIMIT)
+    cpu_limit = kwargs.pop('cpu_limit')
+    if isinstance(cpu_limit, str) and cpu_limit.isdigit():
+        cpu_limit = int(cpu_limit)
+    if isinstance(cpu_limit, int) and cpu_limit > 0:
+        _coordinator.set_manual_override(cpu_limit)
+    logger.debug(CONFIG.CPU_LIMIT)
     return ctx.next(*args, **kwargs)
 
 

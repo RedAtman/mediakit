@@ -45,9 +45,8 @@ class _BaseConfig:
     PROJECT_DESCRIPTION = "Media Handler"
     # PROJECT_AUTHOR = 'media_handler'
 
-    # CPULIMIT
-    CPULIMIT_BIN_DIR: str = os.getenv("CPULIMIT_BIN_DIR", "/usr/bin/cpulimit")
-    CPULIMIT_LIMIT: int = int(os.getenv("CPULIMIT_LIMIT", 100))
+    # CPU throttling default limit
+    CPU_LIMIT: int = int(os.getenv("CPU_LIMIT", "100"))
 
     # SQLITE
     SQLITE_DATABASE = os.getenv("SQLITE_DATABASE", os.path.join(BASE_DIR, "db.db"))

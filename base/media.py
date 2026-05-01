@@ -35,17 +35,6 @@ class BaseMedia:
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
 
-    _CPULIMIT_BIN = os.path.join(CONFIG.CPULIMIT_BIN_DIR, "cpulimit")
-    _CPULIMIT_PREFIX = []
-    if CONFIG.CPULIMIT_LIMIT:
-        _CPULIMIT_PREFIX = [
-            _CPULIMIT_BIN,
-            "--limit",
-            str(CONFIG.CPULIMIT_LIMIT),
-            "--lazy",
-            # "--",
-        ]
-
     _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffmpeg")
     _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffprobe")
     if not os.path.exists(_FFMPEG_BIN):
@@ -53,7 +42,8 @@ class BaseMedia:
     if not os.path.exists(_FFPROBE_BIN):
         raise FileNotFoundError(f"File not found at path: {_FFPROBE_BIN}")
     logger.debug("_FFPROBE_BIN: %s", _FFPROBE_BIN)
-    _FFMPEG_PREFIX: list[str] = _CPULIMIT_PREFIX + [
+
+    _FFMPEG_PREFIX: list[str] = [
         _FFMPEG_BIN,
         "-y",
         "-loglevel",

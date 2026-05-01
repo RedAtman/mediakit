@@ -58,10 +58,10 @@ def create_parser():
     )
     parser.add_argument(
         "-c",
-        "--cpulimit",
+        "--cpu-limit",
         type=int,
-        default=CONFIG.CPULIMIT_LIMIT,
-        help="CPU limit",
+        default=CONFIG.CPU_LIMIT,
+        help="CPU limit per worker (100 = one core, SIGUSR1 cycles through profiles)",
     )
     parser.add_argument("-d", "--daemon", type=bool, default=True, choices=(True, False))
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)

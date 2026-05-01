@@ -42,6 +42,10 @@ class ProgressMonitor:
 
 class CommandExecutor:
 
+    # Optional coordinator for dynamic CPU throttling.
+    # Set by src/schedulers/folder.py on startup.
+    coordinator = None
+
     @classmethod
     def run(cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None, mode="standard"):
         """Run shell command.
@@ -90,47 +94,32 @@ class CommandExecutor:
             sys._getframe().f_back.f_code.co_name,
             " ".join(command) if isinstance(command, list) else command,
         )
+        coord = getattr(CommandExecutor, 'coordinator', None)
+
         with subprocess.Popen(
             command,
-            # stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             shell=isinstance(command, str),
-            # bufsize=1,
-            # universal_newlines=True,
             encoding="utf-8",
-            # text=True,
-            # start_new_session=True,
         ) as process:
-            if monitor and process.stdout:
-                monitor.run(process.stdout)
-            # if progress_bar and process.stdout:
-            #     while process.stdout.readable():
-            #         line = process.stdout.readline()
-            #         if not line:
-            #             progress_bar.done()
-            #             break
-            #         # logger.debug(line)
-            #         # sys.stdout.write(line)
-            #         # sys.stdout.flush()
-            #         progress_bar.parse_current(line)
+            if coord:
+                coord.attach(process.pid)
+            try:
+                if monitor and process.stdout:
+                    monitor.run(process.stdout)
+                _stdout, _stderr = process.communicate()
+                stdout = _stdout.strip()
 
-            _stdout, _stderr = process.communicate()
-            stdout = _stdout.strip()
-
-            if process.returncode != 0:
-                # logger.exception(
-                #     "process: %s, returncode: %s, command: %s, stdout: %s, stderr: %s",
-                #     process.__dict__,
-                #     process.returncode,
-                #     command,
-                #     stdout,
-                #     _stderr,
-                # )
-                raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=_stderr)
-
-            # logger.debug(stdout)
-            return stdout
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        process.returncode, command,
+                        output=stdout, stderr=_stderr,
+                    )
+                return stdout
+            finally:
+                if coord:
+                    coord.detach(process.pid)
 
     @staticmethod
     def pipe_execute(command: Union[List[str], str]):
