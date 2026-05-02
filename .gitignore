@@ -1,6 +1,14 @@
 # Project
 logs/
+log/
 tmp/
+main.py
+reference.md
+.opencode/
+
+# IDE
+.vscode/
+
 
 # Docker
 *.tar
@@ -70,6 +78,7 @@ coverage.xml
 *.log
 local_settings.py
 db.sqlite3
+db.db
 
 # Flask stuff:
 instance/
@@ -98,6 +107,7 @@ celerybeat-schedule
 
 # Environments
 .env
+.env.*
 .venv
 env/
 venv/
@@ -117,3 +127,15 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# db
+*.db
+*.sqlite
+*.sqlite3
+
+# media files
+samples/
+
+# Tmp
+tmp/
+__*/

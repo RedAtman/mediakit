@@ -1,0 +1,247 @@
+import json
+import logging
+import os
+import sys
+import threading
+import time
+from functools import cached_property
+from pathlib import Path
+from typing import List, Optional, Type
+
+from config import CONFIG
+from src import models
+from utils import exceptions
+from utils.command import CommandExecutor, ProgressMonitor
+from utils.file import calculate_md5
+from utils.media import guess
+from utils.process.parser import FfmpegCurrentFrameStdoutParser
+from utils.progress import BaseProgress, MediaStateProgress, StdoutProgress
+
+logger = logging.getLogger()
+
+__all__ = [
+    "BaseMedia",
+]
+
+
+class BaseMedia:
+    """Base media class."""
+
+    _INCLUDE_TYPE = [
+        "image",
+        "audio",
+        "video",
+    ]
+    _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
+    _LOCK = threading.Lock()
+
+    _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffmpeg")
+    _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, "ffprobe")
+    if not os.path.exists(_FFMPEG_BIN):
+        raise FileNotFoundError(f"File not found at path: {_FFMPEG_BIN}")
+    if not os.path.exists(_FFPROBE_BIN):
+        raise FileNotFoundError(f"File not found at path: {_FFPROBE_BIN}")
+    logger.debug("_FFPROBE_BIN: %s", _FFPROBE_BIN)
+
+    _FFMPEG_PREFIX: list[str] = [
+        _FFMPEG_BIN,
+        "-y",
+        "-loglevel",
+        _LOG_LEVEL,
+        # '-i', self.path,
+        # "-threads", "16",
+        # "-threads:v",
+    ]
+    _FFPROBE_PREFIX: list[str] = [
+        _FFPROBE_BIN,
+        "-v",
+        _LOG_LEVEL,
+    ]
+    # logger.debug(("_FFMPEG_PREFIX", _FFMPEG_PREFIX))
+    # logger.debug("FFMPEG: %s", " ".join(_FFMPEG_PREFIX))
+
+    # TODO: Type[super]?
+    _MEDIA_CLS: Type[models.Media] = models.Media
+
+    def __init__(self, path: str):
+        super().__init__()
+        path = path.strip()
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File not found at path: {path}")
+        if not os.path.isfile(path):
+            raise exceptions.NotMediaException(101, f"Path is not a file: {path}")
+        if guess(path) not in self._INCLUDE_TYPE:
+            raise exceptions.NotMediaException(101, f"File is not media file: {path}")
+        logger.info("BaseMedia: %s", path)
+        self.path: str = Path(path).absolute().as_posix()
+        self.dirname, self.title, self.ext = self.get_file_info(path)
+        self.model: models.Media = self._MEDIA_CLS.get_or_create(
+            md5=self.md5,
+            title=self.title + "." + self.ext,
+            dirname=self.dirname,
+        )
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.path})"
+
+    @property
+    def _ffmpeg_prefix(self) -> List[str]:
+        return self._FFMPEG_PREFIX
+
+    @cached_property
+    def md5(self):
+        """Get media file md5.
+
+        Returns:
+            [str] -- [md5]
+        """
+        return calculate_md5(self.path)
+
+    @property
+    def progress_list(self) -> List[BaseProgress]:
+        return [
+            StdoutProgress(total=self.frames_count, title=self.path, fmt=StdoutProgress.FULL),
+            MediaStateProgress(total=self.frames_count, model=self.model),
+        ]
+
+    @property
+    def monitor(self):
+        return ProgressMonitor(FfmpegCurrentFrameStdoutParser, self.progress_list)
+
+    @cached_property
+    def frames_count(self):
+        """Number of frames. Only available for video media."""
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support frames_count. '
+            'Use a Video instance.'
+        )
+
+    @cached_property
+    def metadata(self):
+        return self.get_metadata(self.path)
+
+    @classmethod
+    def get_metadata(cls, path: str):
+        """Get media file metadata.
+
+        Arguments:
+            path {[str]} -- [Media file path]
+
+        Returns:
+            [type] -- [description]
+        """
+        command = [
+            cls._FFPROBE_BIN,
+            "-v",
+            "quiet",
+            "-show_format",
+            "-show_streams",
+            "-print_format",
+            "json",
+            path.strip(),
+        ]
+        command = f"{cls._FFPROBE_BIN} -v quiet -show_format -show_streams -print_format json {path.strip()}"
+        metadata = CommandExecutor.run(command)
+        try:
+            return json.loads(metadata)
+        except Exception as err:
+            raise TypeError(f"Not a json string: {metadata}") from err
+
+    @cached_property
+    def width_height(self):
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support width_height. '
+            'Use a Video instance.'
+        )
+
+    @cached_property
+    def bitrate(self):
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support bitrate. '
+            'Use a Video instance.'
+        )
+
+    @cached_property
+    def duration(self):
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support duration. '
+            'Use a Video instance.'
+        )
+
+    @staticmethod
+    def get_file_info(path: str):
+        """Get file info.: dirname, title, ext.
+
+        Arguments:
+            path {[str]} -- [File path]
+
+        Returns:
+            [tuple] -- [dirname, title, ext]
+        """
+        title, ext = os.path.splitext(os.path.basename(path))
+        return os.path.dirname(path), title, ext[1:]
+
+    @cached_property
+    def output_path(self):
+        """Media output path"""
+        return self.get_output_path()
+
+    def get_output_path(self, suffix=""):
+        """媒体输出路径(代替 self.output_path)
+
+        Keyword Arguments:
+            suffix {str} -- [输出文件名后缀] (default: {''})
+
+        Returns:
+            [str] -- [媒体输出路径]
+        """
+        # suffix or caller function name
+        suffix = suffix or sys._getframe().f_back.f_code.co_name
+        return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
+
+    @classmethod
+    def create_file_path(
+        cls,
+        path: str,
+        suffix: str = "",
+        suffix_number: int = 1,
+        ext: Optional[str] = None,
+    ):
+        """Create file path.
+
+        Arguments:
+            path {[type]} -- [description]
+
+        Keyword Arguments:
+            suffix {str} -- [description] (default: {'suffix'})
+            suffix_number {number} -- [description] (default: {1})
+
+        Returns:
+            [type] -- [description]
+                e.g.: /Users/nut/Downloads/RS/_trim/VIDEO_trim_1.mp4
+        """
+        dirname, title, _ext = cls.get_file_info(path)
+        ext = ext or _ext
+        suffix = suffix or sys._getframe().f_back.f_code.co_name
+        dirname = os.path.join(dirname, "_" + suffix)
+        if not os.path.exists(dirname):
+            try:
+                os.mkdir(dirname)
+            except FileExistsError:
+                os.makedirs(dirname)
+            except OSError as err:
+                logger.exception(err)
+                # os.makedirs(self.save_dir)
+                raise err
+            except Exception as err:
+                logger.exception(err)
+                raise err
+
+        with cls._LOCK:
+            while True:
+                file_path = os.path.join(dirname, f"{title}-{suffix}_{suffix_number}.{ext}")
+                # file_path = os.path.join(dirname, f"{title}.{ext}")
+                if not os.path.exists(file_path):
+                    break
+                suffix_number += 1
+        return file_path

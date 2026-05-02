@@ -1,45 +1,100 @@
-import sys,os,time
-from concurrent import futures
-import threading, multiprocessing
-from utils import log
+from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
+import logging
+import multiprocessing
+import os
+import sys
+import threading
+from typing import Any, Callable, NamedTuple
 
-def func(future):
-    time.sleep(1)
-    print('--------------func',id(future),future.result())
-def func2(future):
-    print('--------------func2',id(future),future.result())
+from utils.response import Result
 
 
-class BoundedExecutor:
-    """BoundedExecutor behaves as a ThreadPoolExecutor which will block on
-    calls to submit() once the limit given as "bound" work items are queued for
-    execution.
-    :param bound: Integer - the maximum number of items in the work queue
-    :param max_workers: Integer - the size of the thread pool
-    """
-    def __init__(self, bound, max_workers):
-        self.executor = futures.ThreadPoolExecutor(max_workers=max_workers)
-        self.semaphore = threading.Semaphore(bound + max_workers)
-        self.lock = threading.Lock()
+logger = logging.getLogger()
 
-    """See concurrent.futures.Executor#submit"""
-    def submit(self, fn, callback_list=[], *args, **kwargs):
-        self.semaphore.acquire()
-        try:
-            future = self.executor.submit(fn, *args, **kwargs)
-            # log.info('<submit> 任务:%s, 线程:%s(%s), 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().name,threading.current_thread().ident, os.getpid()))
-        except:
-            self.semaphore.release()
-            raise
-        else:
-            future.add_done_callback(lambda x: self.semaphore.release())
-            for callback in callback_list:
-                future.add_done_callback(callback)
-            # future.add_done_callback(func)
-            # future.add_done_callback(func2)
-            return future
+__all__ = [
+    "TaskManager",
+]
 
-    """See concurrent.futures.Executor#shutdown"""
+
+class _FutureContext(NamedTuple):
+    future: Future[Any]
+    fn: Callable[..., Any]
+    args: Any
+    kwargs: Any
+
+
+class TaskManager:
+    PoolExecutor = ThreadPoolExecutor
+
+    # PoolExecutor = ProcessPoolExecutor
+    def __init__(self, max_workers: int = 1):
+        max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
+        # self.semaphore = multiprocessing.Semaphore(max_workers)
+        self.semaphore = threading.Semaphore(max_workers)
+        self.executor = self.PoolExecutor(max_workers=max_workers)
+        self.futures: list[Future[str]] = []
+        self.mapper_future_args: dict[Future[Any], _FutureContext] = {}
+        # from multiprocessing import Manager
+        # self.futures = Manager.list([])
+
+    def submit(self, fn: Callable[..., Any], *args: Any, callback_list: list[Callable[..., Any]] = [], **kwargs: Any):
+        """Start a new task, blocks if queue is full."""
+        with self.semaphore:
+            _future: Future[Any] = self.executor.submit(fn, *args, **kwargs)
+            self.futures.append(_future)
+            self.mapper_future_args[_future] = _FutureContext(_future, fn, args, kwargs)
+            for _callback in callback_list:
+                _future.add_done_callback(_callback)
+            # _future.add_done_callback(self._task_done)
+
+    def _task_done(self, _future: Future[Any]):
+        """Called once task is done, releases the queue if blocked."""
+        result = _future.result()
+        logger.info("TaskManager._task_done: %s", result)
+        # self.shutdown(False)
+        return result
+
     def shutdown(self, wait=True):
-        # log.info('<All done!!!> 任务:%s, 线程:%s, 父进程:%s' % (sys._getframe().f_code.co_name,threading.current_thread().getName(), os.getpid()))
-        self.executor.shutdown(wait)
+        self.semaphore.release()
+        # self.executor.shutdown(wait)
+        # logger.info(
+        #     '<All done!!!> Task: %s, Thread: %s, Parent Process: %s',
+        #     sys._getframe().f_code.co_name,
+        #     threading.current_thread().name,
+        #     os.getpid()
+        # )
+
+    def submit_all(self, tasks: list[Callable[[], str]], is_wait: bool = True, *args: Any, **kwargs: Any):
+        with self.executor:
+            _ = [self.submit(task, *args, **kwargs) for task in tasks]
+
+            not_done = self.futures
+            try:
+                while not_done:
+                    done, not_done = wait(
+                        not_done,
+                        timeout=1,
+                        return_when=FIRST_EXCEPTION,
+                    )
+
+            # Cancel any futures not done on KeyboardInterrupt
+            except KeyboardInterrupt as err:
+                logger.exception(err)
+                for future in self.futures:
+                    if not future.done():
+                        future_context = self.mapper_future_args[future]
+                        future.cancel()
+                        result = Result(
+                            601,
+                            msg=err,
+                            data={
+                                # TODO: Not recommended to use fn.args[0] to obtain the handler
+                                "media": future_context.fn.args[0],
+                            },
+                        )
+                        future.set_result(result)
+                self.shutdown()
+                raise
+            except Exception as err:
+                logger.exception(err)
+                yield Result(1, err)

@@ -1,0 +1,41 @@
+# UTILS KNOWLEDGE BASE
+
+## OVERVIEW
+Shared utility layer providing subprocess management, media categorization, logging, and database abstractions.
+
+## STRUCTURE
+utils/
+├── db/           # Database abstraction layer (SQLAlchemy, SQLite, SQLModel)
+├── logger/       # Logging configuration, formatters, and filters
+├── process/      # FFmpeg output parsing for progress tracking
+├── throttle/     # CPU throttling subsystem (coordinator, throttler, sampling)
+├── command.py    # CommandExecutor for ffmpeg subprocess management (145L)
+├── media.py      # Media categorization via extension/mime mapping
+├── media_types.json  # Extension→category mapping (data-driven, loaded by media.py)
+├── executor.py   # TaskManager with parallel execution
+├── response.py   # Shared response models (154L)
+└── progress.py   # Progress tracking with layer violation (195L)
+
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| FFmpeg execution | `utils/command.py` | Subprocess management with dynamic CPU throttling + timeout + disk check |
+| CPU throttling | `utils/throttle/` | Coordinator, per-PID throttler, macOS/Linux CPU sampling |
+| Media types | `utils/media.py` + `utils/media_types.json` | Extension→category via JSON dict lookup |
+| Parallel tasks | `utils/executor.py` | Multi-threaded TaskManager |
+| Logging init | `utils/logger/init.py` | dictConfig setup (223L) |
+| DB Engines | `utils/db/` | Abstractions for SQLite, SQLAlchemy, and SQLModel |
+| CLI Parsing | `utils/cli.py` | Argument parser factory |
+| Video Parsing | `utils/video.py` | Resolution and metadata parsing (119L) |
+| Decorators | `utils/decorator.py` | Uses command and response utilities |
+
+## CONVENTIONS
+- **Dependency Flow**: base/ -> utils/ (no reverse allowed)
+- **Subprocess**: Always use `CommandExecutor` for ffmpeg calls
+- **Logging**: Use custom filters from `utils/logger/filters.py` (142L)
+- **Responses**: Use `utils.response.Response` for consistent return types
+
+## ANTI-PATTERNS
+- **Layer Violation**: `utils/progress.py` imports `src.models` at module bottom—do NOT replicate.
+- **Direct Subprocess**: Avoid `subprocess.run` directly; use `utils.command`.
+- **Circular Imports**: Do not import from `base/` or `src/` (except the `progress.py` exception).
