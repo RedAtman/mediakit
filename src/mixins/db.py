@@ -62,7 +62,7 @@ class BaseFolderMixin:
         statement: Select[Any] | Update | str | TextClause,
         params: dict[str, Any] = {},
     ):
-        return self.engine.query(statement, params)
+        return self.engine().query(statement, params)
 
     def scan_media(
         self,
