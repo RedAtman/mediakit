@@ -44,6 +44,43 @@ class TestParser(TestCase):
         assert isinstance(result, list)
 
 
+class TestWatchCliArgs(TestCase):
+    def setUp(self):
+        from utils.cli import create_parser
+        self.parser = create_parser()
+
+    def test_watch_action_parses(self):
+        kwargs = self.parser.parse_args(['watch', '-f', '/tmp/media'])
+        self.assertEqual(kwargs.action, 'watch')
+
+    def test_watch_default_folder(self):
+        kwargs = self.parser.parse_args(['watch'])
+        self.assertEqual(kwargs.action, 'watch')
+
+    def test_watch_no_recursive_flag(self):
+        kwargs = self.parser.parse_args(['watch', '--no-recursive'])
+        self.assertTrue(kwargs.no_recursive)
+
+    def test_watch_recursive_default_is_false(self):
+        kwargs = self.parser.parse_args(['watch'])
+        self.assertFalse(kwargs.no_recursive)
+
+    def test_watch_no_scan_existing_flag(self):
+        kwargs = self.parser.parse_args(['watch', '--no-scan-existing'])
+        self.assertTrue(kwargs.no_scan_existing)
+
+    def test_watch_scan_existing_default_is_false(self):
+        kwargs = self.parser.parse_args(['watch'])
+        self.assertFalse(kwargs.no_scan_existing)
+
+    def test_watch_reuses_standard_flags(self):
+        kwargs = self.parser.parse_args(['watch', '-t', 'video', '-w', '4', '-c', '50'])
+        self.assertEqual(kwargs.action, 'watch')
+        self.assertEqual(kwargs.type, 'video')
+        self.assertEqual(kwargs.max_workers, 4)
+        self.assertEqual(kwargs.cpu_limit, 50)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()

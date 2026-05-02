@@ -15,6 +15,7 @@ mapper_action = {
     "change_file_extension": None,
     "convert_format": None,
     "save_text": None,
+    "watch": None,
 }
 
 
@@ -65,6 +66,18 @@ def create_parser():
     parser.add_argument("-d", "--daemon", type=bool, default=True, choices=(True, False))
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
+    parser.add_argument(
+        '--no-recursive',
+        action='store_true',
+        default=False,
+        help='Do not watch subdirectories (default: non-recursive)',
+    )
+    parser.add_argument(
+        '--no-scan-existing',
+        action='store_true',
+        default=False,
+        help='Skip processing existing files at startup',
+    )
     parser.add_argument("--old_ext", type=str, default=argparse.SUPPRESS, help="Old extension")
     parser.add_argument("--ext", type=str, default=argparse.SUPPRESS, help="New extension")
     return parser
