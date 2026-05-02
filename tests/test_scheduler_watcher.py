@@ -1,5 +1,5 @@
+import os
 import signal
-import threading
 from unittest import TestCase, mock
 
 
@@ -22,6 +22,17 @@ class TestWatcherScheduler(TestCase):
     def test_core_attribute_exists(self):
         self.assertTrue(hasattr(self.scheduler, 'core'))
         self.assertTrue(callable(self.scheduler.core))
+
+    def test_setup_observer_passes_correct_constructor_args(self):
+        scheduler = self.scheduler
+        scheduler._setup_observer('/tmp/media', False, 'video', 2)
+        import src.schedulers.watcher as watcher_module
+        watcher_module.DebounceBuffer.assert_called_once_with(
+            calm_period=5.0, max_flush_interval=60.0, callback=mock.ANY
+        )
+        watcher_module.FileStabilityTracker.assert_called_once_with(
+            sample_interval=1.0, stable_samples=3, timeout=30.0
+        )
 
     def test_observer_created_with_path_and_recursive(self):
         scheduler = self.scheduler
@@ -143,3 +154,44 @@ class TestWatcherScheduler(TestCase):
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_not_called()
+
+
+class TestParseFolderFile(TestCase):
+    def _write_tmp(self, content):
+        import tempfile
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+        f.write(content)
+        f.close()
+        return f.name
+
+    def test_skips_comments_and_blanks(self):
+        from src.schedulers.watcher import _parse_folder_file
+        path = self._write_tmp('# comment\n/media/videos\n\n/photos\n  \n')
+        try:
+            self.assertEqual(_parse_folder_file(path), ['/media/videos', '/photos'])
+        finally:
+            os.unlink(path)
+
+    def test_strips_whitespace(self):
+        from src.schedulers.watcher import _parse_folder_file
+        path = self._write_tmp('  /media/videos  \n\t/photos\n')
+        try:
+            self.assertEqual(_parse_folder_file(path), ['/media/videos', '/photos'])
+        finally:
+            os.unlink(path)
+
+    def test_all_comments_returns_empty(self):
+        from src.schedulers.watcher import _parse_folder_file
+        path = self._write_tmp('# a\n# b\n')
+        try:
+            self.assertEqual(_parse_folder_file(path), [])
+        finally:
+            os.unlink(path)
+
+    def test_empty_file_returns_empty(self):
+        from src.schedulers.watcher import _parse_folder_file
+        path = self._write_tmp('')
+        try:
+            self.assertEqual(_parse_folder_file(path), [])
+        finally:
+            os.unlink(path)

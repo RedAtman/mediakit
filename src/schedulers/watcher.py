@@ -5,6 +5,7 @@ import os
 import signal
 import threading
 import time
+from pathlib import Path
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -18,6 +19,17 @@ from utils import file, response
 
 
 logger = logging.getLogger()
+
+
+def _parse_folder_file(filepath: str) -> list[str]:
+    text = Path(filepath).read_text(encoding='utf-8')
+    paths = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        paths.append(stripped)
+    return paths
 
 
 class _WatchEventHandler(FileSystemEventHandler):
@@ -87,7 +99,7 @@ class WatcherScheduler:
         buffer = DebounceBuffer(
             calm_period=5.0,
             max_flush_interval=60.0,
-            flush_callback=partial(
+            callback=partial(
                 self._flush_callback,
                 media_type=media_type,
                 max_workers=max_workers,
@@ -95,7 +107,7 @@ class WatcherScheduler:
         )
         tracker = FileStabilityTracker(
             sample_interval=1.0,
-            required_samples=3,
+            stable_samples=3,
             timeout=30.0,
         )
         handler = _WatchEventHandler(buffer, tracker)
