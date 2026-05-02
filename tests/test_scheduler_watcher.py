@@ -9,6 +9,7 @@ class TestWatcherScheduler(TestCase):
             mock.patch('src.schedulers.watcher.Observer'),
             mock.patch('src.schedulers.watcher.DebounceBuffer'),
             mock.patch('src.schedulers.watcher.FileStabilityTracker'),
+            mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True),
         ]
         for p in self.patchers:
             p.start()
@@ -154,6 +155,69 @@ class TestWatcherScheduler(TestCase):
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_not_called()
+
+
+class TestWatcherMultiFolder(TestCase):
+    def setUp(self):
+        self.patchers = [
+            mock.patch('src.schedulers.watcher.Observer'),
+            mock.patch('src.schedulers.watcher.DebounceBuffer'),
+            mock.patch('src.schedulers.watcher.FileStabilityTracker'),
+        ]
+        for p in self.patchers:
+            p.start()
+        from src.schedulers.watcher import WatcherScheduler
+        self.scheduler = WatcherScheduler()
+
+    def tearDown(self):
+        for p in self.patchers:
+            p.stop()
+
+    @mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True)
+    def test_multi_observer_schedules_each_path(self, mock_isdir):
+        s = self.scheduler
+        s._setup_multi_observer(['/a', '/b'], False, 'video', 2)
+        s.observer.schedule.assert_has_calls([
+            mock.call(mock.ANY, '/a', recursive=False),
+            mock.call(mock.ANY, '/b', recursive=False),
+        ])
+        self.assertEqual(s.observer.schedule.call_count, 2)
+
+    @mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True)
+    def test_core_with_folder_file_calls_multi_observer(self, mock_isdir):
+        s = self.scheduler
+        s._feed_existing = mock.Mock()
+        s._run_event_loop = mock.Mock()
+        with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/a', '/b']):
+            s.core(folder_file='/p.txt', type='video', max_workers=2, cpu_limit=None,
+                   no_scan_existing=True, no_recursive=False)
+        s.observer.schedule.assert_has_calls([
+            mock.call(mock.ANY, '/a', recursive=True),
+            mock.call(mock.ANY, '/b', recursive=True),
+        ])
+        self.assertEqual(s.observer.schedule.call_count, 2)
+
+    @mock.patch('src.schedulers.watcher.os.path.isdir', side_effect=lambda p: p == '/a')
+    def test_nonexistent_paths_skipped_with_warning(self, mock_isdir):
+        s = self.scheduler
+        s._run_event_loop = mock.Mock()
+        with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/a', '/nonexistent']):
+            with mock.patch('src.schedulers.watcher.logger.warning') as mock_warn:
+                s.core(folder_file='/p.txt', type='video', max_workers=2, cpu_limit=None,
+                       no_scan_existing=True, no_recursive=True)
+                mock_warn.assert_called_once()
+                self.assertIn('/nonexistent', mock_warn.call_args[0][1])
+        s.observer.schedule.assert_called_once_with(mock.ANY, '/a', recursive=False)
+
+    @mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True)
+    def test_core_uses_single_setup_when_no_folder_file(self, mock_isdir):
+        s = self.scheduler
+        s._setup_observer = mock.Mock()
+        s._feed_existing = mock.Mock()
+        s._run_event_loop = mock.Mock()
+        s.core(folder='/tmp/media', type='video', max_workers=2, cpu_limit=None,
+               no_scan_existing=True, no_recursive=False)
+        s._setup_observer.assert_called_once_with('/tmp/media', True, 'video', 2)
 
 
 class TestParseFolderFile(TestCase):

@@ -146,8 +146,37 @@ class WatcherScheduler:
         if self.task_manager:
             self.task_manager.stop()
 
+    def _setup_multi_observer(
+        self,
+        paths: list[str],
+        recursive: bool,
+        media_type: str,
+        max_workers: int,
+    ):
+        buffer = DebounceBuffer(
+            calm_period=5.0,
+            max_flush_interval=60.0,
+            callback=partial(
+                self._flush_callback,
+                media_type=media_type,
+                max_workers=max_workers,
+            ),
+        )
+        tracker = FileStabilityTracker(
+            sample_interval=1.0,
+            stable_samples=3,
+            timeout=30.0,
+        )
+        handler = _WatchEventHandler(buffer, tracker)
+
+        self.observer = Observer()
+        for path in paths:
+            self.observer.schedule(handler, path, recursive=recursive)
+        self.observer.start()
+
     def core(self, **kwargs):
         folder_path = kwargs.get('folder', CONFIG.MEDIA_FILE_FOLDER)
+        folder_file = kwargs.get('folder_file', None)
         media_type = kwargs.get('type', 'video')
         max_workers = kwargs.get('max_workers', CONFIG.MAX_WORKERS)
         cpu_limit = kwargs.get('cpu_limit', None)
@@ -155,10 +184,35 @@ class WatcherScheduler:
         no_scan_existing = kwargs.get('no_scan_existing', False)
 
         self._setup_cpu_throttling(cpu_limit)
-        self._setup_observer(folder_path, recursive, media_type, max_workers)
+
+        if folder_file is not None:
+            raw_paths = _parse_folder_file(folder_file)
+        elif folder_path == CONFIG.MEDIA_FILE_FOLDER and os.path.isfile(CONFIG.WATCH_FOLDER_FILE):
+            raw_paths = _parse_folder_file(CONFIG.WATCH_FOLDER_FILE)
+        else:
+            logger.debug('WATCH_FOLDER_FILE not found, using MEDIA_FILE_FOLDER')
+            raw_paths = [folder_path]
+
+        valid_paths = [p for p in raw_paths if os.path.isdir(p)]
+        for p in raw_paths:
+            if p not in valid_paths:
+                logger.warning('Folder path does not exist, skipping: %s', p)
+
+        if not valid_paths:
+            if raw_paths:
+                logger.info('No valid folder paths found in folder file')
+            self._run_event_loop()
+            logger.info('Watch session ended.')
+            return
+
+        if len(valid_paths) == 1:
+            self._setup_observer(valid_paths[0], recursive, media_type, max_workers)
+        else:
+            self._setup_multi_observer(valid_paths, recursive, media_type, max_workers)
 
         if not no_scan_existing:
-            self._feed_existing(folder_path, media_type, max_workers)
+            for p in valid_paths:
+                self._feed_existing(p, media_type, max_workers)
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
