@@ -1,141 +1,155 @@
-# Media Handler
+# MediaKit
 
-Media Handler is a tool to operate on media files. It can compress  convert  and scale media files.
+MediaKit is a CLI tool for batch media operations — compress, convert, scale, trim, and more. Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and a middleware-scheduler pattern for CLI dispatch.
 
-More features will be added in the future.
-
-## Create virtual environment
+## Installation
 
 ```sh
+# Prerequisites
 brew install ffmpeg
 
+# Create virtual environment and install dependencies
 uv venv .venv && source .venv/bin/activate && uv sync
+
+# (Optional) Install as a system-wide command
+uv tool install --editable . --python 3.12
 ```
 
 ## Usage
 
 ```sh
-source .venv/bin/activate &&
 mediakit compress -t video -f /path/to/video/directory
 ```
 
+### Available Commands
 
-### macOS 定时服务启动
+| Command | Description |
+|---------|-------------|
+| `compress` | Compress media files (H.264/H.265, quality/size control) |
+| `scale` | Resize/rescale video resolution |
+| `change_file_extension` | Batch rename file extensions |
+| `convert_format` | Convert between container formats |
+| `save_text` | Extract subtitle/text tracks |
 
-本项目支持通过 macOS 的 LaunchAgent 以定时服务方式自动运行推荐用于无人值守的批量处理
+## macOS LaunchAgent (Scheduled Service)
 
-#### 步骤一: 配置虚拟环境
-确保已完成依赖安装和虚拟环境配置(见上文)
+MediaKit can run as a scheduled service via macOS LaunchAgent — useful for unattended batch processing (e.g., watching a folder).
 
-#### 步骤二: 编辑 watcher.sh
-`watcher.sh` 会自动激活虚拟环境并调用 watcher_.sh 进行主循环处理你可以根据需要修改 watcher_.sh 里的 ENV 变量(development/production)
+### Step 1: Configure Virtual Environment
+Ensure dependencies are installed and `.venv` is set up (see Installation above).
 
-#### 步骤三: 配置 LaunchAgent
-已提供示例配置文件: `macOS/LaunchAgents/mediakit.plist`
+### Step 2: Edit `watcher.sh`
+`watcher.sh` automatically activates the virtual environment and delegates to `watcher_.sh` for the main processing loop. Edit the `ENV` variable in `watcher_.sh` to switch between `development`/`production` if needed.
 
-主要字段说明:
-- `ProgramArguments`: 指向 watcher.sh 的绝对路径
-- `StartInterval`: 定时执行间隔(单位: 秒，例: 60 表示每分钟执行一次)
-- `WorkingDirectory`: 工作目录(需为项目根目录)
-- `StandardOutPath`/`StandardErrorPath`: 日志输出路径
+### Step 3: Configure LaunchAgent
+An example plist is provided at `macOS/LaunchAgents/mediakit.plist`.
 
-#### 步骤四: 安装/卸载服务
+Key fields:
+- `ProgramArguments`: Absolute path to `watcher.sh`
+- `StartInterval`: Execution interval in seconds (e.g., 60 = every minute)
+- `WorkingDirectory`: Must point to the project root
+- `StandardOutPath` / `StandardErrorPath`: Log output paths
+
+### Step 4: Install / Uninstall the Service
+
 ```sh
-# 安装(开机自启+定时)
+# Install (auto-start on boot + scheduled)
 launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
-# 卸载
+
+# Uninstall
 launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 ```
 
-#### 步骤五: 查看日志
-日志文件位于 logs/ 目录下，如 logs/watcher.log.YYYY-MM-DD.log
+### Step 5: View Logs
 
-#### 其他说明
-- watcher.sh 会自动激活 .venv 环境并调用 watcher_.sh
-- watcher_.sh 会检测脚本是否已在运行，避免重复进程
-- 支持通过 crontab 或手动运行 watcher.sh 进行调试
+Log files are written to the `logs/` directory (e.g., `logs/watcher.log.YYYY-MM-DD.log`).
 
-### Dynamic CPU Throttling / CPU 动态限流
+### Notes
+- `watcher.sh` automatically activates the `.venv` environment and calls `watcher_.sh`
+- `watcher_.sh` checks if the script is already running to prevent duplicate processes
+- Debugging: run `watcher.sh` manually or via crontab
 
-项目内置了基于 SIGSTOP/SIGCONT 信号的 CPU 动态限流器，实时监控每个 ffmpeg 进程的 CPU 使用率并动态调整。
+## Dynamic CPU Throttling
 
-限流器由三层组成:
-- **`CPULimiterCoordinator`** — 调度器层，管理所有 worker 进程的限流器实例，处理手动覆盖、SIGUSR1 信号和文件覆盖
-- **`ProcessThrottler`** — 每个被监控进程一个 daemon 线程，采样 CPU 使用率并通过 duty cycle controller 计算 SIGSTOP/SIGCONT 时长
-- **`macos_sample_cpu_time()`** — CPU 使用率采样层，macOS 优先使用 `ps` 子进程（规避 `proc_pidinfo` ctypes struct 在 macOS 26 上的兼容性问题），回退到 `proc_pidinfo` 或 Linux `/proc/stat`
+MediaKit has a built-in dynamic CPU throttler using `SIGSTOP`/`SIGCONT` signals. It monitors each ffmpeg process's CPU usage in real-time and dynamically adjusts.
 
-#### 方式一: 自动模式 (默认)
+The throttler has three layers:
+- **`CPULimiterCoordinator`** — Scheduler layer: manages throttler instances for all worker processes, handles manual overrides, SIGUSR1 signals, and file-based overrides
+- **`ProcessThrottler`** — One daemon thread per monitored process: samples CPU usage and calculates SIGSTOP/SIGCONT durations via duty cycle controller
+- **`macos_sample_cpu_time()`** — Sampling layer: macOS prefers `ps` subprocess (avoids `proc_pidinfo` ctypes struct incompatibility on macOS 26), falls back to `proc_pidinfo` or Linux `/proc/stat`
 
-通过环境变量 `CPU_LIMIT` 配置（默认 `CPU_LIMIT=100`，即 100%），直接作为总预算分配给所有 worker：
+### Method 1: Auto Mode (Default)
 
-| 环境变量 | 每个 worker 配额 |
-|---------|----------------|
-| `CPU_LIMIT=100` (默认) | 100% / worker 数量 |
-| `CPU_LIMIT=50` | 50% / worker 数量 |
-| `CPU_LIMIT=1` | 1% / worker 数量 (最低 1%) |
+Configure via the `CPU_LIMIT` environment variable (default `CPU_LIMIT=100`, i.e., 100%). This is used directly as the total budget distributed to all workers:
 
-#### 方式二: CLI 参数
+| Env Variable | Per-Worker Budget |
+|-------------|-------------------|
+| `CPU_LIMIT=100` (default) | 100% / worker count |
+| `CPU_LIMIT=50` | 50% / worker count |
+| `CPU_LIMIT=1` | 1% / worker count (minimum 1%) |
+
+### Method 2: CLI Argument
 
 ```sh
-# -c/--cpu-limit: 设置 CPU 上限 (100 = 单核, 即 100%)
-mediakit compress -t video -f /path/to/dir -c 50   # 限制为 50%
+# -c/--cpu-limit: Set CPU limit (100 = single core, i.e., 100%)
+mediakit compress -t video -f /path/to/dir -c 50   # Limit to 50%
 ```
 
-#### 方式三: 信号切换 (SIGUSR1)
+### Method 3: Runtime Signal (SIGUSR1)
 
-运行时动态循环切换预设配置 (无限 → 100% → 50% → 25%):
+Cycle through preset profiles at runtime (unlimited → 100% → 50% → 25%):
 
 ```sh
-# 查找进程 PID
+# Find the process PID
 ps aux | grep python
 
-# 每发送一次 SIGUSR1 就切换到下一个配置
+# Each SIGUSR1 advances to the next profile
 kill -SIGUSR1 <pid>   # → 100%
 kill -SIGUSR1 <pid>   # → 50%
 kill -SIGUSR1 <pid>   # → 25%
-kill -SIGUSR1 <pid>   # → 无限 (自动模式)
+kill -SIGUSR1 <pid>   # → unlimited (auto mode)
 ```
 
-**设计说明**: SIGUSR1 是 Unix 信号，本身不能携带数值参数。因此无法通过 `kill -SIGUSR1 <值> <pid>` 的方式直接指定 CPU 百分比。解决方案是固定周期循环：每次收到 SIGUSR1 就跳到预设配置链中的下一个。如果需要精确指定数值，请使用方式四 (文件覆盖)。
+**Design note**: SIGUSR1 is a Unix signal and cannot carry a numeric parameter. The solution is a fixed cycle — each SIGUSR1 advances to the next preset profile. For exact values, use Method 4 (file override).
 
-**注意**: 需要向主进程发送信号（即 `mediakit ...` 的进程，而不是 ffmpeg 子进程）。信号处理器通过 `signal.signal()` 注册，即使在 `subprocess.communicate()` 阻塞主线程时仍能可靠执行（Python 内部通过 self-pipe 技巧实现信号唤醒）。
+**Note**: Send the signal to the main `mediakit` process (not to ffmpeg subprocesses). The signal handler is registered via `signal.signal()` and executes reliably even when the main thread is blocked in `subprocess.communicate()` (Python uses a self-pipe trick internally).
 
-#### 方式四: 文件覆盖
+### Method 4: File Override
 
-创建特殊文件设置临时 CPU 限制:
+Create a special file to set a temporary CPU limit:
 
 ```sh
-# 格式: /tmp/mediakit_cpu_<百分比>
-touch /tmp/mediakit_cpu_25   # 设置 25% 限制
+# Format: /tmp/mediakit_cpu_<percentage>
+touch /tmp/mediakit_cpu_25   # Set 25% limit
 ```
 
-文件被读取后会自动删除。
+The file is automatically deleted after being read.
 
-#### 多 Worker 情况
+### Multi-Worker Behavior
 
-当使用 `-w/--workers` 参数并行处理时，CPU 配额会平均分配给所有 worker，但每个 worker 最低不低于 1%（-c 手动模式下）或 25%（自动模式下）。
+When using `-w/--workers` for parallel processing, the CPU quota is divided equally among all workers, with a floor of 1% (manual mode via `-c`) or 25% (auto mode).
 
-例如: `-c 100 -w 4` 时，手动模式下每个 worker 获得 25% 配额；自动模式 `CPU_LIMIT=50 -w 4` 时，每个 worker 获得 12%（不低于 25% 自动模式安全下限）。
+Example: `-c 100 -w 4` gives each worker 25% in manual mode; auto mode `CPU_LIMIT=50 -w 4` gives each worker 12% (clamped to the 25% auto-mode safety floor).
 
-#### 配置优先级
+### Configuration Priority
 
-1. 文件覆盖 (最高优先级)
-2. CLI `--cpu-limit` 参数 (手动模式)
-3. 环境变量 `CPU_LIMIT`（自动模式下默认预算）
-4. 自动模式（默认，使用 CPU_LIMIT 直接分配）
+1. File override (highest priority)
+2. CLI `--cpu-limit` argument (manual mode)
+3. Environment variable `CPU_LIMIT` (auto mode default budget)
+4. Auto mode default (uses CPU_LIMIT directly)
 
-#### Duty Cycle 控制
+### Duty Cycle Control
 
-当 ffmpeg 进程的 CPU 使用率超过目标值时，限流器不会立即停止进程——它会计算一个成比例的停止时间：
+When ffmpeg's CPU usage exceeds the target, the throttler calculates a proportional stop duration:
 
 ```
 stop_time = window_duration × (actual_CPU / target - 1)
 ```
 
-例如：500% 的进程目标为 25%，则 stop_time = 1.0 × (500/25 - 1) = 19 秒。这意味着进程每运行 1 秒就停止约 19 秒，有效 CPU 约为 25%。
+Example: a process at 500% targeting 25% gives `stop_time = 1.0 × (500/25 - 1) = 19s`. The process runs for ~1s then stops for ~19s, achieving an effective ~25% CPU.
 
-这种方法比固定时长停止更精确，能适应不同 CPU 密集度的进程。停止时长的最小值为 0.5 秒，最大值为 30 秒。
+This is more precise than fixed-duration stops and adapts to processes with different CPU intensities. Stop duration is bounded between 0.5s (minimum) and 30s (maximum). When the target changes while the process is stopped, the throttler recalculates and may wake the process immediately.
 
-#### macOS 兼容性说明
+### macOS Compatibility
 
-macOS 26（Sequoia）上 `proc_pidinfo()` 的 ctypes struct 布局与内核输出不匹配，导致采样值偏差约 42 倍。限流器优先使用 `ps` 子进程进行 CPU 采样，`proc_pidinfo` 留作回退方案。
+macOS 26 (Sequoia) has a `proc_pidinfo()` ctypes struct layout mismatch with the kernel output, causing ~42x sampling error. The throttler uses `ps` subprocess as the primary sampling method, with `proc_pidinfo` as fallback for systems without `ps`.
