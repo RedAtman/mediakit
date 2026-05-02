@@ -39,7 +39,7 @@ def _core(*args, ctx: Context, result=None, **kwargs):
 
 
 def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
-    cpu_limit = kwargs.pop('cpu_limit')
+    cpu_limit = kwargs.pop('cpu_limit', None)
     if isinstance(cpu_limit, str) and cpu_limit.isdigit():
         cpu_limit = int(cpu_limit)
     if isinstance(cpu_limit, int) and cpu_limit > 0:
