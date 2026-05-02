@@ -6,7 +6,7 @@
 
 ## OVERVIEW
 
-mediakit — Python 3.12+ CLI tool for batch media operations (compress, convert, scale, trim). Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
+mediakit — Python 3.14+ CLI tool for batch media operations (compress, convert, scale, trim, save_text). Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
 
 ## STRUCTURE
 

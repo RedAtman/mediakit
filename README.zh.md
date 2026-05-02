@@ -6,13 +6,15 @@ MediaKit 是一款批量媒体处理 CLI 工具，支持压缩、格式转换、
 
 ```sh
 # 前置要求
+
 brew install ffmpeg
+brew install RedAtman/tap/transcriber
 
 # 创建虚拟环境并安装依赖
 uv venv .venv && source .venv/bin/activate && uv sync
 
 # (可选) 安装为系统命令
-uv tool install --editable . --python 3.12
+uv tool install --editable . --python 3.14
 ```
 
 ## 使用

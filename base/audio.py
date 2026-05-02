@@ -1,6 +1,6 @@
 from typing import Sequence
 
-from src.mixins import whispers
+from src.mixins.transcriber import MixinMediaTranscriber
 from utils import decorator
 from utils.command import CommandExecutor
 
@@ -14,9 +14,7 @@ __all__ = [
 
 class Audio(
     BaseMedia,
-    # whispers.MixinMediaWhisper,
-    whispers.MixinMediaFasterWhisper,
-    # whispers.MixinMediaWhisperCPP,
+    MixinMediaTranscriber,
 ):
     _INCLUDE_TYPE = [
         "audio",

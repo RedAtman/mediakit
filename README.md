@@ -6,13 +6,15 @@ MediaKit is a CLI tool for batch media operations — compress, convert, scale, 
 
 ```sh
 # Prerequisites
+
 brew install ffmpeg
+brew install RedAtman/tap/transcriber
 
 # Create virtual environment and install dependencies
 uv venv .venv && source .venv/bin/activate && uv sync
 
 # (Optional) Install as a system-wide command
-uv tool install --editable . --python 3.12
+uv tool install --editable . --python 3.14
 ```
 
 ## Usage

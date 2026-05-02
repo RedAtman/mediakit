@@ -19,13 +19,11 @@ logger = logging.getLogger()
 
 
 def main():
-    from src.schedulers import folder
-
     parser = create_parser()
     args = parser.parse_args()
-    # logger.debug(args)
-    # logger.debug(args.action)
-    # logger.debug(args.__dict__)
+
+    from src.schedulers import folder
+
     scheduler = getattr(folder, args.action)
     # logger.debug(scheduler)
     result = getattr(scheduler, "core")(**args.__dict__)

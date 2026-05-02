@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 from base.media import BaseMedia
 import ffmpeg
-from src.mixins import whispers
+from src.mixins.transcriber import MixinMediaTranscriber
 from utils import decorator, translator
 from utils.command import CommandExecutor
 from utils.video import VideoResolution
@@ -21,9 +21,7 @@ __all__ = [
 
 class Video(
     BaseMedia,
-    # whispers.MixinMediaWhisper,
-    whispers.MixinMediaFasterWhisper,
-    # whispers.MixinMediaWhisperCPP,
+    MixinMediaTranscriber,
 ):
     _INCLUDE_TYPE = [
         "video",
