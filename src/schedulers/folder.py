@@ -28,6 +28,7 @@ __all__ = [
     "change_file_extension",
     "convert_format",
     "save_text",
+    "watch",
 ]
 
 
@@ -160,6 +161,11 @@ save_text = _SimpleScheduler(
         **{k: v for k, v in kwargs.items() if k not in ('action', 'folder', 'cpu_limit', 'type', 'worker')},
     )
 )
+
+
+from .watcher import WatcherScheduler
+
+watch = WatcherScheduler()
 
 
 if __name__ == "__main__":
