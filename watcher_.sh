@@ -29,23 +29,6 @@ CONFIG_FILE="var/folder.sh"
 PYTHON=".venv/bin/python"
 # eval $PYTHON cli compress -t video -f "./samples/zh.mp4"
 
-# # Find the path to the conda executable
-# CONDA_PATH=$(which conda)
-# # Remove the 'bin/conda' part from the end of the path
-# BASE_PATH=${$CONDA_PATH%condabin/conda}
-# # echo "Conda base path: $BASE_PATH"
-# # Activate the conda environment
-# PROFILE_PATH=${BASE_PATH}etc/profile.d/conda.sh
-# # echo "Conda profile path: $PROFILE_PATH"
-# source $PROFILE_PATH
-# conda activate $CONDA_ENV
-
-# ENV_PATH=$(conda env list | grep $CONDA_ENV | awk '{print $3}')
-# echo "Conda environment path: $ENV_PATH"
-
-# Which python
-# echo "Use python interpreter: $PYTHON"
-
 
 function execute_command() {
     run_context "ffmpeg"
