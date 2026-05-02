@@ -15,7 +15,6 @@ mapper_action = {
     'change_file_extension': None,
     'convert_format': None,
     'save_text': None,
-    'watch': None,
 }
 
 
@@ -85,6 +84,12 @@ def create_parser():
         type=str,
         default=None,
         help='Path to a text file with folder paths (one per line, # comments skipped)',
+    )
+    parser.add_argument(
+        '--watch',
+        action='store_true',
+        default=False,
+        help='Watch folder for new files and process them (combine with -f, -t, -a)',
     )
     parser.add_argument(
         '--old_ext', type=str, default=argparse.SUPPRESS, help='Old extension'

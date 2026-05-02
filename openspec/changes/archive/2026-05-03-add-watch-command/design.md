@@ -130,6 +130,35 @@ Reuse existing argparse additions rather than creating a new parser:
 
 **Implemented in**: `src/schedulers/watcher.py` (`_parse_folder_file`, `_setup_multi_observer`, `core()` path resolution)
 
+### Decision 8: `--watch` flag replaces `watch` subcommand
+
+**Evolution**: The initial design had a separate `mediakit watch` subcommand with `-a`/`--action` for specifying the sub-action (compress/trim/scale). After implementation and user feedback, this was identified as design duplication (two "action" parameters).
+
+**Final choice**: Remove the `watch` subcommand and `-a`/`--action` flag. Instead, add a `--watch` store_true flag to existing action commands:
+
+| Before | After |
+|--------|-------|
+| `mediakit watch -a compress -f /path` | `mediakit compress --watch -f /path` |
+| `mediakit watch -a trim -f /path` | `mediakit trim --watch -f /path` |
+
+**Implementation**:
+- `utils/cli.py`: `--watch` store_true flag added to all commands; `watch` removed from `mapper_action`
+- `cli.py:main()`: routes to `WatcherScheduler.core()` when `args.watch` is True
+- `WatcherScheduler.core()`: uses `kwargs['action']` (from positional CLI arg, e.g. 'compress')
+- No `-a`/`--action` flag needed — the positional action argument serves this role
+
+**Rationale**: Removes the confusing overload of `action` vs `--action`. The positional argument already selects the operation (compress/trim/scale); `--watch` simply adds "run in watch mode".
+
+### Decision 9: Iterative bug fixes after implementation
+
+**Event coverage**: Initial dispatch handled only `'created'` events. macOS Finder generates `'modified'` for copyfile operations and `'moved'` for temp-file-rename patterns. All three event types are now handled.
+
+**Feedback loop prevention**: Output files written to `_[...]` subdirectories and `soft_remove` destinations in `/.removed/` are excluded in `dispatch()` to prevent re-processing.
+
+**Batch callback**: `_batch_callback` handles `dict` results from `@decorator.execute` (compress/trim/scale return dicts, not Result objects). Wrapped `future.result()` in try/except for resilience against pre-existing ProgressMonitor validation errors.
+
+**Non-media files**: `NotMediaException` from `folder.MEDIA_CLS()` is caught in `_flush_callback`, logged as warning, and skipped — prevents ERROR-level propagation through DebounceBuffer.
+
 ## Open Questions
 
 - None confirmed. All major design decisions resolved during exploration.

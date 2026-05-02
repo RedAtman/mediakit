@@ -22,10 +22,14 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    from src.schedulers import folder
+    if args.watch:
+        from src.schedulers.watcher import WatcherScheduler
 
-    scheduler = getattr(folder, args.action)
-    # logger.debug(scheduler)
+        scheduler = WatcherScheduler()
+    else:
+        from src.schedulers import folder
+
+        scheduler = getattr(folder, args.action)
     result = getattr(scheduler, "core")(**args.__dict__)
     logger.info(result)
 

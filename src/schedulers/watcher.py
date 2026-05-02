@@ -44,12 +44,15 @@ class _WatchEventHandler(FileSystemEventHandler):
     def dispatch(self, event):
         if event.is_directory:
             return
-        if event.event_type != 'created':
+        if event.event_type not in ('created', 'modified', 'moved'):
             return
-        path = event.src_path
+        if event.event_type == 'moved':
+            path = event.dest_path
+        else:
+            path = event.src_path
         if '/_[' in path or '/.removed/' in path:
             return
-        logger.debug(f'File created: {path}')
+        logger.info(f'File event detected: {event.event_type} {path}')
         if self.stability_tracker.wait_until_stable(path):
             self.debounce_buffer.add(path)
 
@@ -58,7 +61,7 @@ def _batch_callback(future: Future):
     try:
         result = future.result()
     except Exception as e:
-        logger.warning('Compression failed: %s', e)
+        logger.warning('Task failed: %s', e)
         return
     if not isinstance(result, dict):
         return
@@ -81,7 +84,7 @@ class WatcherScheduler:
         if isinstance(cpu_limit, int) and cpu_limit > 0:
             _coordinator.set_manual_override(cpu_limit)
 
-    def _flush_callback(self, paths: list[str], media_type: str, max_workers: int):
+    def _flush_callback(self, paths: list[str], media_type: str, max_workers: int, action: str = 'compress'):
         folder = Folder(os.path.dirname(paths[0]) if paths else '.')
         medias = []
         for path in paths:
@@ -92,7 +95,7 @@ class WatcherScheduler:
         if not medias:
             return
         Folder.run__(
-            'compress',
+            action,
             medias=medias,
             max_workers=max_workers,
             callback_list=[_batch_callback],
@@ -104,6 +107,7 @@ class WatcherScheduler:
         recursive: bool,
         media_type: str,
         max_workers: int,
+        action: str = 'compress',
     ):
         buffer = DebounceBuffer(
             calm_period=5.0,
@@ -112,6 +116,7 @@ class WatcherScheduler:
                 self._flush_callback,
                 media_type=media_type,
                 max_workers=max_workers,
+                action=action,
             ),
         )
         tracker = FileStabilityTracker(
@@ -124,8 +129,9 @@ class WatcherScheduler:
         self.observer = Observer()
         self.observer.schedule(handler, path, recursive=recursive)
         self.observer.start()
+        logger.info('Watching folder: %s (recursive=%s)', path, recursive)
 
-    def _feed_existing(self, path: str, media_type: str, max_workers: int):
+    def _feed_existing(self, path: str, media_type: str, max_workers: int, action: str = 'compress'):
         folder = Folder(path)
         folder.scan_media()
         query = folder.get_query_statement('QUERY_UNPROCESSED')
@@ -134,7 +140,7 @@ class WatcherScheduler:
         if result == 0 and result.data:
             medias = [folder.MEDIA_CLS(m.path) for m in result.data]
             Folder.run__(
-                'compress',
+                action,
                 medias=medias,
                 max_workers=max_workers,
                 callback_list=[_batch_callback],
@@ -161,6 +167,7 @@ class WatcherScheduler:
         recursive: bool,
         media_type: str,
         max_workers: int,
+        action: str = 'compress',
     ):
         buffer = DebounceBuffer(
             calm_period=5.0,
@@ -169,6 +176,7 @@ class WatcherScheduler:
                 self._flush_callback,
                 media_type=media_type,
                 max_workers=max_workers,
+                action=action,
             ),
         )
         tracker = FileStabilityTracker(
@@ -182,6 +190,7 @@ class WatcherScheduler:
         for path in paths:
             self.observer.schedule(handler, path, recursive=recursive)
         self.observer.start()
+        logger.info('Watching %d folders (recursive=%s)', len(paths), recursive)
 
     def core(self, **kwargs):
         folder_path = kwargs.get('folder', CONFIG.MEDIA_FILE_FOLDER)
@@ -189,6 +198,7 @@ class WatcherScheduler:
         media_type = kwargs.get('type', 'video')
         max_workers = kwargs.get('max_workers', CONFIG.MAX_WORKERS)
         cpu_limit = kwargs.get('cpu_limit', None)
+        action = kwargs.get('action', 'compress')
         recursive = not kwargs.get('no_recursive', False)
         no_scan_existing = kwargs.get('no_scan_existing', False)
 
@@ -215,13 +225,15 @@ class WatcherScheduler:
             return
 
         if len(valid_paths) == 1:
-            self._setup_observer(valid_paths[0], recursive, media_type, max_workers)
+            self._setup_observer(valid_paths[0], recursive, media_type, max_workers, action)
         else:
-            self._setup_multi_observer(valid_paths, recursive, media_type, max_workers)
+            self._setup_multi_observer(valid_paths, recursive, media_type, max_workers, action)
 
         if not no_scan_existing:
+            logger.info('Scanning existing media files...')
             for p in valid_paths:
-                self._feed_existing(p, media_type, max_workers)
+                self._feed_existing(p, media_type, max_workers, action)
+        logger.info('Watch is running. Waiting for file changes...')
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)

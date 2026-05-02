@@ -56,7 +56,8 @@ class TestWatcherScheduler(TestCase):
         call_args = scheduler._setup_observer.call_args
         self.assertEqual(call_args[0][0], '/tmp/media')
         self.assertEqual(call_args[0][1], True)
-        self.assertEqual(len(call_args[0]), 4)
+        self.assertEqual(len(call_args[0]), 5)
+        self.assertEqual(call_args[0][4], 'compress')
         scheduler._run_event_loop.assert_called_once()
 
     def test_core_calls_feed_existing_by_default(self):
@@ -110,29 +111,53 @@ class TestWatcherScheduler(TestCase):
         scheduler._stop_event.set.assert_called_once()
 
     def test_event_handler_filters_directories(self):
-        from watchdog.events import FileSystemEvent
         from src.schedulers.watcher import _WatchEventHandler
         handler = _WatchEventHandler(mock.Mock(), mock.Mock())
         handler.debounce_buffer = mock.Mock()
         handler.stability_tracker = mock.Mock()
         handler.stability_tracker.wait_until_stable.return_value = True
-        dir_event = FileSystemEvent('/tmp/media/subdir')
-        dir_event.is_directory = True
-        dir_event.event_type = 'created'
+        dir_event = self._make_event('/tmp/media/subdir', 'created', is_directory=True)
         handler.dispatch(dir_event)
         handler.debounce_buffer.add.assert_not_called()
 
-    def test_on_created_processes_file(self):
+    def _make_event(self, path, event_type='created', is_directory=False):
         from watchdog.events import FileSystemEvent
+        event = FileSystemEvent(path)
+        event.is_directory = is_directory
+        event.event_type = event_type
+        return event
+
+    def test_on_created_processes_file(self):
         from src.schedulers.watcher import _WatchEventHandler
         handler = _WatchEventHandler(mock.Mock(), mock.Mock())
         handler.debounce_buffer = mock.Mock()
         handler.stability_tracker = mock.Mock()
         handler.stability_tracker.wait_until_stable.return_value = True
-        file_event = FileSystemEvent('/tmp/media/file.mp4')
-        file_event.is_directory = False
-        file_event.event_type = 'created'
-        handler.dispatch(file_event)
+        event = self._make_event('/tmp/media/file.mp4', 'created')
+        handler.dispatch(event)
+        handler.stability_tracker.wait_until_stable.assert_called_once_with('/tmp/media/file.mp4')
+        handler.debounce_buffer.add.assert_called_once_with('/tmp/media/file.mp4')
+
+    def test_on_modified_processes_file(self):
+        from src.schedulers.watcher import _WatchEventHandler
+        handler = _WatchEventHandler(mock.Mock(), mock.Mock())
+        handler.debounce_buffer = mock.Mock()
+        handler.stability_tracker = mock.Mock()
+        handler.stability_tracker.wait_until_stable.return_value = True
+        event = self._make_event('/tmp/media/file.mp4', 'modified')
+        handler.dispatch(event)
+        handler.stability_tracker.wait_until_stable.assert_called_once_with('/tmp/media/file.mp4')
+        handler.debounce_buffer.add.assert_called_once_with('/tmp/media/file.mp4')
+
+    def test_on_moved_uses_dest_path(self):
+        from watchdog.events import FileMovedEvent
+        from src.schedulers.watcher import _WatchEventHandler
+        handler = _WatchEventHandler(mock.Mock(), mock.Mock())
+        handler.debounce_buffer = mock.Mock()
+        handler.stability_tracker = mock.Mock()
+        handler.stability_tracker.wait_until_stable.return_value = True
+        event = FileMovedEvent('/tmp/temp.mp4', '/tmp/media/file.mp4')
+        handler.dispatch(event)
         handler.stability_tracker.wait_until_stable.assert_called_once_with('/tmp/media/file.mp4')
         handler.debounce_buffer.add.assert_called_once_with('/tmp/media/file.mp4')
 
@@ -250,7 +275,7 @@ class TestWatcherMultiFolder(TestCase):
         s._run_event_loop = mock.Mock()
         s.core(folder='/tmp/media', type='video', max_workers=2, cpu_limit=None,
                no_scan_existing=True, no_recursive=False)
-        s._setup_observer.assert_called_once_with('/tmp/media', True, 'video', 2)
+        s._setup_observer.assert_called_once_with('/tmp/media', True, 'video', 2, 'compress')
 
 
 class TestParseFolderFile(TestCase):

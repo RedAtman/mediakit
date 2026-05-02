@@ -44,54 +44,52 @@ class TestParser(TestCase):
         assert isinstance(result, list)
 
 
-class TestWatchCliArgs(TestCase):
-    def setUp(self):
+
+class TestWatchFlag(TestCase):
+    def test_watch_flag_on_compress(self):
         from utils.cli import create_parser
-        self.parser = create_parser()
+        kwargs = create_parser().parse_args(['compress', '--watch'])
+        self.assertTrue(kwargs.watch)
+        self.assertEqual(kwargs.action, 'compress')
 
-    def test_watch_action_parses(self):
-        kwargs = self.parser.parse_args(['watch', '-f', '/tmp/media'])
-        self.assertEqual(kwargs.action, 'watch')
-
-    def test_watch_default_folder(self):
-        kwargs = self.parser.parse_args(['watch'])
-        self.assertEqual(kwargs.action, 'watch')
-
-    def test_watch_no_recursive_flag(self):
-        kwargs = self.parser.parse_args(['watch', '--no-recursive'])
-        self.assertTrue(kwargs.no_recursive)
-
-    def test_watch_recursive_default_is_false(self):
-        kwargs = self.parser.parse_args(['watch'])
-        self.assertFalse(kwargs.no_recursive)
-
-    def test_watch_no_scan_existing_flag(self):
-        kwargs = self.parser.parse_args(['watch', '--no-scan-existing'])
-        self.assertTrue(kwargs.no_scan_existing)
-
-    def test_watch_scan_existing_default_is_false(self):
-        kwargs = self.parser.parse_args(['watch'])
-        self.assertFalse(kwargs.no_scan_existing)
+    def test_watch_default_is_false(self):
+        from utils.cli import create_parser
+        kwargs = create_parser().parse_args(['compress'])
+        self.assertFalse(kwargs.watch)
 
     def test_watch_reuses_standard_flags(self):
-        kwargs = self.parser.parse_args(['watch', '-t', 'video', '-w', '4', '-c', '50'])
-        self.assertEqual(kwargs.action, 'watch')
+        from utils.cli import create_parser
+        kwargs = create_parser().parse_args(['compress', '--watch', '-t', 'video', '-w', '4', '-c', '50'])
+        self.assertTrue(kwargs.watch)
+        self.assertEqual(kwargs.action, 'compress')
         self.assertEqual(kwargs.type, 'video')
         self.assertEqual(kwargs.max_workers, 4)
         self.assertEqual(kwargs.cpu_limit, 50)
 
-
-class TestWatchFolderFileCliArgs(TestCase):
-    def setUp(self):
+    def test_watch_no_recursive_flag(self):
         from utils.cli import create_parser
-        self.parser = create_parser()
+        kwargs = create_parser().parse_args(['compress', '--watch', '--no-recursive'])
+        self.assertTrue(kwargs.no_recursive)
 
-    def test_folder_file_flag_exists(self):
-        result = self.parser.parse_args(['watch', '--folder-file', '/my/paths.txt'])
+    def test_watch_no_scan_existing_flag(self):
+        from utils.cli import create_parser
+        kwargs = create_parser().parse_args(['compress', '--watch', '--no-scan-existing'])
+        self.assertTrue(kwargs.no_scan_existing)
+
+    def test_watch_works_with_different_actions(self):
+        from utils.cli import create_parser
+        kwargs = create_parser().parse_args(['trim', '--watch'])
+        self.assertTrue(kwargs.watch)
+        self.assertEqual(kwargs.action, 'trim')
+
+    def test_watch_folder_file_on_compress(self):
+        from utils.cli import create_parser
+        result = create_parser().parse_args(['compress', '--watch', '--folder-file', '/my/paths.txt'])
         self.assertEqual(result.folder_file, '/my/paths.txt')
 
-    def test_folder_file_defaults_to_none(self):
-        result = self.parser.parse_args(['watch'])
+    def test_watch_folder_file_defaults_to_none(self):
+        from utils.cli import create_parser
+        result = create_parser().parse_args(['compress', '--watch'])
         self.assertIsNone(result.folder_file)
 
 
