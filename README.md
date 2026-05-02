@@ -16,7 +16,7 @@ uv venv .venv && source .venv/bin/activate && uv sync
 
 ```sh
 source .venv/bin/activate &&
-python cli compress -t video -f /path/to/video/directory
+mediakit compress -t video -f /path/to/video/directory
 ```
 
 
@@ -78,7 +78,7 @@ launchctl bootout gui/$(id -u) macOS/LaunchAgents/media_handler.plist
 
 ```sh
 # -c/--cpu-limit: 设置 CPU 上限 (100 = 单核, 即 100%)
-python cli compress -t video -f /path/to/dir -c 50   # 限制为 50%
+mediakit compress -t video -f /path/to/dir -c 50   # 限制为 50%
 ```
 
 #### 方式三: 信号切换 (SIGUSR1)
@@ -98,7 +98,7 @@ kill -SIGUSR1 <pid>   # → 无限 (自动模式)
 
 **设计说明**: SIGUSR1 是 Unix 信号，本身不能携带数值参数。因此无法通过 `kill -SIGUSR1 <值> <pid>` 的方式直接指定 CPU 百分比。解决方案是固定周期循环：每次收到 SIGUSR1 就跳到预设配置链中的下一个。如果需要精确指定数值，请使用方式四 (文件覆盖)。
 
-**注意**: 需要向主进程发送信号（即 `python cli ...` 的进程，而不是 ffmpeg 子进程）。信号处理器通过 `signal.signal()` 注册，即使在 `subprocess.communicate()` 阻塞主线程时仍能可靠执行（Python 内部通过 self-pipe 技巧实现信号唤醒）。
+**注意**: 需要向主进程发送信号（即 `mediakit ...` 的进程，而不是 ffmpeg 子进程）。信号处理器通过 `signal.signal()` 注册，即使在 `subprocess.communicate()` 阻塞主线程时仍能可靠执行（Python 内部通过 self-pipe 技巧实现信号唤醒）。
 
 #### 方式四: 文件覆盖
 

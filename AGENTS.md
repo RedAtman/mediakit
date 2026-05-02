@@ -18,7 +18,7 @@ media_handler/
 │   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 │   └── media_types.json  # Extension→category mapping (data-driven)
 ├── tests/        # pytest suite (flat, 16 files)
-├── cli           # Entry point (no .py extension, executable)
+├── cli.py        # Entry point (shebang + [project.scripts] → mediakit)
 ├── folder.py     # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py     # Environment config with side-effect imports (sys.path, logging init)
 ├── watcher.sh    # macOS LaunchAgent watcher loop
@@ -29,7 +29,7 @@ media_handler/
 
 | Task | Location | Notes |
 |------|----------|-------|
-| CLI entry | `cli` | Parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
+| CLI entry | `cli.py` | Entry point (`mediakit` via `[project.scripts]`), parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
 | Media operations | `base/video.py` (777L), `base/audio.py` | FFmpeg wrapper methods |
 | Folder batch ops | `folder.py` + `base/folder.py` | `Folder` class with DB mixin |
 | DB models | `src/models/media.py` | SQLAlchemy model (single source) |
@@ -87,10 +87,10 @@ pdm run lint
 pdm run format
 
 # Run CLI
-python cli compress -t video -w 1 -f /path/to/folder
+mediakit compress -t video -w 1 -f /path/to/folder
 
 # Run CLI with CPU throttling (-c = CPU limit %)
-python cli compress -t video -w 1 -c 50 -f /path/to/folder
+mediakit compress -t video -w 1 -c 50 -f /path/to/folder
 
 # Watcher (macOS LaunchAgent)
 launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/media_handler.plist
