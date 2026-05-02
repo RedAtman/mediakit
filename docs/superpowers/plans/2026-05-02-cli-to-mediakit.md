@@ -181,7 +181,7 @@ uv tool install --editable .
 Expected 输出类似：
 ```
 Resolved 42 packages in 300ms
-Installed 1 package: media_handler v0.1.0 (editable)
+Installed 1 package: mediakit v0.1.0 (editable)
 Installed 1 executable: mediakit
 ```
 

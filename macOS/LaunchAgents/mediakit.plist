@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.nut.media-handler</string>
+    <string>com.nut.mediakit</string>
 
     <key>ProgramArguments</key>
     <array>

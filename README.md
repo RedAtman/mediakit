@@ -31,7 +31,7 @@ mediakit compress -t video -f /path/to/video/directory
 `watcher.sh` 会自动激活虚拟环境并调用 watcher_.sh 进行主循环处理你可以根据需要修改 watcher_.sh 里的 ENV 变量(development/production)
 
 #### 步骤三: 配置 LaunchAgent
-已提供示例配置文件: `macOS/LaunchAgents/media_handler.plist`
+已提供示例配置文件: `macOS/LaunchAgents/mediakit.plist`
 
 主要字段说明:
 - `ProgramArguments`: 指向 watcher.sh 的绝对路径
@@ -42,9 +42,9 @@ mediakit compress -t video -f /path/to/video/directory
 #### 步骤四: 安装/卸载服务
 ```sh
 # 安装(开机自启+定时)
-launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/media_handler.plist
+launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 # 卸载
-launchctl bootout gui/$(id -u) macOS/LaunchAgents/media_handler.plist
+launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 ```
 
 #### 步骤五: 查看日志
@@ -105,8 +105,8 @@ kill -SIGUSR1 <pid>   # → 无限 (自动模式)
 创建特殊文件设置临时 CPU 限制:
 
 ```sh
-# 格式: /tmp/media_handler_cpu_<百分比>
-touch /tmp/media_handler_cpu_25   # 设置 25% 限制
+# 格式: /tmp/mediakit_cpu_<百分比>
+touch /tmp/mediakit_cpu_25   # 设置 25% 限制
 ```
 
 文件被读取后会自动删除。

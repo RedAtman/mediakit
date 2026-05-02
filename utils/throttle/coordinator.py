@@ -20,7 +20,7 @@ __all__ = [
 MIN_PER_WORKER = 1
 PROFILES = [None, 100, 50, 25]
 FILE_SCAN_INTERVAL = 2.0
-FILE_OVERRIDE_PATTERN = '/tmp/media_handler_cpu_*'
+FILE_OVERRIDE_PATTERN = '/tmp/mediakit_cpu_*'
 
 
 class CPULimiterCoordinator:

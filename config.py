@@ -40,10 +40,10 @@ class _BaseConfig:
     os.makedirs(LOG_DIR, exist_ok=True)
     LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 
-    PROJECT_NAME = "media_handler"
+    PROJECT_NAME = "mediakit"
     PROJECT_VERSION = "0.0.1"
     PROJECT_DESCRIPTION = "Media Handler"
-    # PROJECT_AUTHOR = 'media_handler'
+    # PROJECT_AUTHOR = 'mediakit'
 
     # CPU throttling default limit
     CPU_LIMIT: int = int(os.getenv("CPU_LIMIT", "100"))

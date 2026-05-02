@@ -16,7 +16,7 @@ class TestFileOverrideIntegration(TestCase):
         coord = CPULimiterCoordinator(default_limit=100, auto_mode=True)
         coord._stop_monitor()
 
-        filepath = '/tmp/media_handler_cpu_7'
+        filepath = '/tmp/mediakit_cpu_7'
         try:
             # Create the file
             open(filepath, 'w').close()
@@ -46,8 +46,8 @@ class TestFileOverrideIntegration(TestCase):
         coord.attach(9998)
         coord.attach(9997)
 
-        # Now simulate file override: touch /tmp/media_handler_cpu_3
-        filepath = '/tmp/media_handler_cpu_3'
+        # Now simulate file override: touch /tmp/mediakit_cpu_3
+        filepath = '/tmp/mediakit_cpu_3'
         try:
             open(filepath, 'w').close()
             coord._scan_file_override()
@@ -117,7 +117,7 @@ class TestFileOverrideIntegration(TestCase):
         self.assertEqual(coord._manual_target, 50)
 
         # Now simulate file override from low to high
-        filepath = '/tmp/media_handler_cpu_1'
+        filepath = '/tmp/mediakit_cpu_1'
         try:
             open(filepath, 'w').close()
             coord._scan_file_override()

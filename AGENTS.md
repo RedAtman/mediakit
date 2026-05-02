@@ -6,12 +6,12 @@
 
 ## OVERVIEW
 
-media_handler — Python 3.12+ CLI tool for batch media operations (compress, convert, scale, trim). Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
+mediakit — Python 3.12+ CLI tool for batch media operations (compress, convert, scale, trim). Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
 
 ## STRUCTURE
 
 ```
-media_handler/
+mediakit/
 ├── base/         # Base class hierarchy (Media → Audio/Video/Image)
 ├── src/          # Core package: models, mixins, patterns, schedulers
 ├── utils/        # Shared utilities: command, db, logger, process, media
@@ -93,7 +93,7 @@ mediakit compress -t video -w 1 -f /path/to/folder
 mediakit compress -t video -w 1 -c 50 -f /path/to/folder
 
 # Watcher (macOS LaunchAgent)
-launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/media_handler.plist
+launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 ```
 
 ## NOTES

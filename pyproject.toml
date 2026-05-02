@@ -194,7 +194,7 @@ ignore-words-list = "word,another,something"
 skip = "htmlcov,.doctrees,*.pyc,*.class,*.ico,*.out,*.PNG,*.inv,*.png,*.jpg,*.dot"
 
 [project]
-name = "media_handler"
+name = "mediakit"
 version = "0.1.0"
 description = "Default template for PDM package"
 authors = [{ name = "redatman", email = "evicwork@gmail.com" }]

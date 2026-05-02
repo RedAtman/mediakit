@@ -1,6 +1,6 @@
 #!/bin/bash
-# */1 * * * * cd ~/Dropbox/dev/tools/media_handler && /bin/bash watcher_.sh | /usr/sbin/rotatelogs -D -l -f logs/watcher.log.%Y-%m-%d 86400 >> ./logs/watcher_.log 2>&1
-# /Users/nut/Dropbox/dev/tools/media_handler/watcher_.sh | /usr/sbin/rotatelogs -D -l -f /Users/nut/Dropbox/dev/tools/media_handler/logs/watcher.log.%Y-%m-%d 86400
+# */1 * * * * cd ~/Dropbox/dev/tools/mediakit && /bin/bash watcher_.sh | /usr/sbin/rotatelogs -D -l -f logs/watcher.log.%Y-%m-%d 86400 >> ./logs/watcher_.log 2>&1
+# /Users/nut/Dropbox/dev/tools/mediakit/watcher_.sh | /usr/sbin/rotatelogs -D -l -f /Users/nut/Dropbox/dev/tools/mediakit/logs/watcher.log.%Y-%m-%d 86400
 
 export ENV="development"
 export ENV="production"
@@ -24,7 +24,7 @@ current_file_name=$(basename $0)
 run_context $current_file_name
 
 CONFIG_FILE="var/folder.sh"
-# CONDA_ENV="media_handler"
+# CONDA_ENV="mediakit"
 # PYTHON=$(which python)"
 PYTHON=".venv/bin/python"
 # eval $PYTHON cli compress -t video -f "./samples/zh.mp4"
