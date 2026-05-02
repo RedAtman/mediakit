@@ -82,9 +82,9 @@ class WatcherScheduler:
     def _flush_callback(self, paths: list[str], media_type: str, max_workers: int):
         folder = Folder(os.path.dirname(paths[0]) if paths else '.')
         medias = [folder.MEDIA_CLS(path) for path in paths]
-        tasks = [partial(media.core) for media in medias]
-        Folder.run___(
-            tasks=tasks,
+        Folder.run__(
+            'compress',
+            medias=medias,
             max_workers=max_workers,
             callback_list=[_batch_callback],
         )
@@ -124,9 +124,9 @@ class WatcherScheduler:
         assert isinstance(result, response.Result)
         if result == 0 and result.data:
             medias = [folder.MEDIA_CLS(m.path) for m in result.data]
-            tasks = [partial(media.core) for media in medias]
-            Folder.run___(
-                tasks=tasks,
+            Folder.run__(
+                'compress',
+                medias=medias,
                 max_workers=max_workers,
                 callback_list=[_batch_callback],
             )
