@@ -8,6 +8,7 @@ utils/
 ├── db/           # Database abstraction layer (SQLAlchemy, SQLite, SQLModel)
 ├── logger/       # Logging configuration, formatters, and filters
 ├── process/      # FFmpeg output parsing for progress tracking
+├── throttle/     # CPU throttling subsystem (coordinator, throttler, sampling)
 ├── command.py    # CommandExecutor for ffmpeg subprocess management (145L)
 ├── media.py      # Media categorization via extension/mime mapping (472L)
 ├── executor.py   # TaskManager with parallel execution (200L)
@@ -19,6 +20,7 @@ utils/
 | Task | Location | Notes |
 |------|----------|-------|
 | FFmpeg execution | `utils/command.py` | Subprocess management with dynamic CPU throttling |
+| CPU throttling | `utils/throttle/` | Coordinator, per-PID throttler, macOS/Linux CPU sampling |
 | Media types | `utils/media.py` | 300+ extension mapping if-elif chain |
 | Parallel tasks | `utils/executor.py` | Multi-threaded TaskManager |
 | Logging init | `utils/logger/init.py` | dictConfig setup (223L) |

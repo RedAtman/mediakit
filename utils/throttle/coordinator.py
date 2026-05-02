@@ -17,12 +17,7 @@ __all__ = [
     'CPULimiterCoordinator',
 ]
 
-LOAD_HIGH = 80.0
-LOAD_MODERATE = 50.0
-BUDGET_HIGH = 0.25
-BUDGET_MODERATE = 0.50
-BUDGET_FULL = 1.0
-MIN_PER_WORKER = 25
+MIN_PER_WORKER = 1
 PROFILES = [None, 100, 50, 25]
 FILE_SCAN_INTERVAL = 2.0
 FILE_OVERRIDE_PATTERN = '/tmp/media_handler_cpu_*'
@@ -48,31 +43,30 @@ class CPULimiterCoordinator:
         self._manual_target: Optional[int] = None
         self._profile_index = 0
         self._monitor_stop = threading.Event()
+        try:
+            signal.signal(signal.SIGUSR1, self._handle_sigusr1)
+        except (ValueError, AttributeError) as err:
+            logger.warning('Cannot register SIGUSR1 handler: %s', err)
         self._monitor_thread = threading.Thread(
             target=self._monitor_loop, daemon=True,
         )
         self._monitor_thread.start()
-        self._setup_signal_handler()
 
     def _stop_monitor(self):
         """Stop the background monitor thread."""
         self._monitor_stop.set()
 
-    def _setup_signal_handler(self):
-        """Register SIGUSR1 handler for profile cycling."""
-        try:
-            signal.signal(signal.SIGUSR1, self._handle_sigusr1)
-            logger.info('Registered SIGUSR1 handler for CPU profile cycling')
-        except (ValueError, AttributeError) as err:
-            logger.warning('Cannot register SIGUSR1 handler: %s', err)
-
     def _handle_sigusr1(self, signum, frame):
-        """Handle SIGUSR1: cycle to next CPU profile."""
+        """SIGUSR1 handler: cycle to next CPU profile."""
         logger.info('Received SIGUSR1, cycling CPU profile')
         self._next_profile()
 
     def _next_profile(self):
-        """Cycle to the next CPU profile."""
+        """Cycle to the next CPU profile from the PROFILES list.
+
+        PROFILES = [None, 100, 50, 25] where None = no limit (auto mode).
+        This is used by both SIGUSR1 handler and programmatic calls.
+        """
         with self._lock:
             self._profile_index = (self._profile_index + 1) % len(PROFILES)
             profile_value = PROFILES[self._profile_index]
@@ -128,7 +122,12 @@ class CPULimiterCoordinator:
         with self._lock:
             self._manual_override_active = True
             self._manual_target = target
-            self._profile_index = 0
+            # Set profile index to the target's position in PROFILES,
+            # so the first SIGUSR1 gives the next lower profile (not a no-op).
+            try:
+                self._profile_index = PROFILES.index(target)
+            except ValueError:
+                self._profile_index = 0
             logger.info('Manual override set: total budget = %d%%', target)
             self._apply_target_to_all()
 
@@ -149,22 +148,20 @@ class CPULimiterCoordinator:
             if self._manual_override_active and self._manual_target is not None:
                 total_budget = float(self._manual_target)
             elif self.auto_mode:
-                load = self._get_system_load_ratio()
-                core_count = os.cpu_count() or 1
-                if load > LOAD_HIGH:
-                    total_budget = core_count * 100 * BUDGET_HIGH
-                elif load > LOAD_MODERATE:
-                    total_budget = core_count * 100 * BUDGET_MODERATE
-                else:
-                    total_budget = (
-                        core_count * 100 * BUDGET_FULL
-                        * (self.default_limit / 100.0)
-                    )
+                total_budget = float(self.default_limit)
             else:
-                core_count = os.cpu_count() or 1
-                total_budget = core_count * 100 * (self.default_limit / 100.0)
+                total_budget = 100.0 * (self.default_limit / 100.0)
 
             per_worker = int(total_budget / active_count)
+            logger.debug(
+                'Target calc: mode=%s budget=%.1f workers=%d per=%d',
+                'manual' if self._manual_override_active else 'auto',
+                total_budget,
+                active_count,
+                per_worker,
+            )
+            if self._manual_override_active:
+                return max(per_worker, 1)
             return max(per_worker, MIN_PER_WORKER)
 
     def _get_system_load_ratio(self) -> float:

@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-05-01
+**Generated:** 2026-05-02
 **Commit:** c04e7fd
 **Branch:** dev
 
@@ -15,6 +15,7 @@ media_handler/
 ├── base/         # Base class hierarchy (Media → Audio/Video/Image)
 ├── src/          # Core package: models, mixins, patterns, schedulers
 ├── utils/        # Shared utilities: command, db, logger, process, media
+│   └── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 ├── tests/        # pytest suite (flat, 15 files)
 ├── cli           # Entry point (no .py extension, executable)
 ├── folder.py     # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
@@ -36,6 +37,9 @@ media_handler/
 | Scheduler dispatcher | `src/schedulers/folder.py` | MiddlewareScheduler instances |
 | Middleware pattern | `src/patterns/middleware_context_closure.py` | ctx.next() inside core = infinite loop (design constraint) |
 | Config | `config.py` | Environment subclass pattern (Development/Testing/Production) |
+| CPU throttler coordinator | `utils/throttle/coordinator.py` (286L) | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution |
+| CPU throttler process | `utils/throttle/throttler.py` (154L) | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller |
+| CPU sampling | `utils/throttle/sampling.py` (233L) | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat` |
 | Logging setup | `utils/logger/init.py` | dictConfig with custom filters |
 | Progress bars | `utils/progress.py` | Stdout + MediaState progress |
 | Test base | `base/basetest.py` (349L) | HTTP + auth mixin |
@@ -53,6 +57,7 @@ media_handler/
 - **Config**: `from config import CONFIG` — all env vars via subclass attributes
 - **Testing**: pytest with unittest.TestCase, mock.patch, setUp pattern
 - **Dead code**: Vulture at 100% min-confidence — no false positives tolerated
+- **Lint tools**: `ruff`, `codespell`, `vulture` installed as dev deps
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -81,6 +86,9 @@ pdm run format
 
 # Run CLI
 python cli compress -t video -w 1 -f /path/to/folder
+
+# Run CLI with CPU throttling (-c = CPU limit %)
+python cli compress -t video -w 1 -c 50 -f /path/to/folder
 
 # Watcher (macOS LaunchAgent)
 launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/media_handler.plist

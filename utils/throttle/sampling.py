@@ -10,7 +10,6 @@ import os
 import platform
 import subprocess
 import threading
-import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -65,16 +64,26 @@ def linux_sample_cpu_time(pid: int) -> float:
 
 
 def macos_sample_cpu_time(pid: int) -> float:
-    """Sample CPU time for a process on macOS via proc_pidinfo().
+    """Sample CPU time for a process on macOS.
 
-    Falls back to ps subprocess if proc_pidinfo is unavailable.
+    Uses ps subprocess as the primary method since proc_pidinfo()
+    returns incorrect CPU time values on macOS 26+ (struct layout
+    mismatch). Falls back to proc_pidinfo if ps is unavailable.
+    If both methods fail, logs a warning and returns 0.0.
     Returns total CPU seconds consumed by the process.
     """
     try:
-        return _macos_proc_pidinfo(pid)
-    except (ImportError, AttributeError, OSError) as err:
-        logger.debug('proc_pidinfo fallback to ps for pid %d: %s', pid, err)
         return _macos_ps_fallback(pid)
+    except (ProcessLookupError, ValueError, RuntimeError, subprocess.TimeoutExpired) as err:
+        logger.debug('ps fallback to proc_pidinfo for pid %d: %s', pid, err)
+        try:
+            return _macos_proc_pidinfo(pid)
+        except (ImportError, AttributeError, OSError) as fallback_err:
+            logger.warning(
+                'Both ps and proc_pidinfo failed for pid %d: %s',
+                pid, fallback_err,
+            )
+            return 0.0
 
 
 def _macos_proc_pidinfo(pid: int) -> float:
