@@ -60,8 +60,7 @@ def create_parser():
         "-c",
         "--cpu-limit",
         type=int,
-        default=CONFIG.CPU_LIMIT,
-        help="CPU limit per worker (100 = one core, SIGUSR1 cycles through profiles)",
+        help="CPU limit per worker (100 = one core). When not set, uses auto mode with dynamic throttling. At runtime, send SIGUSR1 to cycle through fixed profiles: unlimited -> 100%% -> 50%% -> 25%% (SIGUSR1 cannot carry a value, so it uses a fixed cycle)",
     )
     parser.add_argument("-d", "--daemon", type=bool, default=True, choices=(True, False))
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
