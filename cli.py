@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Usage:
     mediakit compress -t video -w 1 -f /path/to/folder
