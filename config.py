@@ -69,6 +69,7 @@ class _BaseConfig:
     # MEDIA FILE
     MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', 'samples/zh.mp4')
     MEDIA_FILE_FOLDER: str = os.getenv('MEDIA_FILE_FOLDER', 'samples')
+    WATCH_FOLDER_FILE: str = os.path.join(os.path.dirname(__file__), 'var', 'folder.sh')
 
     # TRANSCRIBER
     TRANSCRIBER_MODEL = os.getenv('TRANSCRIBER_MODEL', 'base')
