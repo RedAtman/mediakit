@@ -110,44 +110,11 @@ class BaseMedia:
 
     @cached_property
     def frames_count(self):
-        """Get media file frames count.
-
-        e.g.:
-            # More speed and if nb_frames is reliable enough, simplify as: but nb_frames is not always reliable.
-            # Problem: Often returns N/A, not reliable.
-            ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames \
-                -of default=nokey=1:noprint_wrappers=1 input.mp4
-            ffprobe -select_streams v -show_streams input.mp4 2>/dev/null | grep nb_frames | sed -e 's/nb_frames=//'
-            ffprobe -v error -select_streams v -show_streams input.mp4 | grep nb_frames | sed -e s/nb_frames=//
-            ffprobe -v error -show_streams -hide_banner input.mp4 | grep "nb_frames" | sed -e s/nb_frames=//
-            ffprobe -v error -show_streams -hide_banner input.mp4 | grep "nb_frames" | head -n1 | cut -d"=" -f2
-
-            # More reliable. but slower.
-            ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
-                -of default=nokey=1:noprint_wrappers=1 input.mp4
-            ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets \
-                -of csv=p=0 input.mp4
-
-            # TODO: Unverified.
-            ffmpeg -i input.mp4 -vcodec copy -acodec copy -f null /dev/null 2>&1 | grep 'frame=' | cut -f 2 -d ' '
-            ffprobe -i input.mp4 -print_format json -loglevel fatal -show_streams -count_frames -select_streams v
-            ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate \
-                -of default=noprint_wrappers=1:nokey=1 input.mp4
-            ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
-
-        """
-        try:
-            command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
-            result = CommandExecutor.run(command)
-            return int(result)
-        except Exception:
-            command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
-            result = CommandExecutor.run(command)
-            if result.isdigit():
-                return int(result)
-            default_frames_count = 10000000
-            logger.warning(f"Cannot get frames count: {self.path}, set to {default_frames_count}.")
-            return default_frames_count
+        """Number of frames. Only available for video media."""
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support frames_count. '
+            'Use a Video instance.'
+        )
 
     @cached_property
     def metadata(self):
@@ -182,36 +149,24 @@ class BaseMedia:
 
     @cached_property
     def width_height(self):
-        """Get media file width and height. Unit:pixel"""
-        width, height = 0, 0
-        _format = self.metadata.get("format")
-        if _format and _format.get("width") and _format.get("height"):
-            width, height = _format.get("width"), _format.get("height")
-        else:
-            for stream in self.metadata.get("streams"):
-                if stream.get("width") and stream.get("height"):
-                    width, height = stream.get("width"), stream.get("height")
-                    break
-        return width, height
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support width_height. '
+            'Use a Video instance.'
+        )
 
     @cached_property
     def bitrate(self):
-        """Get media file bitrate. Unit:kb/s"""
-        bitrate = self.metadata.get("streams")[0].get("bit_rate") or self.metadata.get("format").get("bit_rate")
-        return float(bitrate)
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support bitrate. '
+            'Use a Video instance.'
+        )
 
     @cached_property
     def duration(self):
-        """Get media file duration. Unit:second"""
-        # result = subprocess.run([
-        #     "ffprobe", "-v", "error", "-show_entries",
-        #     "format=duration", "-of",
-        #     "default=noprint_wrappers=1:nokey=1", self.path],
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.STDOUT)
-        # return float(result.stdout)
-
-        return self.metadata.get("streams")[0].get("duration")
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support duration. '
+            'Use a Video instance.'
+        )
 
     @staticmethod
     def get_file_info(path: str):

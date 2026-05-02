@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-05-02
-**Commit:** c04e7fd
+**Commit:** 2397e16
 **Branch:** dev
 
 ## OVERVIEW
@@ -15,8 +15,9 @@ media_handler/
 ├── base/         # Base class hierarchy (Media → Audio/Video/Image)
 ├── src/          # Core package: models, mixins, patterns, schedulers
 ├── utils/        # Shared utilities: command, db, logger, process, media
-│   └── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
-├── tests/        # pytest suite (flat, 15 files)
+│   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
+│   └── media_types.json  # Extension→category mapping (data-driven)
+├── tests/        # pytest suite (flat, 16 files)
 ├── cli           # Entry point (no .py extension, executable)
 ├── folder.py     # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py     # Environment config with side-effect imports (sys.path, logging init)
@@ -29,17 +30,18 @@ media_handler/
 | Task | Location | Notes |
 |------|----------|-------|
 | CLI entry | `cli` | Parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
-| Media operations | `base/video.py` (740L), `base/audio.py` | FFmpeg wrapper methods |
+| Media operations | `base/video.py` (777L), `base/audio.py` | FFmpeg wrapper methods |
 | Folder batch ops | `folder.py` + `base/folder.py` | `Folder` class with DB mixin |
-| DB models | `src/models/media.py`, `src/models/_media.py` | SQLAlchemy + SQLModel hybrid |
+| DB models | `src/models/media.py` | SQLAlchemy model (single source) |
 | State machine | `src/schemas.py` | Pydantic State model (-2 failed → 2 finished) |
-| DB engine | `src/db.py` | Singleton via `@classmethod @property @cache` |
-| Scheduler dispatcher | `src/schedulers/folder.py` | MiddlewareScheduler instances |
-| Middleware pattern | `src/patterns/middleware_context_closure.py` | ctx.next() inside core = infinite loop (design constraint) |
+| DB engine | `src/db.py` | Injectable engine via `get_engine(engine=None)` |
+| Scheduler dispatcher | `src/schedulers/folder.py` | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions) |
+| Middleware pattern | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it |
 | Config | `config.py` | Environment subclass pattern (Development/Testing/Production) |
-| CPU throttler coordinator | `utils/throttle/coordinator.py` (286L) | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution |
+| CPU throttler coordinator | `utils/throttle/coordinator.py` (241L) | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution |
 | CPU throttler process | `utils/throttle/throttler.py` (154L) | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller |
 | CPU sampling | `utils/throttle/sampling.py` (233L) | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat` |
+| Media type registry | `utils/media_types.json` | Data-driven extension→category mapping loaded by `utils/media.py` |
 | Logging setup | `utils/logger/init.py` | dictConfig with custom filters |
 | Progress bars | `utils/progress.py` | Stdout + MediaState progress |
 | Test base | `base/basetest.py` (349L) | HTTP + auth mixin |

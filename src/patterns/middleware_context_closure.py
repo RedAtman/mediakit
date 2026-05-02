@@ -21,7 +21,8 @@ class Context:
         self._next: Callable[..., Any] = lambda *args, **kwargs: None
         self._args: tuple[Any, ...] = args
         self._kwargs: dict[str, Any] = kwargs
-        # self.set_args(args)
+        # Tracks whether the core function was actually invoked via ctx.next()
+        self._core_ran: bool = False
 
     # args = property(lambda self: self._args) # type: ignore
     # kwargs = property(lambda self: self._kwargs) # type: ignore
@@ -98,6 +99,7 @@ class MiddlewareScheduler:
 
     def _load_middleware(self, ctx: Context, func: Callable[..., Any]) -> Callable[..., Any]:
         def next(*args, **kwargs):
+            ctx._core_ran = True
             return func(*args, ctx=ctx, **kwargs)
 
         for middleware in reversed(self._middlewares):
@@ -119,7 +121,13 @@ class MiddlewareScheduler:
         @functools.wraps(func)
         def f(*args, **kwargs):
             ctx = Context(*args, **kwargs)
-            return self._load_middleware(ctx, func)(*args, **kwargs)
+            result = self._load_middleware(ctx, func)(*args, **kwargs)
+            if not ctx._core_ran:
+                raise RuntimeError(
+                    f"Core function '{func.__name__}' was not invoked. "
+                    "A middleware returned without calling ctx.next()."
+                )
+            return result
 
         return f
 

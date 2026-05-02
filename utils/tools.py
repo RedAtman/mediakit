@@ -7,9 +7,6 @@ import sys
 
 __all__ = [
     "Dict2Obj",
-    # "is_media",
-    "loading_bar",
-    "progressbar",
 ]
 
 
@@ -48,62 +45,4 @@ class Dict2Obj(dict):
 #     return False
 
 
-def loading_bar(count, total, size):
-    """Use `sys.stdout.write` to print the loading bar.
 
-    Arguments:
-        count {[int]} -- [Current count]
-        total {[int]} -- [Total count]
-        size {[int]} -- [Size of the loading bar]
-
-    Usage:
-        for i in range(0, 100):
-            loading_bar(i, 100, 2)
-            time.sleep(.1)
-    Example:
-        001/100 [==========] 100%
-    """
-    percent = float(count) / float(total) * 100
-    sys.stdout.write(
-        "\r"
-        + str(int(count)).rjust(3, "0")
-        + "/"
-        + str(int(total)).rjust(3, "0")
-        + " ["
-        + "=" * int(percent / 10) * size
-        + " " * (10 - int(percent / 10)) * size
-        + "]"
-    )
-
-
-def progressbar(count: int):
-    """Use `sys.stdout.write` to print the progress bar.
-
-    Arguments:
-        count {int} -- [Current count]
-
-    Usage:
-        for i in progressbar(100):
-            time.sleep(0.1)
-    Example:
-        [##########] - 10/10
-    """
-    for current in range(count):
-        print(
-            f"[{current * '#'}{(count - 1 - current)*' '}] - {current + current}/{count}",
-            end="\r",
-        )
-        yield current
-    print("\n")
-
-
-if __name__ == "__main__":
-    import time
-
-    for i in progressbar(10):
-        time.sleep(0.1)
-
-    loading_bar(5, 10, 2)
-    for i in range(0, 10):
-        loading_bar(i, 10, 2)
-        time.sleep(0.1)

@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -10,6 +11,8 @@ from .progress import BaseProgress
 
 
 logger = logging.getLogger()
+
+MIN_DISK_GB = 1
 
 
 __all__ = [
@@ -63,17 +66,31 @@ class CommandExecutor:
         return cls.execute(command, monitor)
 
     @staticmethod
-    def execute(command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None):
+    def _check_disk_space(path: str = '.') -> None:
+        try:
+            usage = shutil.disk_usage(path)
+            if usage.free < MIN_DISK_GB * (1024 ** 3):
+                raise RuntimeError(
+                    f"Insufficient disk space: {usage.free / (1024 ** 3):.1f}GB free "
+                    f"(minimum: {MIN_DISK_GB}GB)"
+                )
+        except OSError:
+            pass  # disk_usage may fail on some filesystems — proceed anyway
+
+    @staticmethod
+    def execute(command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None, timeout: Optional[float] = None):
         """Execute shell command.
 
         Args:
             command (Union[List[str], str]): [description]
             TODO: Constraint command type to List[str] or str
             progress_bar (Optional[ProgressBar], optional): [description]. Defaults to None.
+            timeout (Optional[float], optional): Max seconds to wait for process. Defaults to None (no timeout).
 
         Raises:
             TypeError: [description]
             subprocess.CalledProcessError: [description]
+            TimeoutError: [description]
 
         Returns:
             [type]: [description]
@@ -96,6 +113,8 @@ class CommandExecutor:
         )
         coord = getattr(CommandExecutor, 'coordinator', None)
 
+        CommandExecutor._check_disk_space()
+
         with subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -108,7 +127,7 @@ class CommandExecutor:
             try:
                 if monitor and process.stdout:
                     monitor.run(process.stdout)
-                _stdout, _stderr = process.communicate()
+                _stdout, _stderr = process.communicate(timeout=timeout)
                 stdout = _stdout.strip()
 
                 if process.returncode != 0:
@@ -117,6 +136,13 @@ class CommandExecutor:
                         output=stdout, stderr=_stderr,
                     )
                 return stdout
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise TimeoutError(
+                    f"Process '{' '.join(command) if isinstance(command, list) else command}' "
+                    f"exceeded timeout of {timeout}s"
+                ) from None
             finally:
                 if coord:
                     coord.detach(process.pid)

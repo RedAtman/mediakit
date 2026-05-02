@@ -1,4 +1,4 @@
-import functools
+from functools import cache
 
 from config import CONFIG
 from utils.db import _sqlalchemy, base
@@ -14,6 +14,12 @@ class DatabaseEngine:
 
     @classmethod
     @property
-    @functools.cache
+    @cache
     def engine(cls) -> base.BaseEngine:
         return cls._DB_ENGINE_CLS(CONFIG.SQLITE_DATABASE)
+
+    @classmethod
+    def get_engine(cls, engine: base.BaseEngine | None = None) -> base.BaseEngine:
+        if engine is not None:
+            return engine
+        return cls.engine

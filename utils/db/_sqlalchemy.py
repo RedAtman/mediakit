@@ -9,8 +9,6 @@ import sqlalchemy.exc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
-from src import models
-from utils import response
 from utils.db.base import BaseEngine
 
 
@@ -22,7 +20,8 @@ class Engine(BaseEngine):
         super().__init__(database)
         # e.g. sqlite:///sqlite.db | sqlite+aiosqlite:///sqlite.db | postgresql://user:password@localhost:5432/dbname
         self.database: str = f"sqlite:///{self.database}"
-        self.metadata = models.Base.metadata
+        from src import models as _models
+        self.metadata = _models.Base.metadata
 
     def create_db_and_tables(self):
         self.conn = self.engine.connect()
@@ -52,6 +51,7 @@ class Engine(BaseEngine):
         )
 
     def query__(self, statement: Select | Update | str | TextClause, params: Dict[str, Any] = {}):
+        from utils import response
         if isinstance(statement, str):
             statement = text(statement)
         with self.get_session() as session:
@@ -84,6 +84,7 @@ class Engine(BaseEngine):
 
 
 if __name__ == "__main__":
+    from src import models
     engine = Engine(CONFIG.SQLITE_DATABASE)
     # engine.create_db_and_tables()
     with engine.get_session() as session:

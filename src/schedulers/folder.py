@@ -34,8 +34,10 @@ __all__ = [
 logger = logging.getLogger()
 
 
-def _core(*args, ctx: Context, result=None, **kwargs):
-    return result
+class _SimpleScheduler:
+    """Wrapper giving a plain function a .core attribute for CLI dispatch."""
+    def __init__(self, func):
+        self.core = func
 
 
 def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
@@ -54,7 +56,6 @@ def _scan(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
     try:
         folder = Folder(_folder)
     except FileNotFoundError as exc:
-        # logger.warning("Folder not found: %s", _folder)
         return
     folder.scan_media()
     kwargs["folder"] = folder
@@ -72,7 +73,6 @@ def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: dict[str, Any]):
     medias = [folder.MEDIA_CLS(media.path) for media in result.data]
     if not medias:
         pass
-        # logger.info("No media to compress: %s", folder.path)
     return ctx.next(*args, medias=medias, **kwargs)
 
 
@@ -104,8 +104,6 @@ def _compress(*args, ctx: Context, medias: list = [], **kwargs):
     return result
 
 
-# scheduler.add_middleware(lambda ctx: setattr(ctx, 'result', Folder._scan()))
-
 # Scan to find un-compressed media. Then compress them.
 compress = MiddlewareScheduler()
 compress.add_middleware(_config)
@@ -115,76 +113,53 @@ compress.add_func("core")(_compress)
 compress.initialize()
 
 
-def _scale(
-    *args,
-    ctx: Context,
-    action: str = "scale",
-    folder: str = "",
-    **kwargs,
-):
-    result = Folder.run_(
-        *args,
+# --- Trivial scheduler replacements (MiddlewareScheduler → _SimpleScheduler) ---
+# These were MiddlewareScheduler instances wrapping one middleware + identity _core.
+# Each middleware did the real work then called ctx.next() → identity returns result.
+# Now they call the core logic directly and return the result.
+
+
+def _run_folder_action(**kwargs):
+    """Run a Folder action by extracting relevant kwargs."""
+    action = kwargs.pop('action', '')
+    folder_path = kwargs.pop('folder', '')
+    kwargs.pop('cpu_limit', None)
+    return Folder.run_(
         media_method=action,
-        path=folder,
+        path=folder_path,
         **kwargs,
     )
-    return ctx.next(*args, result=result, **kwargs)
 
 
-scale = MiddlewareScheduler()
-scale.add_middleware(_scale)
-scale.add_func("core")(_core)
-scale.initialize()
-
-
-def _change_file_extension(*args, ctx: Context, **kwargs):
-    result = file.change_file_extension(*ctx.args, **ctx.kwargs)
-    return ctx.next(*args, result=result, **kwargs)
-
-
-change_file_extension = MiddlewareScheduler()
-change_file_extension.add_middleware(_change_file_extension)
-change_file_extension.add_func("core")(_core)
-change_file_extension.initialize()
-
-
-def _convert_format(
-    *args,
-    ctx: Context,
-    action: str = "convert_format",
-    folder: str = "",
-    **kwargs: dict[str, Any],
-):
-    result = Folder.run_(
-        media_method=action,
-        path=folder,
-        **kwargs,
+scale = _SimpleScheduler(
+    lambda **kwargs: Folder.run_(
+        media_method=kwargs.get('action', 'scale'),
+        path=kwargs.get('folder', ''),
+        **{k: v for k, v in kwargs.items() if k not in ('action', 'folder', 'cpu_limit')},
     )
-    assert isinstance(result, list)
-    return ctx.next(*args, result=result, **kwargs)
+)
 
 
-convert_format = MiddlewareScheduler()
-convert_format.add_middleware(_convert_format)
-convert_format.add_func("core")(_core)
-convert_format.initialize()
-
-
-def _save_text(*args, ctx: Context, action: str = "convert_format", folder: str = "", type: str = "video", **kwargs):
-    result = Folder.run_(
-        *args,
-        media_method="save_text",
-        media_type=type,
-        path=folder,
-        **kwargs,
+change_file_extension = _SimpleScheduler(
+    lambda **kwargs: file.change_file_extension(
+        **{k: v for k, v in kwargs.items() if k in ('old_ext', 'ext', 'folder') and v},
     )
-    return ctx.next(*args, result=result, **kwargs)
+)
 
 
-save_text = MiddlewareScheduler()
-save_text.add_middleware(_save_text)
-save_text.add_func("core")(_core)
-save_text.initialize()
+convert_format = _SimpleScheduler(
+    lambda **kwargs: _run_folder_action(**kwargs)
+)
+
+
+save_text = _SimpleScheduler(
+    lambda **kwargs: Folder.run_(
+        media_method='save_text',
+        path=kwargs.get('folder', ''),
+        media_type=kwargs.get('type', 'video'),
+        **{k: v for k, v in kwargs.items() if k not in ('action', 'folder', 'cpu_limit', 'type', 'worker')},
+    )
+)
 
 
 if __name__ == "__main__":

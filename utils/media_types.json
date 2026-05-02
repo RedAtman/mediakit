@@ -1,0 +1,59 @@
+{
+  "video": [
+    ".m2ts", ".clpi", ".vob", ".rm", ".rmvb", ".ifo", ".bup",
+    ".cdg", ".m4v", ".bdmv", ".bik", ".f4v", ".idx", ".vp6",
+    ".ogm", ".divx", ".mpg", ".avi", ".m2v", ".tp", ".ratdvd",
+    ".iva", ".m2t"
+  ],
+  "archive": [
+    ".pak", ".arc", ".sub", ".ccd", ".accurip", ".img", ".vghd",
+    ".psarc", ".wv", ".tta", ".mds", ".gz", ".msu", ".pimx",
+    ".mdf", ".pima", ".package", ".pck", ".cso", ".sfz", ".wbfs",
+    ".ova", ".xz", ".bz2", ".vpk", ".nrg"
+  ],
+  "audio": [
+    ".ncw", ".nki", ".ape", ".mka", ".ac3", ".m4b", ".sb",
+    ".exs", ".tak", ".wem", ".m4r", ".fsb", ".cue", ".rx2",
+    ".shn", ".sdat", ".nkm", ".aac", ".nmsv", ".at3", ".pcm",
+    ".nkc", ".swa", ".nkx", ".m4p", ".dtshd", ".ksd", ".dts"
+  ],
+  "image": [
+    ".dds", ".tga", ".webp", ".raw", ".abr", ".max", ".wmf",
+    ".xm", ".ipl", ".pam"
+  ],
+  "document": [
+    ".nfo", ".epub", ".log", ".mobi", ".lit", ".azw3", ".prc",
+    ".asd", ".vtx", ".fb2", ".cas", ".md", ".ps3"
+  ],
+  "software": [
+    ".php", ".lua", ".cmd", ".opa", ".pyd", ".cs", ".strings",
+    ".res", ".properties", ".manifest", ".nib", ".mo", ".rpyc",
+    ".rpy", ".x32", ".fda", ".mui", ".nds", ".fx", ".prg",
+    ".rsrc", ".scss", ".dmt", ".catalyst", ".pkg", ".bin", ".so",
+    ".sql", ".man", ".qm", ".3ds", ".chd", ".inf"
+  ],
+  "other": [
+    ".sldprt", ".url", ".mpls", ".ass", ".dat", ".ini", ".db",
+    ".xrm-ms", ".xxx", ".upk", ".mst", ".fxp", ".ans", ".opal",
+    ".w3x", ".zdct", ".ff", ".gmp", ".fbl", ".map", ".md5",
+    ".dcp", ".reg", ".lrtemplate", ".lmk", ".bc!", ".assets",
+    ".poi", ".gp3", ".gp4", ".3dl", ".toc", ".diz", ".cfg",
+    ".nka", ".smc", ".lim", ".nm2", ".lng", ".amt", ".big",
+    ".paz", ".h2p", ".ssa", ".szs", ".xnb", ".dwg", ".ide",
+    ".sys", ".index", ".3dc", ".rlf", ".lst", ".ftr", ".ozf2",
+    ".sxt", ".ipa", ".nes", ".data", ".fxb", ".bndl", ".lyc",
+    ".smarch", ".bfdca", ".sims3pack", ".fuz", ".fpa", ".fsp",
+    ".sdfdata", ".meta", ".bk2", ".unity3d", ".nkp", ".dsf",
+    ".loc", ".lnk", ".nksn", ".lzarc", ".mpq", ".plist", ".hdr",
+    ".gmspr", ".avs", ".rxdata", ".bnk", ".rvdata2", ".sabs",
+    ".pz2", ".w3m", ".bsp", ".msp", ".sse", ".aep", ".efd",
+    ".ngrr", ".rpym", ".dff", ".obf", ".unr", ".sba", ".ffp",
+    ".nm7", ".rpymc", ".jcd", ".pkz", ".vdb", ".fxc", ".grir",
+    ".dylib", ".gpx", ".dl_", ".pub", ".txd", ".sgdt", ".s",
+    ".afpk", ".cmp", ".atw", ".gp5", ".sabl", ".cci", ".smd",
+    ".config", ".mcd", ".prp", ".ifs", ".dmp", ".pxs", ".icc",
+    ".icns", ".yrdm", ".prt_omn", ".sob", ".rwd", ".sgo",
+    ".torrent", ".key", ".ttf", ".sig", ".otf", ".m3u8", ".pac",
+    ".npk", ".ph"
+  ]
+}

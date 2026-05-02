@@ -4,8 +4,8 @@
 Core class hierarchy for media objects and test infrastructure.
 
 ## STRUCTURE
-- `media.py` (302L): BaseMedia class. FFmpeg wrapper, metadata, MD5, DB persistence.
-- `video.py` (740L): Video class. Inherits BaseMedia + MixinMediaFasterWhisper.
+- `media.py` (292L): BaseMedia class. FFmpeg wrapper, metadata, MD5, DB persistence.
+- `video.py` (777L): Video class. Inherits BaseMedia + MixinMediaFasterWhisper.
 - `audio.py`: BaseAudio class. Uses `utils.command`.
 - `folder.py`: BaseFolder class. Stripped-down orchestrator.
 - `basetest.py` (349L): BaseTest class. HTTP, auth, AssertWrap metaclass.
@@ -16,6 +16,7 @@ Core class hierarchy for media objects and test infrastructure.
 | FFmpeg command building | `video.py` | Inline in methods, violates DRY |
 | Metadata extraction | `media.py` | Via ffprobe |
 | Complex video ops | `video.py:combine()` | 167L hotspot, 4+ nesting levels |
+| Video-specific metadata | `video.py` | `frames_count`, `width_height`, `bitrate`, `duration` |
 | Test setup | `basetest.py` (349L) | HTTP + auth + AssertWrap |
 | Progress monitoring | `media.py` | StdoutProgress, MediaStateProgress |
 | File validation | `media.py` | guess(), path check |

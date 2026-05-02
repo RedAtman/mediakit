@@ -163,6 +163,43 @@ class Video(
             raise ValueError("No video streams found")
         return video_streams[0]['width'], video_streams[0]['height']
 
+    @functools.cached_property
+    def frames_count(self):
+        try:
+            command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
+            result = CommandExecutor.run(command)
+            return int(result)
+        except Exception:
+            command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
+            result = CommandExecutor.run(command)
+            if result.isdigit():
+                return int(result)
+            default_frames_count = 10000000
+            logger.warning(f"Cannot get frames count: {self.path}, set to {default_frames_count}.")
+            return default_frames_count
+
+    @functools.cached_property
+    def width_height(self):
+        width, height = 0, 0
+        _format = self.metadata.get('format')
+        if _format and _format.get('width') and _format.get('height'):
+            width, height = _format.get('width'), _format.get('height')
+        else:
+            for stream in self.metadata.get('streams'):
+                if stream.get('width') and stream.get('height'):
+                    width, height = stream.get('width'), stream.get('height')
+                    break
+        return width, height
+
+    @functools.cached_property
+    def bitrate(self):
+        bitrate = self.metadata.get('streams')[0].get('bit_rate') or self.metadata.get('format').get('bit_rate')
+        return float(bitrate)
+
+    @functools.cached_property
+    def duration(self):
+        return self.metadata.get('streams')[0].get('duration')
+
     @decorator.timer
     @decorator.execute
     def reverse(self):
