@@ -12,6 +12,7 @@ from watchdog.observers import Observer
 
 from config import CONFIG
 from folder import Folder
+from utils import exceptions
 from src.file.debounce import DebounceBuffer
 from src.file.stability import FileStabilityTracker
 from utils import file, response
@@ -82,7 +83,14 @@ class WatcherScheduler:
 
     def _flush_callback(self, paths: list[str], media_type: str, max_workers: int):
         folder = Folder(os.path.dirname(paths[0]) if paths else '.')
-        medias = [folder.MEDIA_CLS(path) for path in paths]
+        medias = []
+        for path in paths:
+            try:
+                medias.append(folder.MEDIA_CLS(path))
+            except exceptions.NotMediaException:
+                logger.warning('Ignoring non-media file during watch: %s', path)
+        if not medias:
+            return
         Folder.run__(
             'compress',
             medias=medias,
