@@ -110,7 +110,7 @@ class TestFolder(unittest.TestCase):
 
     def test_query_update_created_at(self):
         # First create a test media record
-        test_model = models.Media.get_or_create(
+        models.Media.get_or_create(
             md5="3a51af5d5e4d3c8b84185729e91e0170",
             title="test.mp4",
             dirname=self.temp_dir,
@@ -128,7 +128,7 @@ class TestFolder(unittest.TestCase):
 
     def test_query_update_state(self):
         # First create a test media record
-        test_model = models.Media.get_or_create(
+        models.Media.get_or_create(
             md5="3a51af5d5e4d3c8b84185729e91e0170",
             title="test.mp4",
             dirname=self.temp_dir,

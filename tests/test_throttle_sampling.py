@@ -1,5 +1,4 @@
-import os
-from unittest import TestCase, main, mock
+from unittest import TestCase, mock
 
 # /proc/[pid]/stat fields (after comm): S|ppid|pgrp|session|tty|tpgid|flags|...
 # indices 0-10 are fields 3-13, indices 11=utime(f14), 12=stime(f15)

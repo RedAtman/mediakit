@@ -1,7 +1,6 @@
 import logging
-import os
 import signal
-from unittest import TestCase, main, mock
+from unittest import TestCase, mock
 
 logger = logging.getLogger()
 

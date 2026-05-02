@@ -1,8 +1,5 @@
 import logging
-import os
-import signal
-import tempfile
-from unittest import TestCase, main, mock
+from unittest import TestCase
 
 logger = logging.getLogger()
 
@@ -60,7 +57,7 @@ class TestCPULimiterCoordinator(TestCase):
 
     def test_profile_cycling(self):
         """SIGUSR1 cycles through predefined profiles."""
-        from utils.throttle.coordinator import CPULimiterCoordinator, PROFILES
+        from utils.throttle.coordinator import CPULimiterCoordinator
 
         coord = CPULimiterCoordinator(default_limit=100, auto_mode=True)
         coord._stop_monitor()
@@ -83,3 +80,18 @@ class TestCPULimiterCoordinator(TestCase):
         self.assertEqual(coord._profile_index, 0)
         self.assertIsNone(coord._manual_target)
         self.assertFalse(coord._manual_override_active)
+
+    def test_manual_override_below_min_per_worker(self):
+        """Manual override is not floored by MIN_PER_WORKER clamp."""
+        from utils.throttle.coordinator import CPULimiterCoordinator, MIN_PER_WORKER
+
+        coord = CPULimiterCoordinator(default_limit=100, auto_mode=False)
+        coord._stop_monitor()
+
+        coord.set_manual_override(1)
+        budget = coord._calculate_per_process_target()
+        self.assertEqual(budget, 1)
+
+        coord.clear_manual_override()
+        budget = coord._calculate_per_process_target()
+        self.assertGreaterEqual(budget, MIN_PER_WORKER)

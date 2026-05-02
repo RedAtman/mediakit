@@ -3,7 +3,6 @@ import tempfile
 import unittest
 from unittest import mock
 
-from config import CONFIG
 from folder import Folder
 from src.schedulers import folder as scheduler_folder
 

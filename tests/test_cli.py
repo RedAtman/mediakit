@@ -2,7 +2,6 @@ import logging
 import tempfile
 from unittest import TestCase, mock
 
-from config import CONFIG
 
 
 logger = logging.getLogger()

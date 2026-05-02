@@ -3,9 +3,7 @@ import os
 import tempfile
 from unittest import TestCase, main, mock
 
-from base.media import BaseMedia
 from base.video import Video
-from config import CONFIG
 
 
 logger = logging.getLogger()
