@@ -78,6 +78,12 @@ def create_parser():
         default=False,
         help='Skip processing existing files at startup',
     )
+    parser.add_argument(
+        '--folder-file',
+        type=str,
+        default=None,
+        help='Path to a text file with folder paths (one per line, # comments skipped)',
+    )
     parser.add_argument("--old_ext", type=str, default=argparse.SUPPRESS, help="Old extension")
     parser.add_argument("--ext", type=str, default=argparse.SUPPRESS, help="New extension")
     return parser

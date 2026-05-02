@@ -81,6 +81,20 @@ class TestWatchCliArgs(TestCase):
         self.assertEqual(kwargs.cpu_limit, 50)
 
 
+class TestWatchFolderFileCliArgs(TestCase):
+    def setUp(self):
+        from utils.cli import create_parser
+        self.parser = create_parser()
+
+    def test_folder_file_flag_exists(self):
+        result = self.parser.parse_args(['watch', '--folder-file', '/my/paths.txt'])
+        self.assertEqual(result.folder_file, '/my/paths.txt')
+
+    def test_folder_file_defaults_to_none(self):
+        result = self.parser.parse_args(['watch'])
+        self.assertIsNone(result.folder_file)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
