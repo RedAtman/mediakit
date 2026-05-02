@@ -136,22 +136,55 @@ class TestWatcherScheduler(TestCase):
         handler.stability_tracker.wait_until_stable.assert_called_once_with('/tmp/media/file.mp4')
         handler.debounce_buffer.add.assert_called_once_with('/tmp/media/file.mp4')
 
-    def test_batch_callback_soft_removes_on_success(self):
+    def test_skips_output_subdirectory(self):
+        from watchdog.events import FileSystemEvent
+        from src.schedulers.watcher import _WatchEventHandler
+        handler = _WatchEventHandler(mock.Mock(), mock.Mock())
+        handler.debounce_buffer = mock.Mock()
+        handler.stability_tracker = mock.Mock()
+        file_event = FileSystemEvent('/tmp/media/_[compress.libx265.slow]/file.mp4')
+        file_event.is_directory = False
+        file_event.event_type = 'created'
+        handler.dispatch(file_event)
+        handler.debounce_buffer.add.assert_not_called()
+
+    def test_skips_removed_directory(self):
+        from watchdog.events import FileSystemEvent
+        from src.schedulers.watcher import _WatchEventHandler
+        handler = _WatchEventHandler(mock.Mock(), mock.Mock())
+        handler.debounce_buffer = mock.Mock()
+        handler.stability_tracker = mock.Mock()
+        file_event = FileSystemEvent('/tmp/media/.removed/file.mp4')
+        file_event.is_directory = False
+        file_event.event_type = 'created'
+        handler.dispatch(file_event)
+        handler.debounce_buffer.add.assert_not_called()
+
+    @mock.patch('src.schedulers.watcher.os.path.exists', return_value=True)
+    def test_batch_callback_soft_removes_on_success(self, mock_exists):
         from concurrent.futures import Future
         from src.schedulers.watcher import _batch_callback
-        from utils.response import Result, ResultStatus
         future = Future()
-        future.set_result(Result(code=ResultStatus.SUCCESS, data={'media': mock.Mock(path='/tmp/file.mp4')}))
+        future.set_result({'media': mock.Mock(path='/tmp/file.mp4'), 'new_file_path': '/tmp/file.mp4'})
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_called_once_with('/tmp/file.mp4')
 
-    def test_batch_callback_does_not_remove_on_failure(self):
+    @mock.patch('src.schedulers.watcher.os.path.exists', return_value=False)
+    def test_batch_callback_does_not_remove_when_output_missing(self, mock_exists):
         from concurrent.futures import Future
         from src.schedulers.watcher import _batch_callback
-        from utils.response import Result, ResultStatus
         future = Future()
-        future.set_result(Result(code=ResultStatus.FAILED, data={'media': mock.Mock(path='/tmp/file.mp4')}))
+        future.set_result({'media': mock.Mock(path='/tmp/file.mp4'), 'new_file_path': '/tmp/file.mp4'})
+        with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
+            _batch_callback(future)
+            mock_remove.assert_not_called()
+
+    def test_batch_callback_skips_non_dict_result(self):
+        from concurrent.futures import Future
+        from src.schedulers.watcher import _batch_callback
+        future = Future()
+        future.set_result(None)
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_not_called()

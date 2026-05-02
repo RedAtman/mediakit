@@ -14,7 +14,6 @@ from config import CONFIG
 from folder import Folder
 from src.file.debounce import DebounceBuffer
 from src.file.stability import FileStabilityTracker
-from src.schemas import StateChoices
 from utils import file, response
 
 
@@ -47,23 +46,25 @@ class _WatchEventHandler(FileSystemEventHandler):
         if event.event_type != 'created':
             return
         path = event.src_path
+        if '/_[' in path or '/.removed/' in path:
+            return
         logger.debug(f'File created: {path}')
         if self.stability_tracker.wait_until_stable(path):
             self.debounce_buffer.add(path)
 
 
 def _batch_callback(future: Future):
-    result = future.result()
-    if result.data is None:
-        logger.warning(f'No media to process: {future}')
+    try:
+        result = future.result()
+    except Exception as e:
+        logger.warning('Compression failed: %s', e)
         return
-    assert isinstance(result, response.Result)
-    media = result.data.get('media')
-    if result == 0:
-        media.model.update_state('compress', StateChoices.finished)
+    if not isinstance(result, dict):
+        return
+    new_file_path = result.get('new_file_path')
+    if new_file_path and os.path.exists(new_file_path):
+        media = result['media']
         file.soft_remove(media.path)
-    else:
-        media.model.update_state('compress', StateChoices.failed)
 
 
 class WatcherScheduler:
