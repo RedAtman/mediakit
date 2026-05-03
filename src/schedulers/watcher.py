@@ -12,6 +12,7 @@ from watchdog.observers import Observer
 
 from config import CONFIG
 from folder import Folder
+from src.schemas import StateChoices
 from utils import exceptions
 from src.file.debounce import DebounceBuffer
 from src.file.stability import FileStabilityTracker
@@ -58,17 +59,39 @@ class _WatchEventHandler(FileSystemEventHandler):
 
 
 def _batch_callback(future: Future):
+    logger.debug('_batch_callback entered')
     try:
         result = future.result()
+        logger.debug('_batch_callback: future.result() type=%s, keys=%s',
+                     type(result).__name__,
+                     result.keys() if isinstance(result, dict) else 'N/A')
     except Exception as e:
-        logger.warning('Task failed: %s', e)
+        logger.warning('_batch_callback: future.result() raised %s: %s', type(e).__name__, e)
         return
     if not isinstance(result, dict):
+        logger.debug('_batch_callback: result is not dict, type=%s', type(result).__name__)
         return
     new_file_path = result.get('new_file_path')
     if new_file_path and os.path.exists(new_file_path):
-        media = result['media']
-        file.soft_remove(media.path)
+        media = result.get('media')
+        if media is None:
+            logger.error('_batch_callback: media not found in result, keys=%s', result.keys())
+            return
+        logger.debug('_batch_callback: SUCCESS, setting state to finished=2')
+        try:
+            media.model.update_state('compress', StateChoices.finished)
+        except Exception as exc:
+            logger.error('_batch_callback: update_state(finished) raised %s: %s',
+                         type(exc).__name__, exc)
+        try:
+            file.soft_remove(media.path)
+            logger.debug('_batch_callback: soft_remove completed for %s', media.path)
+        except Exception as exc:
+            logger.error('_batch_callback: soft_remove(%s) raised %s: %s',
+                         media.path, type(exc).__name__, exc)
+    else:
+        logger.debug('_batch_callback: new_file_path missing or not found, path=%s',
+                     new_file_path)
 
 
 class WatcherScheduler:
