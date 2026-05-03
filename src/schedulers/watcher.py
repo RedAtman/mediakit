@@ -142,12 +142,15 @@ class WatcherScheduler:
                     logger.warning('Ignoring non-media file during watch: %s', path)
             if not medias:
                 return
-            Folder.run__(
-                action,
-                medias=medias,
-                max_workers=max_workers,
-                callback_list=[_batch_callback],
-            )
+            try:
+                Folder.run__(
+                    action,
+                    medias=medias,
+                    max_workers=max_workers,
+                    callback_list=[_batch_callback],
+                )
+            except Exception as exc:
+                logger.error('Batch processing failed: %s: %s', type(exc).__name__, exc)
         finally:
             self._inflight_batch.clear()
 
@@ -189,12 +192,15 @@ class WatcherScheduler:
         assert isinstance(result, response.Result)
         if result == 0 and result.data:
             medias = [folder.MEDIA_CLS(m.path) for m in result.data]
-            Folder.run__(
-                action,
-                medias=medias,
-                max_workers=max_workers,
-                callback_list=[_batch_callback],
-            )
+            try:
+                Folder.run__(
+                    action,
+                    medias=medias,
+                    max_workers=max_workers,
+                    callback_list=[_batch_callback],
+                )
+            except Exception as exc:
+                logger.error('Failed to process existing media: %s: %s', type(exc).__name__, exc)
 
     def _run_event_loop(self):
         while not self._stop_event.is_set():
