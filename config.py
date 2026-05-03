@@ -47,7 +47,7 @@ class _BaseConfig:
     CPU_LIMIT: int = int(os.getenv('CPU_LIMIT', '100'))
 
     # SQLITE
-    SQLITE_DATABASE = os.getenv('SQLITE_DATABASE', os.path.join(BASE_DIR, 'db.db'))
+    SQLITE_DATABASE = os.path.abspath(os.path.join(BASE_DIR, os.getenv('SQLITE_DATABASE') or 'db.db'))
     SQLITE_CONNECTION_POOL_SIZE = int(os.getenv('SQLITE_CONNECTION_POOL_SIZE', 10))
 
     # FFMPEG
