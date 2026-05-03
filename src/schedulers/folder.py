@@ -1,6 +1,9 @@
 from concurrent.futures import Future
 from functools import partial
 import logging
+import os as _os
+import signal as _signal
+from pathlib import Path as _Path
 from typing import Any
 
 from config import CONFIG
@@ -165,12 +168,8 @@ save_text = _SimpleScheduler(
 
 
 def _stop(**kwargs):
-    import os
-    import signal
-    from pathlib import Path
-
     force = kwargs.get('force', False)
-    pid_path = Path.home() / '.mediakit' / 'daemon.pid'
+    pid_path = _Path.home() / '.mediakit' / 'daemon.pid'
 
     if not pid_path.exists():
         logger.info('No running daemon found.')
@@ -179,7 +178,7 @@ def _stop(**kwargs):
     pid = int(pid_path.read_text().strip())
 
     try:
-        os.kill(pid, 0)
+        _os.kill(pid, 0)
     except ProcessLookupError:
         logger.info('No running daemon found (stale PID file).')
         pid_path.unlink(missing_ok=True)
@@ -190,11 +189,11 @@ def _stop(**kwargs):
 
     if force:
         logger.info('Force-stopping daemon PID %d and all child processes...', pid)
-        pgid = os.getpgid(pid)
-        os.killpg(pgid, signal.SIGKILL)
+        pgid = _os.getpgid(pid)
+        _os.killpg(pgid, _signal.SIGKILL)
     else:
         logger.info('Stopping daemon PID %d gracefully...', pid)
-        os.kill(pid, signal.SIGTERM)
+        _os.kill(pid, _signal.SIGTERM)
 
     logger.info('Stop signal sent to PID %d.', pid)
 
