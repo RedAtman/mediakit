@@ -77,6 +77,28 @@ class WatcherScheduler:
         self.observer: Observer | None = None
         self.task_manager = None
 
+    @staticmethod
+    def _ensure_pid_dir() -> str:
+        pid_dir = Path.home() / '.mediakit'
+        try:
+            pid_dir.mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
+            pass
+        return str(pid_dir)
+
+    def _write_pid_file(self):
+        pid_dir = self._ensure_pid_dir()
+        pid_path = Path(pid_dir) / 'daemon.pid'
+        pid_path.write_text(str(os.getpid()))
+        logger.info('PID file written to %s', pid_path)
+
+    @staticmethod
+    def _cleanup_pid_file():
+        pid_path = Path.home() / '.mediakit' / 'daemon.pid'
+        if pid_path.exists():
+            pid_path.unlink()
+            logger.info('PID file cleaned up: %s', pid_path)
+
     def _setup_cpu_throttling(self, cpu_limit: int | None):
         from src.schedulers.folder import _coordinator
         if isinstance(cpu_limit, str) and cpu_limit.isdigit():
@@ -238,6 +260,10 @@ class WatcherScheduler:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-        self._run_event_loop()
+        self._write_pid_file()
+        try:
+            self._run_event_loop()
+        finally:
+            self._cleanup_pid_file()
 
         logger.info('Watch session ended.')
