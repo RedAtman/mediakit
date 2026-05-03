@@ -23,6 +23,24 @@ uv tool install --editable . --python 3.14
 mediakit compress -t video -f /path/to/video/directory
 ```
 
+### 停止监控
+
+优雅停止或强制停止正在运行的 watch 守护进程：
+
+```sh
+# 优雅停止（等待正在处理的媒体完成）
+mediakit stop
+
+# 强制停止（立即杀死守护进程及所有 ffmpeg 子进程）
+mediakit stop --force
+```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--force` | 立即杀死所有 mediakit 和 ffmpeg 进程 | `False` |
+
+通过 `~/.mediakit/daemon.pid` PID 文件追踪守护进程。详见 `src/schedulers/folder.py:_stop()` 和 `src/schedulers/watcher.py`。
+
 ### 可用命令
 
 | 命令 | 说明 |
@@ -32,6 +50,7 @@ mediakit compress -t video -f /path/to/video/directory
 | `change_file_extension` | 批量修改文件扩展名 |
 | `convert_format` | 转换容器格式 |
 | `save_text` | 提取字幕/文本轨道 |
+| `stop` | 停止正在运行的 watch 守护进程（优雅或强制） |
 
 ## macOS LaunchAgent（定时服务）
 

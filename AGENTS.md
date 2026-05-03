@@ -6,7 +6,7 @@
 
 ## OVERVIEW
 
-mediakit — Python 3.14+ CLI tool for batch media operations (compress, convert, scale, trim, save_text). Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
+mediakit — Python 3.14+ CLI tool for batch media operations (compress, convert, scale, trim, save_text, stop). Uses ffmpeg via subprocess with in-process dynamic CPU throttling (SIGSTOP/SIGCONT), SQLAlchemy for state tracking, and middleware-scheduler pattern for CLI dispatch.
 
 ## STRUCTURE
 
@@ -17,7 +17,7 @@ mediakit/
 ├── utils/        # Shared utilities: command, db, logger, process, media
 │   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 │   └── media_types.json  # Extension→category mapping (data-driven)
-├── tests/        # pytest suite (flat, 16 files)
+├── tests/        # pytest suite (flat, 17 files)
 ├── cli.py        # Entry point (shebang + [project.scripts] → mediakit)
 ├── folder.py     # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py     # Environment config with side-effect imports (sys.path, logging init)
@@ -35,7 +35,7 @@ mediakit/
 | DB models | `src/models/media.py` | SQLAlchemy model (single source) |
 | State machine | `src/schemas.py` | Pydantic State model (-2 failed → 2 finished) |
 | DB engine | `src/db.py` | Injectable engine via `get_engine(engine=None)` |
-| Scheduler dispatcher | `src/schedulers/folder.py` | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions) |
+| Scheduler dispatcher | `src/schedulers/folder.py` | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop) |
 | Middleware pattern | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it |
 | Config | `config.py` | Environment subclass pattern (Development/Testing/Production) |
 | CPU throttler coordinator | `utils/throttle/coordinator.py` (241L) | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution |
@@ -91,6 +91,12 @@ mediakit compress -t video -w 1 -f /path/to/folder
 
 # Run CLI with CPU throttling (-c = CPU limit %)
 mediakit compress -t video -w 1 -c 50 -f /path/to/folder
+
+# Stop running watch daemon (graceful)
+mediakit stop
+
+# Force stop watch daemon (SIGKILL to process group)
+mediakit stop --force
 
 # Watcher (macOS LaunchAgent)
 launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
