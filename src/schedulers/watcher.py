@@ -76,6 +76,29 @@ class WatcherScheduler:
         self._stop_event = threading.Event()
         self.observer: Observer | None = None
         self.task_manager = None
+        self._inflight_batch = threading.Event()
+
+    @staticmethod
+    def _ensure_pid_dir() -> str:
+        pid_dir = Path.home() / '.mediakit'
+        try:
+            pid_dir.mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
+            pass
+        return str(pid_dir)
+
+    def _write_pid_file(self):
+        pid_dir = self._ensure_pid_dir()
+        pid_path = Path(pid_dir) / 'daemon.pid'
+        pid_path.write_text(str(os.getpid()))
+        logger.info('PID file written to %s', pid_path)
+
+    @staticmethod
+    def _cleanup_pid_file():
+        pid_path = Path.home() / '.mediakit' / 'daemon.pid'
+        if pid_path.exists():
+            pid_path.unlink()
+            logger.info('PID file cleaned up: %s', pid_path)
 
     def _setup_cpu_throttling(self, cpu_limit: int | None):
         from src.schedulers.folder import _coordinator
@@ -85,21 +108,25 @@ class WatcherScheduler:
             _coordinator.set_manual_override(cpu_limit)
 
     def _flush_callback(self, paths: list[str], media_type: str, max_workers: int, action: str = 'compress'):
-        folder = Folder(os.path.dirname(paths[0]) if paths else '.')
-        medias = []
-        for path in paths:
-            try:
-                medias.append(folder.MEDIA_CLS(path))
-            except exceptions.NotMediaException:
-                logger.warning('Ignoring non-media file during watch: %s', path)
-        if not medias:
-            return
-        Folder.run__(
-            action,
-            medias=medias,
-            max_workers=max_workers,
-            callback_list=[_batch_callback],
-        )
+        self._inflight_batch.set()
+        try:
+            folder = Folder(os.path.dirname(paths[0]) if paths else '.')
+            medias = []
+            for path in paths:
+                try:
+                    medias.append(folder.MEDIA_CLS(path))
+                except exceptions.NotMediaException:
+                    logger.warning('Ignoring non-media file during watch: %s', path)
+            if not medias:
+                return
+            Folder.run__(
+                action,
+                medias=medias,
+                max_workers=max_workers,
+                callback_list=[_batch_callback],
+            )
+        finally:
+            self._inflight_batch.clear()
 
     def _setup_observer(
         self,
@@ -158,6 +185,9 @@ class WatcherScheduler:
         self._stop_event.set()
         if self.observer:
             self.observer.stop()
+        if self._inflight_batch.is_set():
+            logger.info('Waiting for in-flight media batch to complete...')
+            self._inflight_batch.wait()
         if self.task_manager:
             self.task_manager.stop()
 
@@ -238,6 +268,10 @@ class WatcherScheduler:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-        self._run_event_loop()
+        self._write_pid_file()
+        try:
+            self._run_event_loop()
+        finally:
+            self._cleanup_pid_file()
 
         logger.info('Watch session ended.')

@@ -46,6 +46,24 @@ mediakit scale --watch -f /path/to/folder -t video
 
 When `--folder-file` is not specified and `-f` is not explicitly set, the watcher reads from the default file (`var/folder.sh`) and falls back to `MEDIA_FILE_FOLDER`.
 
+### Stop the Watcher
+
+Stop a running watch daemon gracefully, or force-stop immediately:
+
+```sh
+# Graceful stop (waits for in-flight media processing to finish)
+mediakit stop
+
+# Force stop (immediately kills daemon and all child ffmpeg processes)
+mediakit stop --force
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--force` | Immediately kill all mediakit and ffmpeg processes | `False` |
+
+Use PID file at `~/.mediakit/daemon.pid` to track the running daemon. See `src/schedulers/folder.py:_stop()` and `src/schedulers/watcher.py` for implementation details.
+
 ### Available Commands
 
 | Command | Description |
@@ -56,6 +74,7 @@ When `--folder-file` is not specified and `-f` is not explicitly set, the watche
 | `change_file_extension` | Batch rename file extensions |
 | `convert_format` | Convert between container formats |
 | `save_text` | Extract subtitle/text tracks |
+| `stop` | Stop the running watch daemon (graceful or force) |
 
 ## macOS LaunchAgent (Scheduled Service)
 
