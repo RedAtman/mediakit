@@ -15,6 +15,7 @@ mapper_action = {
     'change_file_extension': None,
     'convert_format': None,
     'save_text': None,
+    'stop': None,
 }
 
 
@@ -96,5 +97,9 @@ def create_parser():
     )
     parser.add_argument(
         '--ext', type=str, default=argparse.SUPPRESS, help='New extension'
+    )
+    parser.add_argument(
+        '--force', action='store_true', default=False,
+        help='Force stop: immediately kill all mediakit and ffmpeg processes',
     )
     return parser
