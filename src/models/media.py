@@ -108,13 +108,13 @@ class Media(Base):
 
     @classmethod
     def get(cls, **kwargs: Unpack[MediaParams]):
-        with db.DatabaseEngine.engine.get_session() as session:
+        with db.DatabaseEngine.engine().get_session() as session:
             instance = session.query(cls).filter_by(**kwargs).first()
             return instance
 
     @classmethod
     def get_or_create(cls, **kwargs: Unpack[MediaParams]):
-        with db.DatabaseEngine.engine.get_session() as session:
+        with db.DatabaseEngine.engine().get_session() as session:
             instance = session.query(cls).filter_by(**kwargs).first()
             if not instance:
                 instance = cls(**kwargs)
@@ -127,7 +127,7 @@ class Media(Base):
             return instance
 
     def update_state(self, key: str, val: Union[int, float]):
-        with db.DatabaseEngine.engine.get_session() as session:
+        with db.DatabaseEngine.engine().get_session() as session:
             state: dict = self.state.copy()  # type: ignore
             # state = dict(self.state)
             state[key] = val
@@ -137,7 +137,7 @@ class Media(Base):
             return response.Result(code=0, data={"media": self})
 
     def delete(self):
-        with db.DatabaseEngine.engine.get_session() as session:
+        with db.DatabaseEngine.engine().get_session() as session:
             session.delete(self)
             session.commit()
             return response.Result(code=0, data={"media": self})

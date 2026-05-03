@@ -23,12 +23,36 @@ uv tool install --editable . --python 3.14
 mediakit compress -t video -f /path/to/video/directory
 ```
 
+### Watch Mode
+
+Add `--watch` to any action command to monitor a folder for new/modified media files and process them automatically:
+
+```sh
+mediakit compress --watch -f /path/to/folder -t video -w 2
+mediakit trim --watch -f /path/to/folder -t video
+mediakit scale --watch -f /path/to/folder -t video
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--watch` | Enable watch mode (add to any action) | `False` |
+| `-f` | Folder to watch | `MEDIA_FILE_FOLDER` |
+| `-t` | Media type (video/audio/image) | `video` |
+| `-w` | Number of worker threads | `MAX_WORKERS` |
+| `-c` | CPU limit per worker (%) | auto |
+| `--folder-file` | Path to text file with folder paths (one per line, # comments) | — |
+| `--no-recursive` | Don't watch subdirectories | `False` |
+| `--no-scan-existing` | Skip processing existing files at startup | `False` |
+
+When `--folder-file` is not specified and `-f` is not explicitly set, the watcher reads from the default file (`var/folder.sh`) and falls back to `MEDIA_FILE_FOLDER`.
+
 ### Available Commands
 
 | Command | Description |
 |---------|-------------|
 | `compress` | Compress media files (H.264/H.265, quality/size control) |
 | `scale` | Resize/rescale video resolution |
+| `trim` | Trim/cut video segments |
 | `change_file_extension` | Batch rename file extensions |
 | `convert_format` | Convert between container formats |
 | `save_text` | Extract subtitle/text tracks |

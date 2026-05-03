@@ -1,6 +1,9 @@
 from concurrent.futures import Future
 from functools import partial
 import logging
+import os as _os
+import signal as _signal
+from pathlib import Path as _Path
 from typing import Any
 
 from config import CONFIG
@@ -28,6 +31,8 @@ __all__ = [
     "change_file_extension",
     "convert_format",
     "save_text",
+    "watch",
+    "stop",
 ]
 
 
@@ -160,6 +165,44 @@ save_text = _SimpleScheduler(
         **{k: v for k, v in kwargs.items() if k not in ('action', 'folder', 'cpu_limit', 'type', 'worker')},
     )
 )
+
+
+def _stop(**kwargs):
+    force = kwargs.get('force', False)
+    pid_path = _Path.home() / '.mediakit' / 'daemon.pid'
+
+    if not pid_path.exists():
+        logger.info('No running daemon found.')
+        return
+
+    pid = int(pid_path.read_text().strip())
+
+    try:
+        _os.kill(pid, 0)
+    except ProcessLookupError:
+        logger.info('No running daemon found (stale PID file).')
+        pid_path.unlink(missing_ok=True)
+        return
+    except PermissionError:
+        logger.warning('Permission denied checking PID %d', pid)
+        return
+
+    if force:
+        logger.info('Force-stopping daemon PID %d and all child processes...', pid)
+        pgid = _os.getpgid(pid)
+        _os.killpg(pgid, _signal.SIGKILL)
+    else:
+        logger.info('Stopping daemon PID %d gracefully...', pid)
+        _os.kill(pid, _signal.SIGTERM)
+
+    logger.info('Stop signal sent to PID %d.', pid)
+
+
+from .watcher import WatcherScheduler
+
+watch = WatcherScheduler()
+
+stop = _SimpleScheduler(_stop)
 
 
 if __name__ == "__main__":

@@ -40,7 +40,7 @@ class _BaseConfig:
 
     PROJECT_NAME = 'mediakit'
     PROJECT_VERSION = '0.0.1'
-    PROJECT_DESCRIPTION = 'Media Handler'
+    PROJECT_DESCRIPTION = 'MediaKit is a media processing toolkit that provides a unified interface for various media-related tasks, including compression, trimming, scaling, format conversion, and metadata management. It is designed to be extensible and adaptable to different media processing needs.'
     # PROJECT_AUTHOR = 'mediakit'
 
     # CPU throttling default limit
@@ -69,6 +69,7 @@ class _BaseConfig:
     # MEDIA FILE
     MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', 'samples/zh.mp4')
     MEDIA_FILE_FOLDER: str = os.getenv('MEDIA_FILE_FOLDER', 'samples')
+    WATCH_FOLDER_FILE: str = os.path.join(os.path.dirname(__file__), 'var', 'folder.sh')
 
     # TRANSCRIBER
     TRANSCRIBER_MODEL = os.getenv('TRANSCRIBER_MODEL', 'base')

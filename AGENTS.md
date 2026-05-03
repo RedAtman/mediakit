@@ -96,6 +96,11 @@ mediakit compress -t video -w 1 -c 50 -f /path/to/folder
 launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 ```
 
+## COMMIT RULES
+
+- **Do NOT commit `docs/`** — All files under `docs/` are excluded from commits
+- **Archive openspec before committing** — `openspec/changes/<name>` must be archived to `openspec/changes/archive/` before any openspec files can be committed
+
 ## NOTES
 
 - `.venv/` has 22k+ files from dependencies — excluded from AGENTS.md analysis

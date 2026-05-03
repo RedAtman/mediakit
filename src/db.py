@@ -13,10 +13,11 @@ class DatabaseEngine:
     _DB_ENGINE_CLS = _sqlalchemy.Engine
 
     @classmethod
-    @property
     @cache
     def engine(cls) -> base.BaseEngine:
-        return cls._DB_ENGINE_CLS(CONFIG.SQLITE_DATABASE)
+        engine = cls._DB_ENGINE_CLS(CONFIG.SQLITE_DATABASE)
+        engine.create_db_and_tables()
+        return engine
 
     @classmethod
     def get_engine(cls, engine: base.BaseEngine | None = None) -> base.BaseEngine:
