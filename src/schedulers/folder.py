@@ -29,6 +29,7 @@ __all__ = [
     "convert_format",
     "save_text",
     "watch",
+    "stop",
 ]
 
 
@@ -163,9 +164,46 @@ save_text = _SimpleScheduler(
 )
 
 
+def _stop(**kwargs):
+    import os
+    import signal
+    from pathlib import Path
+
+    force = kwargs.get('force', False)
+    pid_path = Path.home() / '.mediakit' / 'daemon.pid'
+
+    if not pid_path.exists():
+        logger.info('No running daemon found.')
+        return
+
+    pid = int(pid_path.read_text().strip())
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        logger.info('No running daemon found (stale PID file).')
+        pid_path.unlink(missing_ok=True)
+        return
+    except PermissionError:
+        logger.warning('Permission denied checking PID %d', pid)
+        return
+
+    if force:
+        logger.info('Force-stopping daemon PID %d and all child processes...', pid)
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, signal.SIGKILL)
+    else:
+        logger.info('Stopping daemon PID %d gracefully...', pid)
+        os.kill(pid, signal.SIGTERM)
+
+    logger.info('Stop signal sent to PID %d.', pid)
+
+
 from .watcher import WatcherScheduler
 
 watch = WatcherScheduler()
+
+stop = _SimpleScheduler(_stop)
 
 
 if __name__ == "__main__":
