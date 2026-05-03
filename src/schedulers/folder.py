@@ -28,7 +28,6 @@ __all__ = [
     "change_file_extension",
     "convert_format",
     "save_text",
-    "watch",
 ]
 
 
@@ -78,17 +77,46 @@ def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: dict[str, Any]):
 
 
 def _callback(future: Future, *args, **kwargs):
-    result = future.result()
-    if result.data is None:
-        logger.warning(f"No media to compress: {args}, {kwargs}")
+    logger.debug("_callback entered, args=%s, kwargs=%s", args, kwargs)
+    try:
+        result = future.result()
+        logger.debug("_callback: future.result() type=%s, data=%s, result=%s",
+                     type(result).__name__,
+                     result.data if hasattr(result, 'data') else 'N/A',
+                     result)
+    except Exception as exc:
+        logger.error("_callback: future.result() raised %s: %s", type(exc).__name__, exc)
         return
-    assert isinstance(result, response.Result)
+    if result.data is None:
+        logger.debug("_callback: result.data is None, early return")
+        return
+    logger.debug("_callback: isinstance Result=%s, result.data keys=%s, result==0=%s",
+                 isinstance(result, response.Result),
+                 result.data.keys() if hasattr(result.data, 'keys') else 'N/A',
+                 result == 0)
     media = result.data.get("media")
+    if media is None:
+        logger.error("_callback: result.data.get('media') returned None, data=%s", result.data)
+        return
     if result == 0:
-        media.model.update_state("compress", StateChoices.finished)
-        file.soft_remove(media.path)
+        logger.debug("_callback: SUCCESS path, setting state to finished=2, media.model=%s", media.model)
+        try:
+            update_result = media.model.update_state("compress", StateChoices.finished)
+            logger.debug("_callback: update_state(finished) returned %s", update_result)
+        except Exception as exc:
+            logger.error("_callback: update_state(finished) raised %s: %s", type(exc).__name__, exc)
+        try:
+            file.soft_remove(media.path)
+            logger.debug("_callback: soft_remove completed for %s", media.path)
+        except Exception as exc:
+            logger.error("_callback: soft_remove(%s) raised %s: %s", media.path, type(exc).__name__, exc)
     else:
-        media.model.update_state("compress", StateChoices.failed)
+        logger.debug("_callback: FAILURE path (result=%s), setting state to failed=-2", result)
+        try:
+            update_result = media.model.update_state("compress", StateChoices.failed)
+            logger.debug("_callback: update_state(failed) returned %s", update_result)
+        except Exception as exc:
+            logger.error("_callback: update_state(failed) raised %s: %s", type(exc).__name__, exc)
 
 
 def _compress(*args, ctx: Context, medias: list = [], **kwargs):
@@ -162,10 +190,6 @@ save_text = _SimpleScheduler(
     )
 )
 
-
-from .watcher import WatcherScheduler
-
-watch = WatcherScheduler()
 
 
 if __name__ == "__main__":

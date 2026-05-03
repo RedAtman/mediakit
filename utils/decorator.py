@@ -55,7 +55,9 @@ class exception:
             return result
         except Exception as err:
             logger.exception(err)
-            result = Result(1, err)
+            media = getattr(self.fn, '__self__', None)
+            data = {"media": media} if media else None
+            result = Result(1, data=data, msg=str(err))
             return result
 
     def __get__(self, obj, obj_type):

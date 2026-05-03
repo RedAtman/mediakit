@@ -127,13 +127,17 @@ class Media(Base):
             return instance
 
     def update_state(self, key: str, val: Union[int, float]):
+        logger.debug("update_state: key=%s, val=%s (type=%s), current self.state=%s",
+                     key, val, type(val).__name__, self.state)
         with db.DatabaseEngine.engine().get_session() as session:
             state: dict = self.state.copy()  # type: ignore
-            # state = dict(self.state)
             state[key] = val
-            self.state = schemas.State(**state).model_dump()
+            new_state = schemas.State(**state).model_dump()
+            logger.debug("update_state: new_state=%s, before session.add", new_state)
+            self.state = new_state
             session.add(self)
             session.commit()
+            logger.debug("update_state: committed, md5=%s, state=%s", self.md5, self.state)
             return response.Result(code=0, data={"media": self})
 
     def delete(self):
