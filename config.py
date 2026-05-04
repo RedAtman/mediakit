@@ -5,9 +5,13 @@ from importlib import import_module
 
 
 def load_env():
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv, find_dotenv
 
-    load_dotenv()
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path)
+        return
+    load_dotenv(os.path.join(os.path.expanduser('~'), '.env'))
 
 
 try:
@@ -47,11 +51,13 @@ class _BaseConfig:
     CPU_LIMIT: int = int(os.getenv('CPU_LIMIT', '100'))
 
     # SQLITE
-    SQLITE_DATABASE = os.path.abspath(os.path.join(BASE_DIR, os.getenv('SQLITE_DATABASE') or 'db.db'))
+    SQLITE_DATABASE = os.path.abspath(
+        os.path.join(BASE_DIR, os.getenv('SQLITE_DATABASE') or 'db.db')
+    )
     SQLITE_CONNECTION_POOL_SIZE = int(os.getenv('SQLITE_CONNECTION_POOL_SIZE', 10))
 
     # FFMPEG
-    FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '/opt/homebrew/bin/ffmpeg')
+    FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '/opt/homebrew/bin')
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 1))
 
     # BAIDU_TRANSLATE
@@ -69,7 +75,7 @@ class _BaseConfig:
     # MEDIA FILE
     MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', 'samples/zh.mp4')
     MEDIA_FILE_FOLDER: str = os.getenv('MEDIA_FILE_FOLDER', 'samples')
-    WATCH_FOLDER_FILE: str = os.path.join(os.path.dirname(__file__), 'var', 'folder.sh')
+    WATCH_FOLDER_FILE: str = os.getenv('WATCH_FOLDER_FILE', 'var/folder.sh')
 
     # TRANSCRIBER
     TRANSCRIBER_MODEL = os.getenv('TRANSCRIBER_MODEL', 'base')

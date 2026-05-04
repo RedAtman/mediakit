@@ -526,6 +526,9 @@ class Video(
         -c:v: hevc_videotoolbox, h264_videotoolbox
         """
         command = self._ffmpeg_prefix + [
+            "-progress",
+            "pipe:1",
+            "-nostats",
             # '-hwaccel', 'auto',
             "-i",
             self.path,

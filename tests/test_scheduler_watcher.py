@@ -185,31 +185,34 @@ class TestWatcherScheduler(TestCase):
         handler.dispatch(file_event)
         handler.debounce_buffer.add.assert_not_called()
 
-    @mock.patch('src.schedulers.watcher.os.path.exists', return_value=True)
-    def test_batch_callback_soft_removes_on_success(self, mock_exists):
+    def test_batch_callback_soft_removes_on_success(self):
         from concurrent.futures import Future
         from src.schedulers.watcher import _batch_callback
+        from utils import response
         future = Future()
-        future.set_result({'media': mock.Mock(path='/tmp/file.mp4'), 'new_file_path': '/tmp/file.mp4'})
+        result_data = {'media': mock.Mock(path='/tmp/file.mp4')}
+        future.set_result(response.Result(0, data=result_data))
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_called_once_with('/tmp/file.mp4')
 
-    @mock.patch('src.schedulers.watcher.os.path.exists', return_value=False)
-    def test_batch_callback_does_not_remove_when_output_missing(self, mock_exists):
+    def test_batch_callback_does_not_remove_on_failure(self):
         from concurrent.futures import Future
         from src.schedulers.watcher import _batch_callback
+        from utils import response
         future = Future()
-        future.set_result({'media': mock.Mock(path='/tmp/file.mp4'), 'new_file_path': '/tmp/file.mp4'})
+        result_data = {'media': mock.Mock(path='/tmp/file.mp4')}
+        future.set_result(response.Result(1, data=result_data))
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_not_called()
 
-    def test_batch_callback_skips_non_dict_result(self):
+    def test_batch_callback_skips_result_without_data(self):
         from concurrent.futures import Future
         from src.schedulers.watcher import _batch_callback
+        from utils import response
         future = Future()
-        future.set_result(None)
+        future.set_result(response.Result(0, data=None))
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_not_called()

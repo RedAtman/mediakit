@@ -1,10 +1,10 @@
-from concurrent.futures import Future
-from functools import partial
 import logging
 import os
 import signal
 import threading
 import time
+from concurrent.futures import Future
+from functools import partial
 from pathlib import Path
 
 from watchdog.events import FileSystemEventHandler
@@ -12,14 +12,13 @@ from watchdog.observers import Observer
 
 from config import CONFIG
 from folder import Folder
-from src.schemas import StateChoices
-from utils import exceptions
 from src.file.debounce import DebounceBuffer
 from src.file.stability import FileStabilityTracker
-from utils import file, response
-
+from src.schemas import StateChoices
+from utils import exceptions, file, response
 
 logger = logging.getLogger()
+
 
 
 def _parse_folder_file(filepath: str) -> list[str]:
@@ -33,11 +32,43 @@ def _parse_folder_file(filepath: str) -> list[str]:
     return paths
 
 
+def _find_watch_folder_file() -> str | None:
+    """Search for var/folder.sh: env var → cwd & parent dirs → tool source parent."""
+    # 1. Env var override
+    env_path = os.getenv('WATCH_FOLDER_FILE')
+    if env_path:
+        env_path = env_path.strip().strip('\'"')
+        if os.path.isfile(env_path):
+            return env_path
+    # 2. Walk up from cwd
+    start = os.path.abspath(os.getcwd())
+    current = start
+    while True:
+        candidate = os.path.join(current, 'var', 'folder.sh')
+        if os.path.isfile(candidate):
+            return candidate
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    # 3. Walk up from tool's config.py location (covers uv tool install from project root)
+    import config as _cfg_mod
+
+    current = os.path.dirname(os.path.abspath(_cfg_mod.__file__))
+    while True:
+        candidate = os.path.join(current, 'var', 'folder.sh')
+        if os.path.isfile(candidate):
+            return candidate
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    return None
+
+
 class _WatchEventHandler(FileSystemEventHandler):
     def __init__(
-        self,
-        debounce_buffer: DebounceBuffer,
-        stability_tracker: FileStabilityTracker,
+        self, debounce_buffer: DebounceBuffer, stability_tracker: FileStabilityTracker
     ):
         self.debounce_buffer = debounce_buffer
         self.stability_tracker = stability_tracker
@@ -62,36 +93,60 @@ def _batch_callback(future: Future):
     logger.debug('_batch_callback entered')
     try:
         result = future.result()
-        logger.debug('_batch_callback: future.result() type=%s, keys=%s',
-                     type(result).__name__,
-                     result.keys() if isinstance(result, dict) else 'N/A')
+        logger.debug(
+            '_batch_callback: future.result() type=%s, data=%s, result=%s',
+            type(result).__name__,
+            result.data if hasattr(result, 'data') else 'N/A',
+            result,
+        )
     except Exception as e:
-        logger.warning('_batch_callback: future.result() raised %s: %s', type(e).__name__, e)
+        logger.warning(
+            '_batch_callback: future.result() raised %s: %s', type(e).__name__, e
+        )
         return
-    if not isinstance(result, dict):
-        logger.debug('_batch_callback: result is not dict, type=%s', type(result).__name__)
+    if not hasattr(result, 'data') or result.data is None:
+        logger.debug('_batch_callback: result.data is None or missing, early return')
         return
-    new_file_path = result.get('new_file_path')
-    if new_file_path and os.path.exists(new_file_path):
-        media = result.get('media')
-        if media is None:
-            logger.error('_batch_callback: media not found in result, keys=%s', result.keys())
-            return
+    media = result.data.get('media')
+    if media is None:
+        logger.error(
+            '_batch_callback: result.data.get("media") returned None, data=%s',
+            result.data,
+        )
+        return
+    if result == 0:
         logger.debug('_batch_callback: SUCCESS, setting state to finished=2')
         try:
             media.model.update_state('compress', StateChoices.finished)
         except Exception as exc:
-            logger.error('_batch_callback: update_state(finished) raised %s: %s',
-                         type(exc).__name__, exc)
+            logger.error(
+                '_batch_callback: update_state(finished) raised %s: %s',
+                type(exc).__name__,
+                exc,
+            )
         try:
             file.soft_remove(media.path)
             logger.debug('_batch_callback: soft_remove completed for %s', media.path)
         except Exception as exc:
-            logger.error('_batch_callback: soft_remove(%s) raised %s: %s',
-                         media.path, type(exc).__name__, exc)
+            logger.error(
+                '_batch_callback: soft_remove(%s) raised %s: %s',
+                media.path,
+                type(exc).__name__,
+                exc,
+            )
     else:
-        logger.debug('_batch_callback: new_file_path missing or not found, path=%s',
-                     new_file_path)
+        logger.debug(
+            '_batch_callback: FAILURE path (result=%s), setting state to failed=-2',
+            result,
+        )
+        try:
+            media.model.update_state('compress', StateChoices.failed)
+        except Exception as exc:
+            logger.error(
+                '_batch_callback: update_state(failed) raised %s: %s',
+                type(exc).__name__,
+                exc,
+            )
 
 
 class WatcherScheduler:
@@ -125,12 +180,19 @@ class WatcherScheduler:
 
     def _setup_cpu_throttling(self, cpu_limit: int | None):
         from src.schedulers.folder import _coordinator
+
         if isinstance(cpu_limit, str) and cpu_limit.isdigit():
             cpu_limit = int(cpu_limit)
         if isinstance(cpu_limit, int) and cpu_limit > 0:
             _coordinator.set_manual_override(cpu_limit)
 
-    def _flush_callback(self, paths: list[str], media_type: str, max_workers: int, action: str = 'compress'):
+    def _flush_callback(
+        self,
+        paths: list[str],
+        media_type: str,
+        max_workers: int,
+        action: str = 'compress',
+    ):
         self._inflight_batch.set()
         try:
             folder = Folder(os.path.dirname(paths[0]) if paths else '.')
@@ -173,9 +235,7 @@ class WatcherScheduler:
             ),
         )
         tracker = FileStabilityTracker(
-            sample_interval=1.0,
-            stable_samples=3,
-            timeout=30.0,
+            sample_interval=1.0, stable_samples=3, timeout=30.0
         )
         handler = _WatchEventHandler(buffer, tracker)
 
@@ -184,7 +244,9 @@ class WatcherScheduler:
         self.observer.start()
         logger.info('Watching folder: %s (recursive=%s)', path, recursive)
 
-    def _feed_existing(self, path: str, media_type: str, max_workers: int, action: str = 'compress'):
+    def _feed_existing(
+        self, path: str, media_type: str, max_workers: int, action: str = 'compress'
+    ):
         folder = Folder(path)
         folder.scan_media()
         query = folder.get_query_statement('QUERY_UNPROCESSED')
@@ -200,7 +262,9 @@ class WatcherScheduler:
                     callback_list=[_batch_callback],
                 )
             except Exception as exc:
-                logger.error('Failed to process existing media: %s: %s', type(exc).__name__, exc)
+                logger.error(
+                    'Failed to process existing media: %s: %s', type(exc).__name__, exc
+                )
 
     def _run_event_loop(self):
         while not self._stop_event.is_set():
@@ -239,9 +303,7 @@ class WatcherScheduler:
             ),
         )
         tracker = FileStabilityTracker(
-            sample_interval=1.0,
-            stable_samples=3,
-            timeout=30.0,
+            sample_interval=1.0, stable_samples=3, timeout=30.0
         )
         handler = _WatchEventHandler(buffer, tracker)
 
@@ -265,10 +327,21 @@ class WatcherScheduler:
 
         if folder_file is not None:
             raw_paths = _parse_folder_file(folder_file)
-        elif folder_path == CONFIG.MEDIA_FILE_FOLDER and os.path.isfile(CONFIG.WATCH_FOLDER_FILE):
-            raw_paths = _parse_folder_file(CONFIG.WATCH_FOLDER_FILE)
+        elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
+            watch_file = _find_watch_folder_file()
+            if watch_file:
+                logger.debug('Using watch folder file: %s', watch_file)
+                raw_paths = _parse_folder_file(watch_file)
+            else:
+                logger.warning(
+                    'No var/folder.sh found from cwd (%s). '
+                    'Either: (1) cd to project root and re-run, '
+                    '(2) set WATCH_FOLDER_FILE env var, '
+                    '(3) use -f DIR, or (4) use --folder-file FILE.',
+                    os.getcwd(),
+                )
+                raw_paths = [folder_path]
         else:
-            logger.debug('WATCH_FOLDER_FILE not found, using MEDIA_FILE_FOLDER')
             raw_paths = [folder_path]
 
         valid_paths = [p for p in raw_paths if os.path.isdir(p)]
@@ -284,9 +357,13 @@ class WatcherScheduler:
             return
 
         if len(valid_paths) == 1:
-            self._setup_observer(valid_paths[0], recursive, media_type, max_workers, action)
+            self._setup_observer(
+                valid_paths[0], recursive, media_type, max_workers, action
+            )
         else:
-            self._setup_multi_observer(valid_paths, recursive, media_type, max_workers, action)
+            self._setup_multi_observer(
+                valid_paths, recursive, media_type, max_workers, action
+            )
 
         if not no_scan_existing:
             logger.info('Scanning existing media files...')
