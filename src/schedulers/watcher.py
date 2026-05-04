@@ -155,6 +155,7 @@ class WatcherScheduler:
         self.observer: Observer | None = None
         self.task_manager = None
         self._inflight_batch = threading.Event()
+        self._flush_lock = threading.Lock()
 
     @staticmethod
     def _ensure_pid_dir() -> str:
@@ -193,28 +194,29 @@ class WatcherScheduler:
         max_workers: int,
         action: str = 'compress',
     ):
-        self._inflight_batch.set()
-        try:
-            folder = Folder(os.path.dirname(paths[0]) if paths else '.')
-            medias = []
-            for path in paths:
-                try:
-                    medias.append(folder.MEDIA_CLS(path))
-                except exceptions.NotMediaException:
-                    logger.warning('Ignoring non-media file during watch: %s', path)
-            if not medias:
-                return
+        with self._flush_lock:
+            self._inflight_batch.set()
             try:
-                Folder.run__(
-                    action,
-                    medias=medias,
-                    max_workers=max_workers,
-                    callback_list=[_batch_callback],
-                )
-            except Exception as exc:
-                logger.error('Batch processing failed: %s: %s', type(exc).__name__, exc)
-        finally:
-            self._inflight_batch.clear()
+                folder = Folder(os.path.dirname(paths[0]) if paths else '.')
+                medias = []
+                for path in paths:
+                    try:
+                        medias.append(folder.MEDIA_CLS(path))
+                    except exceptions.NotMediaException:
+                        logger.warning('Ignoring non-media file during watch: %s', path)
+                if not medias:
+                    return
+                try:
+                    Folder.run__(
+                        action,
+                        medias=medias,
+                        max_workers=max_workers,
+                        callback_list=[_batch_callback],
+                    )
+                except Exception as exc:
+                    logger.error('Batch processing failed: %s: %s', type(exc).__name__, exc)
+            finally:
+                self._inflight_batch.clear()
 
     def _setup_observer(
         self,
@@ -320,7 +322,7 @@ class WatcherScheduler:
         max_workers = kwargs.get('max_workers', CONFIG.MAX_WORKERS)
         cpu_limit = kwargs.get('cpu_limit', None)
         action = kwargs.get('action', 'compress')
-        recursive = not kwargs.get('no_recursive', False)
+        recursive = kwargs.get('recursive', False)
         no_scan_existing = kwargs.get('no_scan_existing', False)
 
         self._setup_cpu_throttling(cpu_limit)
@@ -356,6 +358,11 @@ class WatcherScheduler:
             logger.info('Watch session ended.')
             return
 
+        if not no_scan_existing:
+            logger.info('Scanning existing media files...')
+            for p in valid_paths:
+                self._feed_existing(p, media_type, max_workers, action)
+
         if len(valid_paths) == 1:
             self._setup_observer(
                 valid_paths[0], recursive, media_type, max_workers, action
@@ -364,11 +371,6 @@ class WatcherScheduler:
             self._setup_multi_observer(
                 valid_paths, recursive, media_type, max_workers, action
             )
-
-        if not no_scan_existing:
-            logger.info('Scanning existing media files...')
-            for p in valid_paths:
-                self._feed_existing(p, media_type, max_workers, action)
         logger.info('Watch is running. Waiting for file changes...')
 
         signal.signal(signal.SIGINT, self._signal_handler)

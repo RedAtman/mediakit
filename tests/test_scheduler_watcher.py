@@ -55,7 +55,7 @@ class TestWatcherScheduler(TestCase):
         scheduler.core(folder='/tmp/media', type='video', max_workers=2, cpu_limit=None)
         call_args = scheduler._setup_observer.call_args
         self.assertEqual(call_args[0][0], '/tmp/media')
-        self.assertEqual(call_args[0][1], True)
+        self.assertEqual(call_args[0][1], False)
         self.assertEqual(len(call_args[0]), 5)
         self.assertEqual(call_args[0][4], 'compress')
         scheduler._run_event_loop.assert_called_once()
@@ -251,7 +251,7 @@ class TestWatcherMultiFolder(TestCase):
         s._run_event_loop = mock.Mock()
         with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/a', '/b']):
             s.core(folder_file='/p.txt', type='video', max_workers=2, cpu_limit=None,
-                   no_scan_existing=True, no_recursive=False)
+                   no_scan_existing=True, recursive=True)
         s.observer.schedule.assert_has_calls([
             mock.call(mock.ANY, '/a', recursive=True),
             mock.call(mock.ANY, '/b', recursive=True),
@@ -265,7 +265,7 @@ class TestWatcherMultiFolder(TestCase):
         with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/a', '/nonexistent']):
             with mock.patch('src.schedulers.watcher.logger.warning') as mock_warn:
                 s.core(folder_file='/p.txt', type='video', max_workers=2, cpu_limit=None,
-                       no_scan_existing=True, no_recursive=True)
+                       no_scan_existing=True, recursive=False)
                 mock_warn.assert_called_once()
                 self.assertIn('/nonexistent', mock_warn.call_args[0][1])
         s.observer.schedule.assert_called_once_with(mock.ANY, '/a', recursive=False)
@@ -277,8 +277,8 @@ class TestWatcherMultiFolder(TestCase):
         s._feed_existing = mock.Mock()
         s._run_event_loop = mock.Mock()
         s.core(folder='/tmp/media', type='video', max_workers=2, cpu_limit=None,
-               no_scan_existing=True, no_recursive=False)
-        s._setup_observer.assert_called_once_with('/tmp/media', True, 'video', 2, 'compress')
+               no_scan_existing=True)
+        s._setup_observer.assert_called_once_with('/tmp/media', False, 'video', 2, 'compress')
 
 
 class TestParseFolderFile(TestCase):

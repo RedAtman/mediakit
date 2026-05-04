@@ -69,10 +69,10 @@ def create_parser():
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)
     # parser.add_argument('--flag', action='store_true', help='Set the flag value to True')
     parser.add_argument(
-        '--no-recursive',
+        '--recursive',
         action='store_true',
         default=False,
-        help='Do not watch subdirectories (default: non-recursive)',
+        help='Watch subdirectories (default: non-recursive)',
     )
     parser.add_argument(
         '--no-scan-existing',

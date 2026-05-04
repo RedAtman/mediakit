@@ -121,7 +121,7 @@ class TestWatcherPidFile(TestCase):
             with mock.patch.object(scheduler, '_cleanup_pid_file') as mock_cleanup:
                 scheduler.core(
                     folder='/tmp/media', type='video', max_workers=2,
-                    cpu_limit=None, no_scan_existing=True, no_recursive=True,
+                    cpu_limit=None, no_scan_existing=True, recursive=False,
                 )
                 mock_write.assert_called_once()
                 mock_cleanup.assert_called_once()
@@ -137,7 +137,7 @@ class TestWatcherPidFile(TestCase):
                 with self.assertRaises(RuntimeError):
                     scheduler.core(
                         folder='/tmp/media', type='video', max_workers=2,
-                        cpu_limit=None, no_scan_existing=True, no_recursive=True,
+                        cpu_limit=None, no_scan_existing=True, recursive=False,
                     )
                 mock_cleanup.assert_called_once()
 
