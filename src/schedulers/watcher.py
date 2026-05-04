@@ -16,6 +16,7 @@ from src.file.debounce import DebounceBuffer
 from src.file.stability import FileStabilityTracker
 from src.schemas import StateChoices
 from utils import exceptions, file, response
+from .media import compress as media_compress
 
 logger = logging.getLogger()
 
@@ -207,9 +208,10 @@ class WatcherScheduler:
                 if not medias:
                     return
                 try:
-                    Folder.run__(
-                        action,
-                        medias=medias,
+                    scheduler = media_compress.core
+                    tasks = [partial(scheduler, media) for media in medias]
+                    Folder.run___(
+                        tasks=tasks,
                         max_workers=max_workers,
                         callback_list=[_batch_callback],
                     )
@@ -257,9 +259,10 @@ class WatcherScheduler:
         if result == 0 and result.data:
             medias = [folder.MEDIA_CLS(m.path) for m in result.data]
             try:
-                Folder.run__(
-                    action,
-                    medias=medias,
+                scheduler = media_compress.core
+                tasks = [partial(scheduler, media) for media in medias]
+                Folder.run___(
+                    tasks=tasks,
                     max_workers=max_workers,
                     callback_list=[_batch_callback],
                 )
