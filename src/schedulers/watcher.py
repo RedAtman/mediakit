@@ -158,6 +158,20 @@ class WatcherScheduler:
         self._inflight_batch = threading.Event()
         self._flush_lock = threading.Lock()
 
+        # Dynamic config file watch state
+        self._handler: _WatchEventHandler | None = None
+        self._config_filepath: str | None = None
+        self._config_mtime: float | None = None
+        self._config_poll_interval: float = 5.0
+        self._last_config_check: float = 0.0
+        self._watched_paths: set[str] = set()
+        self._path_to_watch: dict[str, object] = {}
+        # Watcher parameter cache (set during core())
+        self._recursive: bool = False
+        self._media_type: str = 'video'
+        self._max_workers: int = 1
+        self._action: str = 'compress'
+
     @staticmethod
     def _ensure_pid_dir() -> str:
         pid_dir = Path.home() / '.mediakit'
@@ -242,9 +256,11 @@ class WatcherScheduler:
             sample_interval=1.0, stable_samples=3, timeout=30.0
         )
         handler = _WatchEventHandler(buffer, tracker)
+        self._handler = handler
 
         self.observer = Observer()
-        self.observer.schedule(handler, path, recursive=recursive)
+        watch = self.observer.schedule(handler, path, recursive=recursive)
+        self._path_to_watch[path] = watch
         self.observer.start()
         logger.info('Watching folder: %s (recursive=%s)', path, recursive)
 
@@ -271,11 +287,107 @@ class WatcherScheduler:
                     'Failed to process existing media: %s: %s', type(exc).__name__, exc
                 )
 
+    def _check_config_file_changes(self):
+        """Poll WATCH_FOLDER_FILE for modifications and reconcile watched directories."""
+        if not self._config_filepath:
+            logger.debug('Config monitoring: _config_filepath is None, skipping')
+            return
+
+        if not os.path.isfile(self._config_filepath):
+            logger.info('Config file missing (was it deleted?): %s', self._config_filepath)
+            return
+
+        try:
+            current_mtime = os.path.getmtime(self._config_filepath)
+        except OSError:
+            logger.warning('Failed to read mtime for config file: %s', self._config_filepath)
+            return
+
+        if current_mtime == self._config_mtime:
+            logger.debug(
+                'Config monitoring: mtime unchanged (%s), skipping',
+                self._config_mtime,
+            )
+            return
+
+        logger.info(
+            'Config monitoring: mtime changed %s -> %s',
+            self._config_mtime, current_mtime,
+        )
+
+        try:
+            raw_paths = _parse_folder_file(self._config_filepath)
+        except Exception as exc:
+            logger.warning(
+                'Failed to parse config file %s: %s. Keeping current watches.',
+                self._config_filepath, exc,
+            )
+            return
+
+        new_valid = {p for p in raw_paths if os.path.isdir(p)}
+        for p in raw_paths:
+            if p not in new_valid:
+                logger.warning('New config path does not exist, skipping: %s', p)
+
+        old = self._watched_paths
+        to_remove = old - new_valid
+        to_add = new_valid - old
+
+        if not to_remove and not to_add:
+            logger.debug(
+                'Config monitoring: mtime changed but no path diff (file content same), '
+                'updating mtime tracking only'
+            )
+            self._config_mtime = current_mtime
+            return
+
+        logger.info(
+            'Config monitoring: applying change: remove=%s, add=%s',
+            to_remove, to_add,
+        )
+
+        if self.observer is None:
+            logger.warning(
+                'Config monitoring: observer not initialized (no valid paths at startup). '
+                'Updating tracking state only. Restart watcher to pick up new paths.'
+            )
+            for path in to_remove:
+                self._path_to_watch.pop(path, None)
+                self._watched_paths.discard(path)
+            self._watched_paths.update(to_add)
+            self._config_mtime = current_mtime
+            return
+
+        for path in to_remove:
+            if path in self._path_to_watch:
+                watch = self._path_to_watch.pop(path)
+                self.observer.unschedule(watch)
+                self._watched_paths.discard(path)
+                logger.info('Stopped watching (removed from config): %s', path)
+
+        for path in to_add:
+            if not os.path.isdir(path):
+                logger.warning('Cannot watch new config path (not a directory): %s', path)
+                continue
+            watch = self.observer.schedule(
+                self._handler, path, recursive=self._recursive
+            )
+            self._path_to_watch[path] = watch
+            self._watched_paths.add(path)
+            logger.info('Started watching (added from config): %s (recursive=%s)', path, self._recursive)
+            self._feed_existing(path, self._media_type, self._max_workers, self._action)
+
+        self._config_mtime = current_mtime
+
     def _run_event_loop(self):
         while not self._stop_event.is_set():
             if self.observer and not self.observer.is_alive():
                 logger.warning('Observer died, restarting...')
                 self.observer.start()
+            now = time.time()
+            if now - self._last_config_check >= self._config_poll_interval:
+                self._check_config_file_changes()
+                self._last_config_check = now
             time.sleep(1)
 
     def _signal_handler(self, signum, frame):
@@ -311,10 +423,12 @@ class WatcherScheduler:
             sample_interval=1.0, stable_samples=3, timeout=30.0
         )
         handler = _WatchEventHandler(buffer, tracker)
+        self._handler = handler
 
         self.observer = Observer()
         for path in paths:
-            self.observer.schedule(handler, path, recursive=recursive)
+            watch = self.observer.schedule(handler, path, recursive=recursive)
+            self._path_to_watch[path] = watch
         self.observer.start()
         logger.info('Watching %d folders (recursive=%s)', len(paths), recursive)
 
@@ -354,9 +468,39 @@ class WatcherScheduler:
             if p not in valid_paths:
                 logger.warning('Folder path does not exist, skipping: %s', p)
 
+        # --- State initialization for dynamic config monitoring ---
+        self._watched_paths = set(valid_paths)
+        self._media_type = media_type
+        self._max_workers = max_workers
+        self._action = action
+        self._recursive = recursive
+        # Resolve the config file path being used
+        if folder_file is not None:
+            self._config_filepath = folder_file
+        elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
+            watch_file = _find_watch_folder_file()
+            if watch_file:
+                self._config_filepath = watch_file
+        else:
+            self._config_filepath = None  # single -f DIR mode, no config file to monitor
+        # Initialize mtime if config file exists
+        if self._config_filepath and os.path.isfile(self._config_filepath):
+            self._config_mtime = os.path.getmtime(self._config_filepath)
+            logger.info(
+                'Config monitoring: active (file=%s, mtime=%s, poll=%ss)',
+                self._config_filepath, self._config_mtime, self._config_poll_interval,
+            )
+        else:
+            logger.info(
+                'Config monitoring: inactive (config file not found at %s)',
+                self._config_filepath if self._config_filepath else 'N/A',
+            )
+        # --- END state initialization ---
+
         if not valid_paths:
             if raw_paths:
                 logger.info('No valid folder paths found in folder file')
+            self._watched_paths = set()
             self._run_event_loop()
             logger.info('Watch session ended.')
             return

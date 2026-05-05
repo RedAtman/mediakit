@@ -50,20 +50,21 @@ class CommandExecutor:
     coordinator = None
 
     @classmethod
-    def run(cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None, mode="standard"):
+    def run(cls, command: Union[List[str], str], monitor: Optional[ProgressMonitor] = None, mode="standard", timeout: Optional[float] = None):
         """Run shell command.
 
         Args:
             command (Union[List[str], str]): _description_
             monitor (Optional[ProgressMonitor], optional): _description_. Defaults to None.
             mode (str, optional): _description_. Defaults to "standard". Options: ["standard", "pipe"]
+            timeout (Optional[float], optional): Max seconds to wait. Defaults to None (no timeout).
 
         Returns:
             _type_: _description_
         """
         if mode == "pipe":
             return cls.pipe_execute(command)
-        return cls.execute(command, monitor)
+        return cls.execute(command, monitor, timeout=timeout)
 
     @staticmethod
     def _check_disk_space(path: str = '.') -> None:

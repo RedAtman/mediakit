@@ -1,5 +1,6 @@
 import os
 import signal
+import time
 from unittest import TestCase, mock
 
 
@@ -20,6 +21,20 @@ class TestWatcherScheduler(TestCase):
         for p in self.patchers:
             p.stop()
 
+    def test_init_has_config_state_attributes(self):
+        s = self.scheduler
+        self.assertTrue(hasattr(s, '_handler'))
+        self.assertTrue(hasattr(s, '_config_filepath'))
+        self.assertTrue(hasattr(s, '_config_mtime'))
+        self.assertTrue(hasattr(s, '_config_poll_interval'))
+        self.assertTrue(hasattr(s, '_last_config_check'))
+        self.assertTrue(hasattr(s, '_watched_paths'))
+        self.assertTrue(hasattr(s, '_path_to_watch'))
+        self.assertTrue(hasattr(s, '_recursive'))
+        self.assertTrue(hasattr(s, '_media_type'))
+        self.assertTrue(hasattr(s, '_max_workers'))
+        self.assertTrue(hasattr(s, '_action'))
+
     def test_core_attribute_exists(self):
         self.assertTrue(hasattr(self.scheduler, 'core'))
         self.assertTrue(callable(self.scheduler.core))
@@ -35,6 +50,11 @@ class TestWatcherScheduler(TestCase):
             sample_interval=1.0, stable_samples=3, timeout=30.0
         )
 
+    def test_setup_observer_stores_handler(self):
+        scheduler = self.scheduler
+        scheduler._setup_observer('/tmp/media', False, 'video', 2)
+        self.assertIsNotNone(scheduler._handler)
+
     def test_observer_created_with_path_and_recursive(self):
         scheduler = self.scheduler
         scheduler._setup_observer('/tmp/media', False, 'video', 2)
@@ -46,6 +66,22 @@ class TestWatcherScheduler(TestCase):
         self.assertEqual(watched_path, '/tmp/media')
         self.assertFalse(recursive)
         self.assertTrue(hasattr(handler, 'on_created'))
+
+    def test_core_stores_config_state_after_setup(self):
+        scheduler = self.scheduler
+        scheduler._feed_existing = mock.Mock()
+        scheduler._run_event_loop = mock.Mock()
+        with (mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=1000.0),
+              mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True),
+              mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/tmp/media'])):
+            scheduler.core(
+                folder_file='/tmp/config', type='video', max_workers=2,
+                cpu_limit=None, no_scan_existing=True
+            )
+        self.assertEqual(scheduler._config_mtime, 1000.0)
+        self.assertEqual(scheduler._watched_paths, {'/tmp/media'})
+        self.assertEqual(scheduler._media_type, 'video')
+        self.assertEqual(scheduler._max_workers, 2)
 
     def test_core_calls_setup_observer(self):
         scheduler = self.scheduler
@@ -207,6 +243,44 @@ class TestWatcherScheduler(TestCase):
             _batch_callback(future)
             mock_remove.assert_not_called()
 
+    def test_run_event_loop_calls_config_check(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._check_config_file_changes = mock.Mock()
+        scheduler.observer = mock.Mock()
+        scheduler.observer.is_alive.return_value = True
+        scheduler._stop_event = mock.Mock()
+        scheduler._stop_event.is_set.side_effect = [False, True]
+
+        scheduler._run_event_loop()
+
+        self.assertEqual(scheduler._check_config_file_changes.call_count, 1)
+
+    def test_run_event_loop_rates_limited_config_check(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        real_time = time.time
+        try:
+            call_count = [0]
+            def advancing_time():
+                call_count[0] += 1
+                if call_count[0] <= 1:
+                    return 100.0  # First iter: triggers check (100 - 0 >= 5)
+                return 102.0       # Second iter: rate-limited (102 - 100 < 5)
+            time.time = advancing_time
+
+            scheduler._check_config_file_changes = mock.Mock()
+            scheduler.observer = mock.Mock()
+            scheduler.observer.is_alive.return_value = True
+            scheduler._stop_event = mock.Mock()
+            scheduler._stop_event.is_set.side_effect = [False, False, True]
+
+            scheduler._run_event_loop()
+        finally:
+            time.time = real_time
+
+        self.assertEqual(scheduler._check_config_file_changes.call_count, 1)
+
     def test_batch_callback_skips_result_without_data(self):
         from concurrent.futures import Future
         from src.schedulers.watcher import _batch_callback
@@ -216,6 +290,146 @@ class TestWatcherScheduler(TestCase):
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
             _batch_callback(future)
             mock_remove.assert_not_called()
+
+    def test_check_config_changes_detects_added_path(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = {'/existing'}
+        scheduler.observer = mock.Mock()
+        scheduler._feed_existing = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
+            with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
+                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/existing', '/newdir']):
+                    with mock.patch('src.schedulers.watcher.os.path.isdir', side_effect=lambda p: True):
+                        scheduler._check_config_file_changes()
+
+        scheduler.observer.schedule.assert_called_once()
+        args, _ = scheduler.observer.schedule.call_args
+        self.assertEqual(args[1], '/newdir')
+
+    def test_check_config_changes_detects_removed_path(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = {'/olddir', '/keepdir'}
+        scheduler.observer = mock.Mock()
+        mock_watch_old = mock.Mock()
+        mock_watch_keep = mock.Mock()
+        scheduler._path_to_watch = {'/olddir': mock_watch_old, '/keepdir': mock_watch_keep}
+
+        with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
+            with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
+                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/keepdir']):
+                    with mock.patch('src.schedulers.watcher.os.path.isdir', side_effect=lambda p: True):
+                        scheduler._check_config_file_changes()
+
+        scheduler.observer.unschedule.assert_called_once_with(mock_watch_old)
+        self.assertEqual(scheduler._watched_paths, {'/keepdir'})
+        self.assertNotIn('/olddir', scheduler._path_to_watch)
+
+    def test_check_config_changes_both_add_and_remove(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = {'/removeme', '/keep'}
+        scheduler._path_to_watch = {'/removeme': mock.Mock(), '/keep': mock.Mock()}
+        scheduler.observer = mock.Mock()
+        scheduler._feed_existing = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
+            with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
+                with mock.patch('src.schedulers.watcher._parse_folder_file',
+                                return_value=['/keep', '/newdir']):
+                    with mock.patch('src.schedulers.watcher.os.path.isdir', side_effect=lambda p: True):
+                        scheduler._check_config_file_changes()
+
+        scheduler.observer.unschedule.assert_called_once()
+        scheduler.observer.schedule.assert_called_once()
+        args, _ = scheduler.observer.schedule.call_args
+        self.assertEqual(args[1], '/newdir')
+        self.assertEqual(scheduler._watched_paths, {'/keep', '/newdir'})
+
+    def test_check_config_changes_noop_when_mtime_unchanged(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = {'/dir'}
+        scheduler.observer = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=100.0):
+            with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
+                scheduler._check_config_file_changes()
+
+        scheduler.observer.schedule.assert_not_called()
+        scheduler.observer.unschedule.assert_not_called()
+
+    def test_check_config_changes_missing_file(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/nonexistent.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = {'/dir'}
+        scheduler.observer = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=False):
+            with mock.patch('src.schedulers.watcher.logger.info') as mock_info:
+                scheduler._check_config_file_changes()
+
+        scheduler.observer.schedule.assert_not_called()
+        scheduler.observer.unschedule.assert_not_called()
+        self.assertEqual(scheduler._watched_paths, {'/dir'})
+        mock_info.assert_any_call(
+            'Config file missing (was it deleted?): %s', '/tmp/nonexistent.sh'
+        )
+
+    def test_check_config_changes_invalid_content(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = {'/dir'}
+        scheduler.observer = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
+            with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
+                with mock.patch(
+                    'src.schedulers.watcher._parse_folder_file',
+                    side_effect=UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'invalid'),
+                ):
+                    with mock.patch('src.schedulers.watcher.logger.warning') as mock_warn:
+                        scheduler._check_config_file_changes()
+
+        scheduler.observer.schedule.assert_not_called()
+        scheduler.observer.unschedule.assert_not_called()
+        self.assertEqual(scheduler._watched_paths, {'/dir'})
+        mock_warn.assert_called_once()
+
+    def test_check_config_changes_new_path_not_directory(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = set()
+        scheduler._path_to_watch = {}
+        scheduler.observer = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
+            with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
+                with mock.patch(
+                    'src.schedulers.watcher._parse_folder_file', return_value=['/nonexistent']
+                ):
+                    with mock.patch('src.schedulers.watcher.os.path.isdir', return_value=False):
+                        with mock.patch('src.schedulers.watcher.logger.warning') as mock_warn:
+                            scheduler._check_config_file_changes()
+
+        scheduler.observer.schedule.assert_not_called()
+        mock_warn.assert_any_call(
+            'New config path does not exist, skipping: %s', '/nonexistent'
+        )
+
+    def test_check_config_changes_noop_when_no_config_file(self):
+        scheduler = self.scheduler
+        scheduler._config_filepath = None
+        scheduler._check_config_file_changes()
 
 
 class TestWatcherMultiFolder(TestCase):
@@ -320,3 +534,59 @@ class TestParseFolderFile(TestCase):
             self.assertEqual(_parse_folder_file(path), [])
         finally:
             os.unlink(path)
+
+
+class TestDynamicConfigIntegration(TestCase):
+    def setUp(self):
+        import tempfile
+        self.tmp_config = tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False)
+        self.tmp_config.write('/tmp/dir1\n')
+        self.tmp_config.close()
+
+        self.patchers = [
+            mock.patch('src.schedulers.watcher.Observer'),
+            mock.patch('src.schedulers.watcher.DebounceBuffer'),
+            mock.patch('src.schedulers.watcher.FileStabilityTracker'),
+        ]
+        for p in self.patchers:
+            p.start()
+        from src.schedulers.watcher import WatcherScheduler
+        self.scheduler = WatcherScheduler()
+
+    def tearDown(self):
+        for p in self.patchers:
+            p.stop()
+        os.unlink(self.tmp_config.name)
+
+    @mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True)
+    def test_dynamic_config_add_remove_cycle(self, mock_isdir):
+        s = self.scheduler
+        s._feed_existing = mock.Mock()
+        s._run_event_loop = mock.Mock()
+
+        s.core(
+            folder_file=self.tmp_config.name, type='video',
+            max_workers=2, cpu_limit=None, no_scan_existing=True,
+        )
+
+        initial_paths = s._watched_paths.copy()
+        self.assertEqual(initial_paths, {'/tmp/dir1'})
+
+        with open(self.tmp_config.name, 'w') as f:
+            f.write('/tmp/dir2\n')
+
+        old_mtime = s._config_mtime
+        with mock.patch(
+            'src.schedulers.watcher.os.path.getmtime',
+            return_value=(old_mtime + 100) if old_mtime else 200.0,
+        ):
+            with mock.patch(
+                'src.schedulers.watcher.os.path.isdir',
+                side_effect=lambda p: p in ('/tmp/dir1', '/tmp/dir2'),
+            ):
+                s._check_config_file_changes()
+
+        self.assertNotIn('/tmp/dir1', s._watched_paths)
+        self.assertIn('/tmp/dir2', s._watched_paths)
+        self.assertNotIn('/tmp/dir1', s._path_to_watch)
+        self.assertIn('/tmp/dir2', s._path_to_watch)

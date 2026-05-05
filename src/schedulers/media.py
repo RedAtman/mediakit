@@ -19,7 +19,8 @@ def update_state(self: Video, *args, ctx: Context, key="compress", val=StateChoi
 
 
 def _compress(self: Video, *args, ctx: Context, action: str = "compress", **kwargs: dict[str, str]):
-    result = decorator.exception(getattr(self, action))()
+    timeout = kwargs.get('timeout')
+    result = decorator.exception(getattr(self, action))(timeout=timeout)
     return ctx.next(self, *args, result=result, **kwargs)
 
 

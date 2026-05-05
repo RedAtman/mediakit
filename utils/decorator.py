@@ -67,8 +67,9 @@ class exception:
 def execute(fn: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(fn)
     def wrap(self, *args, **kwargs):
+        timeout = kwargs.pop('timeout', None)
         media, command, new_file_path = fn(self, *args, **kwargs)
-        result = CommandExecutor.run(command, getattr(self, "monitor", None))
+        result = CommandExecutor.run(command, getattr(self, "monitor", None), timeout=timeout)
         return {
             "media": media,
             "new_file_path": new_file_path,
