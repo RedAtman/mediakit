@@ -3,7 +3,7 @@ import time
 from unittest import main, TestCase
 
 from config import CONFIG
-from utils.progress import StdoutProgress
+from utils.progress import TqdmProgress
 from utils.tools import Dict2Obj
 
 
@@ -28,7 +28,7 @@ class TestUtils(TestCase):
 
     def test_progress_bar(self):
         total = 20
-        progress = StdoutProgress(total)
+        progress = TqdmProgress(total)
         for i in range(0, total):
             progress.current = i
             time.sleep(0.1)

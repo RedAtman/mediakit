@@ -66,10 +66,10 @@ class TestWatchFlag(TestCase):
         self.assertEqual(kwargs.max_workers, 4)
         self.assertEqual(kwargs.cpu_limit, 50)
 
-    def test_watch_no_recursive_flag(self):
+    def test_watch_recursive_flag(self):
         from utils.cli import create_parser
-        kwargs = create_parser().parse_args(['compress', '--watch', '--no-recursive'])
-        self.assertTrue(kwargs.no_recursive)
+        kwargs = create_parser().parse_args(['compress', '--watch', '--recursive'])
+        self.assertTrue(kwargs.recursive)
 
     def test_watch_no_scan_existing_flag(self):
         from utils.cli import create_parser

@@ -15,7 +15,7 @@ from utils.command import CommandExecutor, ProgressMonitor
 from utils.file import calculate_md5
 from utils.media import guess
 from utils.process.parser import FfmpegCurrentFrameStdoutParser
-from utils.progress import BaseProgress, MediaStateProgress, StdoutProgress
+from utils.progress import BaseProgress, MediaStateProgress, TqdmProgress
 
 logger = logging.getLogger()
 
@@ -100,7 +100,7 @@ class BaseMedia:
     @property
     def progress_list(self) -> List[BaseProgress]:
         return [
-            StdoutProgress(total=self.frames_count, title=self.path, fmt=StdoutProgress.FULL),
+            TqdmProgress(total=self.frames_count, title=self.path),
             MediaStateProgress(total=self.frames_count, model=self.model),
         ]
 

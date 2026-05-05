@@ -3,6 +3,8 @@ import re
 import sys
 from typing import IO, Any, Callable, Union
 
+from tqdm import tqdm
+
 from src.models import Media
 
 
@@ -159,6 +161,30 @@ class StdoutProgress(BaseProgress):
             'title': self.title,
         }
         print(self.fmt % args, file=self.output)
+
+
+class TqdmProgress(BaseProgress):
+    def __init__(self, total: int, title: str = ''):
+        super().__init__(total)
+        is_tty = sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else False
+        self.pbar = tqdm(
+            total=total,
+            desc=title,
+            unit='frame',
+            dynamic_ncols=is_tty,
+            file=sys.stdout if is_tty else sys.stderr,
+            mininterval=0.1,
+            ascii=not is_tty,
+        )
+
+    def __after_percent_step__(self):
+        self.pbar.n = self._current
+        self.pbar.refresh()
+
+    def done(self):
+        self.pbar.n = self.total
+        self.pbar.refresh()
+        self.pbar.close()
 
 
 class MediaStateProgress(BaseProgress):

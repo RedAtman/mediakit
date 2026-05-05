@@ -227,6 +227,7 @@ dependencies = [
     # "pyobjc==9.0.1",
     "python-dotenv>=1.2.2",
     "watchdog>=6.0.0",
+    "tqdm>=4.67",
 ]
 
 [project.scripts]

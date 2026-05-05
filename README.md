@@ -41,7 +41,7 @@ mediakit scale --watch -f /path/to/folder -t video
 | `-w` | Number of worker threads | `MAX_WORKERS` |
 | `-c` | CPU limit per worker (%) | auto |
 | `--folder-file` | Path to text file with folder paths (one per line, # comments) | — |
-| `--no-recursive` | Don't watch subdirectories | `False` |
+| `--recursive` | Watch subdirectories | `False` (non-recursive default) |
 | `--no-scan-existing` | Skip processing existing files at startup | `False` |
 
 When `--folder-file` is not specified and `-f` is not explicitly set, the watcher reads from the default file (`var/folder.sh`) and falls back to `MEDIA_FILE_FOLDER`.

@@ -20,17 +20,20 @@ class Translator:
     ['White clouds']
     """
 
-    if not all(
-        [
-            CONFIG.BAIDU_TRANSLATE_API,
-            CONFIG.BAIDU_TRANSLATE_APP_ID,
-            CONFIG.BAIDU_TRANSLATE_SECRET_KEY,
-            CONFIG.BAIDU_TRANSLATE_SALT,
-        ]
-    ):
-        raise ValueError(
-            "Please set BAIDU_TRANSLATE_API, BAIDU_TRANSLATE_APP_ID, BAIDU_TRANSLATE_SECRET_KEY, BAIDU_TRANSLATE_SALT in config.py"
-        )
+    @classmethod
+    def _require_config(cls):
+        if not all(
+            [
+                CONFIG.BAIDU_TRANSLATE_API,
+                CONFIG.BAIDU_TRANSLATE_APP_ID,
+                CONFIG.BAIDU_TRANSLATE_SECRET_KEY,
+                CONFIG.BAIDU_TRANSLATE_SALT,
+            ]
+        ):
+            raise ValueError(
+                "Please set BAIDU_TRANSLATE_API, BAIDU_TRANSLATE_APP_ID, "
+                "BAIDU_TRANSLATE_SECRET_KEY, BAIDU_TRANSLATE_SALT in config.py"
+            )
 
     @classmethod
     def sign(cls, q: str):
@@ -47,14 +50,8 @@ class Translator:
 
     @classmethod
     def translate(cls, text: Union[str, list[str], set[str], tuple[str, ...]]) -> list[str]:
-        """Translate text to target language.
-
-        Args:
-            text (Union[str, List[str], Set[str], Tuple[str, ...]): Text to translate.
-
-        Returns:
-            List[str]: Translated text.
-        """
+        """Translate text to target language."""
+        cls._require_config()
         if isinstance(text, (list, tuple, set)):
             text = ",".join(text)
 
