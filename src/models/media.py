@@ -114,15 +114,28 @@ class Media(Base):
 
     @classmethod
     def get_or_create(cls, **kwargs: Unpack[MediaParams]):
+        md5 = kwargs.get('md5')
+        if not md5:
+            raise ValueError('md5 is required for get_or_create')
         with db.DatabaseEngine.engine().get_session() as session:
-            instance = session.query(cls).filter_by(**kwargs).first()
-            if not instance:
+            instance = session.query(cls).filter_by(md5=md5).first()
+            if instance:
+                changed = False
+                for key in ('title', 'dirname'):
+                    if key in kwargs and getattr(instance, key) != kwargs[key]:
+                        setattr(instance, key, kwargs[key])
+                        changed = True
+                if changed:
+                    instance.updated_at = datetime.utcnow()
+                    session.add(instance)
+                    session.commit()
+            else:
                 instance = cls(**kwargs)
                 session.add(instance)
                 try:
                     session.commit()
                 except Exception as exc:
-                    logger.error(f"{exc}, MD5: {kwargs.get('md5')}")
+                    logger.error(f'{exc}, MD5: {md5}')
                     session.rollback()
             return instance
 
