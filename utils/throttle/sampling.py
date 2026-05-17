@@ -69,9 +69,25 @@ def macos_sample_cpu_time(pid: int) -> float:
     Uses ps subprocess as the primary method since proc_pidinfo()
     returns incorrect CPU time values on macOS 26+ (struct layout
     mismatch). Falls back to proc_pidinfo if ps is unavailable.
-    If both methods fail, logs a warning and returns 0.0.
+    If the process no longer exists, returns 0.0 silently.
     Returns total CPU seconds consumed by the process.
     """
+    # Pre-check: test if the process is still alive using signal 0
+    # (which sends no actual signal but performs error-checking).
+    # This avoids spawning ps subprocess or loading ctypes for a process
+    # that already exited — a common case since CommandExecutor attaches
+    # the throttler to every subprocess, including fast utility commands
+    # (mv, mkdir, cp) that finish in milliseconds.
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        # Process already exited — nothing to sample, return 0.0 silently.
+        return 0.0
+    except OSError:
+        # Permission error or other OS-level issue — process may still
+        # be alive. Fall through to normal sampling.
+        pass
+
     try:
         return _macos_ps_fallback(pid)
     except (ProcessLookupError, ValueError, RuntimeError, subprocess.TimeoutExpired) as err:

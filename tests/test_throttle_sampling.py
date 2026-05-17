@@ -81,6 +81,44 @@ class TestMacOSSampling(TestCase):
                 _macos_ps_fallback(9999)
 
 
+    def test_macos_sample_dead_pid_returns_zero_silently(self):
+        """Dead PID returns 0.0 without attempting ps or proc_pidinfo."""
+        from utils.throttle.sampling import macos_sample_cpu_time
+
+        # Simulate a PID that no longer exists
+        with mock.patch('utils.throttle.sampling.os.kill') as mock_kill:
+            mock_kill.side_effect = ProcessLookupError(
+                'Process 9999 does not exist'
+            )
+
+            # Prove the pre-check short-circuits: ps_fallback should
+            # never be called for dead PIDs
+            with mock.patch(
+                'utils.throttle.sampling._macos_ps_fallback',
+            ) as mock_ps:
+                result = macos_sample_cpu_time(9999)
+
+                self.assertEqual(result, 0.0)
+                mock_ps.assert_not_called()
+
+    def test_macos_sample_alive_pid_still_works(self):
+        """Alive PID still goes through normal sampling path."""
+        from utils.throttle.sampling import macos_sample_cpu_time
+
+        # Simulate an alive PID: os.kill(pid, 0) succeeds
+        with mock.patch('utils.throttle.sampling.os.kill') as mock_kill:
+            mock_kill.return_value = None
+
+            # Normal sampling path should still return expected value
+            with mock.patch(
+                'utils.throttle.sampling._macos_ps_fallback',
+                return_value=105.75,
+            ):
+                result = macos_sample_cpu_time(9999)
+
+                self.assertAlmostEqual(result, 105.75, places=2)
+
+
 class TestSystemLoad(TestCase):
     """Tests for system CPU load monitoring."""
 
