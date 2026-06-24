@@ -22,7 +22,7 @@ mediakit/
 ├── folder.py       # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py       # Environment config with side-effect imports (sys.path, logging init, find_dotenv)
 ├── watcher.sh      # macOS LaunchAgent watcher loop
-└── pyproject.toml  # PDM + pytest + Black + Ruff + isort + pyright + tqdm
+└── pyproject.toml  # uv + pytest + Ruff + pyright + tqdm
 ```
 
 ## WHERE TO LOOK
@@ -50,18 +50,19 @@ mediakit/
 
 ## CONVENTIONS
 
-- **Line length**: 120 chars (Black, isort, Pylint)
+- **Line length**: 120 chars (Ruff)
 - **Quotes**: Single quotes (Ruff format)
-- **String normalization**: Off (Black `skip-string-normalization`)
-- **Imports**: isort with Black profile, 5-group order, forced alphabetical within sections
+- **String normalization**: Off (Ruff `format.skip-magic-trailing-comma`)
+- **Imports**: Ruff import sorting (I rule), 5-group order, forced alphabetical within sections
 - **Types**: pyright `basic` mode (not strict)
-- **Lint pipeline**: vulture (100%) → codespell → ruff → isort-check → black-check
-- **PDM scripts**: `isort`, `format`, `ruff`, `fix`, `lint`, `codespell`
+- **Lint pipeline**: vulture (100%) → codespell → ruff
+- **Scripts**: shell scripts in `scripts/` directory (format, lint, fix, codespell, vulture)
 - **CLI dispatch**: MiddlewareScheduler pattern (not argparse subcommands)
 - **Config**: `from config import CONFIG` — all env vars via subclass attributes
 - **Testing**: pytest with unittest.TestCase, mock.patch, setUp pattern
 - **Dead code**: Vulture at 100% min-confidence — no false positives tolerated
 - **Lint tools**: `ruff`, `codespell`, `vulture` installed as dev deps
+- **Commit**: `scripts/format-commit.sh` auto-formats with ruff before committing
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -85,14 +86,23 @@ mediakit/
 ## COMMANDS
 
 ```bash
-# Test (pytest 8.0.0+)
+# Fix lint issues
+uv run ruff check --fix acme tests
+
+# Install pre-commit hook (one-time setup)
+pre-commit install
+
+# Run full lint pipeline (manual)
+pre-commit run --all-files
+
+# Test
 pytest -vv --rootdir . --color=yes --capture=tee-sys
 
 # Lint
-pdm run lint
+uv run ruff check acme tests
 
 # Format
-pdm run format
+uv run ruff format .
 
 # Run CLI (compress)
 mediakit compress -t video -w 1 -f /path/to/folder
