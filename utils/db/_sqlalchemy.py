@@ -1,16 +1,16 @@
-from functools import cached_property
 import logging
+from functools import cached_property
 from typing import Any, Dict
 
-from config import CONFIG
 import sqlalchemy as db
-from sqlalchemy import text, TextClause
 import sqlalchemy.exc
+from sqlalchemy import TextClause, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
-from utils.db.base import BaseEngine
 
+from config import CONFIG
+from utils.db.base import BaseEngine
 
 logger = logging.getLogger()
 
@@ -19,8 +19,9 @@ class Engine(BaseEngine):
     def __init__(self, database: str):
         super().__init__(database)
         # e.g. sqlite:///sqlite.db | sqlite+aiosqlite:///sqlite.db | postgresql://user:password@localhost:5432/dbname
-        self.database: str = f"sqlite:///{self.database}"
+        self.database: str = f'sqlite:///{self.database}'
         from src import models as _models
+
         self.metadata = _models.Base.metadata
 
     def create_db_and_tables(self):
@@ -36,7 +37,7 @@ class Engine(BaseEngine):
             self.database,
             # creates StreamHandler which outputs to console.
             # echo=True,
-            isolation_level="READ UNCOMMITTED",
+            isolation_level='READ UNCOMMITTED',
             # json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
         )
 
@@ -52,6 +53,7 @@ class Engine(BaseEngine):
 
     def query__(self, statement: Select | Update | str | TextClause, params: Dict[str, Any] = {}):
         from utils import response
+
         if isinstance(statement, str):
             statement = text(statement)
         with self.get_session() as session:
@@ -66,7 +68,7 @@ class Engine(BaseEngine):
                     # )
                     _result = session.execute(statement, params)
                     result = _result.__dict__
-                    rowcount = result.get("rowcount")
+                    rowcount = result.get('rowcount')
                     if not isinstance(rowcount, int) or rowcount == 0:
                         return response.Result(code=404)
                 elif isinstance(statement, TextClause):
@@ -83,16 +85,15 @@ class Engine(BaseEngine):
             return response.Result(code=0, data=result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     from src import models
+
     engine = Engine(CONFIG.SQLITE_DATABASE)
     # engine.create_db_and_tables()
     with engine.get_session() as session:
         # result = session.execute(text('select * from media'))
         # result = session.execute(select(models.Media).where(models.Media.md5 == '3a51af5d5e4d3c8b84185729e91e0170').limit(1))
-        params = {
-            "md5": "9b364cebea51dcd4315ee96d11fc7aff",
-        }
+        params = {'md5': '9b364cebea51dcd4315ee96d11fc7aff'}
         # result = session.query(models.Media).filter_by(**params).all()
         # logger.debug(result)
 
@@ -100,7 +101,7 @@ if __name__ == "__main__":
         # result = session.query(update(models.Media).values(data=models.Media.state + literal({"compress":3}, JSON)),)
 
         # result = session.query(models.Media).filter_by(**params).all()
-        result = session.query(models.Media).filter_by(**params).update({"state": {"compress": 2, "trim": 0}})
+        result = session.query(models.Media).filter_by(**params).update({'state': {'compress': 2, 'trim': 0}})
         logger.debug(result)
         # {'_orig': (275265937, 275609729), '_propagate_attrs': immutabledict({'compile_state_plugin': 'orm', 'plugin_subject': <Mapper at 0x1067e8890; Media>}), 'left': Column('state', JSON(), table=<media>), 'right': BindParameter('%(4409755664 state)s', 'compress', type_=JSONStrIndexType()), 'operator': <function json_getitem_op at 0x1037ad800>, 'type': JSON(), 'negate': None, '_is_implicitly_boolean': False, 'modifiers': {}}
         session.commit()

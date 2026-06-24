@@ -3,7 +3,6 @@ import logging
 import os
 from typing import Any, Callable, Optional
 
-
 BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -29,17 +28,15 @@ BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 
 class RelativePathFormatter(logging.Formatter):
-
     def format(self, record) -> str:
-        record.relpath = record.pathname.replace(f"{BASE_DIR}/", "", 1)
+        record.relpath = record.pathname.replace(f'{BASE_DIR}/', '', 1)
         return super().format(record)
 
 
 from enum import IntEnum
 
-
-_PREFIX = "\033["
-_SUFFIX = "\033[0m"
+_PREFIX = '\033['
+_SUFFIX = '\033[0m'
 # NC = "\x1b[0m"  # No Color
 
 
@@ -76,24 +73,17 @@ class Color(IntEnum):
     ITALIC = 3
     UNDERLINE = 4
 
-    def format(
-        self,
-        text: str,
-        bold=False,
-        underline=False,
-        italic=False,
-        bg: Optional[int] = None,
-    ):
+    def format(self, text: str, bold=False, underline=False, italic=False, bg: Optional[int] = None):
         c = self
         if bold:
-            c = f"1;{c}"
+            c = f'1;{c}'
         if italic:
-            c = f"3;{c}"
+            c = f'3;{c}'
         if underline:
-            c = f"4;{c}"
+            c = f'4;{c}'
         if bg:
-            c = f"{c};{bg}"
-        return f"{_PREFIX}{c}m{text}{_SUFFIX}"
+            c = f'{c};{bg}'
+        return f'{_PREFIX}{c}m{text}{_SUFFIX}'
 
 
 class LevelColor(IntEnum):
@@ -113,7 +103,7 @@ from pprint import pformat
 class ColorFormatter(logging.Formatter):
     # TODO: Currently, configuration is only supported in one formatter.
 
-    FORMAT_PATTERN = f"[%(levelname)s]%(pathname)s:%(lineno)d: %(funcName)s: %(message)s"
+    FORMAT_PATTERN = f'[%(levelname)s]%(pathname)s:%(lineno)d: %(funcName)s: %(message)s'
 
     def __init__(self, *args, lexer: Callable[..., Any] = pformat, **kwargs):
         super().__init__(*args, **kwargs)
@@ -136,16 +126,16 @@ def json_wrap(fuc: Callable[..., Any]):
     def inner(self: logging.Logger, msg, *args, **kwargs):
         level_color: LevelColor = getattr(LevelColor, fuc.__name__.upper(), LevelColor.DEFAULT)
         filename, lineno, name, sinfo = self.findCaller(stack_info=True)
-        prefix = f"[{Color(level_color).format('JSON')}]: {Color.GREY_OK.format(filename)}:{lineno}: {name}:"
+        prefix = f'[{Color(level_color).format("JSON")}]: {Color.GREY_OK.format(filename)}:{lineno}: {name}:'
         # Print the stack trace
         if isinstance(msg, (list, dict)):
             # print(
             #     f"{prefix}\n{ColorFormatter.format_msg(msg)}",
             #     # end='',
             # )
-            self._log(level_color, f"{prefix}\n{ColorFormatter.format_msg(msg)}", (), **kwargs)
+            self._log(level_color, f'{prefix}\n{ColorFormatter.format_msg(msg)}', (), **kwargs)
             return
-        msg = f"{prefix} {Color(level_color).format(msg)}"
+        msg = f'{prefix} {Color(level_color).format(msg)}'
         # print(msg)
         self._log(level_color, msg, (), **kwargs)
 
@@ -156,64 +146,48 @@ def json_wrap(fuc: Callable[..., Any]):
 # for level in ("debug", "info", "warning", "error", "exception", "critical"):
 #     setattr(logging.Logger, level, json_wrap(getattr(logging.Logger, level)))
 
-if __name__ == "__main__":
-    print(Color.RED.format("hello"))
-    print(Color.RED.format("hello", bold=True))
-    print(Color.PINK_OK.format("hello", underline=True, italic=True))
-    print(Color.BLUE.format("hello", bold=True, underline=True))
-    print(Color.RED.format("hello", bg=Color.BLUE_BG))
+if __name__ == '__main__':
+    print(Color.RED.format('hello'))
+    print(Color.RED.format('hello', bold=True))
+    print(Color.PINK_OK.format('hello', underline=True, italic=True))
+    print(Color.BLUE.format('hello', bold=True, underline=True))
+    print(Color.RED.format('hello', bg=Color.BLUE_BG))
 
     import logging.config
 
     LOGGING_CONFIG = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "color": {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'color': {
                 # First method
-                "()": ColorFormatter,
-                "format": ColorFormatter.FORMAT_PATTERN,
+                '()': ColorFormatter,
+                'format': ColorFormatter.FORMAT_PATTERN,
             },
-            "relative": {
-                "()": RelativePathFormatter,
-                "format": "%(relpath)s:%(lineno)d: %(funcName)s: %(message)s",
-            },
+            'relative': {'()': RelativePathFormatter, 'format': '%(relpath)s:%(lineno)d: %(funcName)s: %(message)s'},
         },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "level": "DEBUG",
-                "formatter": "color",
-            },
-        },
-        "loggers": {
-            "": {
-                "handlers": ["console"],
-                "level": "DEBUG",
-            },
-            "sqlalchemy.engine": {
-                "handlers": ["console"],
-                "level": "INFO",
-                "propagate": False,
-            },
+        'handlers': {'console': {'class': 'logging.StreamHandler', 'level': 'DEBUG', 'formatter': 'color'}},
+        'loggers': {
+            '': {'handlers': ['console'], 'level': 'DEBUG'},
+            'sqlalchemy.engine': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
         },
     }
     logging.config.dictConfig(LOGGING_CONFIG)
     logger = logging.getLogger()  # type: ignore
     # logger.setLevel(logging.WARNING)
-    logger.debug("log level: debug")
-    logger.info("log level: info")
-    logger.warning("log level: warning")
-    logger.error("log level: error")
-    logger.exception("log level: exception")
-    logger.critical("log level: critical")
-    logger.debug({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
-    logger.info({"a": 1, "b": "-" * 80, "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}}})
+    logger.debug('log level: debug')
+    logger.info('log level: info')
+    logger.warning('log level: warning')
+    logger.error('log level: error')
+    logger.exception('log level: exception')
+    logger.critical('log level: critical')
+    logger.debug({'a': 1, 'b': '-' * 80, 'c': {'d': 3, 'e': 4, 'f': {'g': 5, 'h': 6}}})
+    logger.info({'a': 1, 'b': '-' * 80, 'c': {'d': 3, 'e': 4, 'f': {'g': 5, 'h': 6}}})
     logger.debug([])
     logger.info({})
 
-    sqlalchemy_logger = logging.getLogger("sqlalchemy.engine")
-    sqlalchemy_logger.debug("sqlalchemy debug")
-    sqlalchemy_logger.info("sqlalchemy info")
-    sqlalchemy_logger.warning("sqlalchemy warning")
+    sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')
+    sqlalchemy_logger.debug('sqlalchemy debug')
+    sqlalchemy_logger.info('sqlalchemy info')
+    sqlalchemy_logger.warning('sqlalchemy warning')
     sqlalchemy_logger.error(sqlalchemy_logger.__dict__)

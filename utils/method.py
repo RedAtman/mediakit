@@ -1,10 +1,7 @@
 from types import MethodType
 from typing import Callable
 
-
-__all__ = [
-    "check_method_bound_to",
-]
+__all__ = ['check_method_bound_to']
 
 
 def check_method_bound_to(method: Callable):
@@ -15,7 +12,7 @@ def check_method_bound_to(method: Callable):
     """
     if not isinstance(method, MethodType):
         return False, None
-    __self__ = getattr(method, "__self__", None)
+    __self__ = getattr(method, '__self__', None)
     assert not __self__ is None
     assert isinstance(__self__, object)
     if isinstance(__self__, type):

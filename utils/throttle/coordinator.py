@@ -13,9 +13,7 @@ from .throttler import ProcessThrottler
 
 logger = logging.getLogger()
 
-__all__ = [
-    'CPULimiterCoordinator',
-]
+__all__ = ['CPULimiterCoordinator']
 
 MIN_PER_WORKER = 1
 PROFILES = [None, 100, 50, 25]
@@ -30,11 +28,7 @@ class CPULimiterCoordinator:
     workers, and handles manual overrides via SIGUSR1 and files.
     """
 
-    def __init__(
-        self,
-        default_limit: int = 100,
-        auto_mode: bool = True,
-    ):
+    def __init__(self, default_limit: int = 100, auto_mode: bool = True):
         self.default_limit = default_limit
         self.auto_mode = auto_mode
         self._lock = threading.RLock()
@@ -47,9 +41,7 @@ class CPULimiterCoordinator:
             signal.signal(signal.SIGUSR1, self._handle_sigusr1)
         except (ValueError, AttributeError) as err:
             logger.warning('Cannot register SIGUSR1 handler: %s', err)
-        self._monitor_thread = threading.Thread(
-            target=self._monitor_loop, daemon=True,
-        )
+        self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
 
     def _stop_monitor(self):
@@ -102,10 +94,7 @@ class CPULimiterCoordinator:
                 return self._calculate_per_process_target()
 
             throttler = ProcessThrottler(pid=pid, target_fn=target_fn)
-            self._throttlers[pid] = {
-                'throttler': throttler,
-                'started_at': time.time(),
-            }
+            self._throttlers[pid] = {'throttler': throttler, 'started_at': time.time()}
             throttler.start()
             logger.info('Attached throttler for PID %d', pid)
 
@@ -184,24 +173,17 @@ class CPULimiterCoordinator:
                 parts = basename.rsplit('_', 1)
                 if len(parts) == 2 and parts[1].isdigit():
                     target = int(parts[1])
-                    logger.info(
-                        'File override detected: %s → %d%%', basename, target,
-                    )
+                    logger.info('File override detected: %s → %d%%', basename, target)
                     self.set_manual_override(target)
                     os.remove(filepath)
                     return
             except (OSError, ValueError) as err:
-                logger.warning(
-                    'Failed to process override file %s: %s', filepath, err,
-                )
+                logger.warning('Failed to process override file %s: %s', filepath, err)
 
     def _cleanup_zombies(self):
         """Remove zombie throttlers."""
         with self._lock:
-            zombies = [
-                pid for pid, info in self._throttlers.items()
-                if info['throttler'].zombie
-            ]
+            zombies = [pid for pid, info in self._throttlers.items() if info['throttler'].zombie]
             for pid in zombies:
                 info = self._throttlers.pop(pid)
                 info['throttler'].stop()

@@ -1,4 +1,3 @@
 from importlib import import_module
 
-
-import_module("src.signals")
+import_module('src.signals')

@@ -5,7 +5,7 @@ from importlib import import_module
 
 
 def load_env():
-    from dotenv import load_dotenv, find_dotenv
+    from dotenv import find_dotenv, load_dotenv
 
     dotenv_path = find_dotenv(usecwd=True)
     if dotenv_path:
@@ -51,9 +51,7 @@ class _BaseConfig:
     CPU_LIMIT: int = int(os.getenv('CPU_LIMIT', '100'))
 
     # SQLITE
-    SQLITE_DATABASE = os.path.abspath(
-        os.path.join(BASE_DIR, os.getenv('SQLITE_DATABASE') or 'db.db')
-    )
+    SQLITE_DATABASE = os.path.abspath(os.path.join(BASE_DIR, os.getenv('SQLITE_DATABASE') or 'db.db'))
     SQLITE_CONNECTION_POOL_SIZE = int(os.getenv('SQLITE_CONNECTION_POOL_SIZE', 10))
 
     # FFMPEG

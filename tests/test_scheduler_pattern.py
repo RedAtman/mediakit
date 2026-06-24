@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -10,12 +10,15 @@ class TestContextEnforcement(unittest.TestCase):
 
     def setUp(self):
         import importlib
+
         import src.patterns.middleware_context_closure as mc
+
         importlib.reload(mc)
         self.mc = mc
 
     def test_missing_ctx_next_raises(self):
         """Middleware that returns without calling ctx.next() should raise RuntimeError."""
+
         def bad_middleware(ctx, **kwargs):
             return {'result': 'early'}
 
@@ -34,6 +37,7 @@ class TestContextEnforcement(unittest.TestCase):
 
     def test_normal_chain_succeeds(self):
         """Normal chain where middleware calls ctx.next() succeeds."""
+
         def good_middleware(ctx, **kwargs):
             return ctx.next(**kwargs)
 
@@ -55,7 +59,9 @@ class TestLoadMiddleware(unittest.TestCase):
 
     def setUp(self):
         import importlib
+
         import src.patterns.middleware_context_closure as mc
+
         importlib.reload(mc)
         self.mc = mc
 
@@ -87,6 +93,7 @@ class TestLoadMiddleware(unittest.TestCase):
 
     def test_empty_middleware_chain(self):
         """No middlewares — core runs directly."""
+
         def core(**kwargs):
             return 'direct'
 

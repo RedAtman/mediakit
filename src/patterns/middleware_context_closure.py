@@ -34,7 +34,7 @@ class Context:
     @args.setter
     def args(self, args: tuple[Any, ...]):
         if not isinstance(args, tuple):
-            raise TypeError(f"args must be tuple, not {type(args)}")
+            raise TypeError(f'args must be tuple, not {type(args)}')
         self._args = args
 
     @property
@@ -44,7 +44,7 @@ class Context:
     @kwargs.setter
     def kwargs(self, kwargs):
         if not isinstance(kwargs, dict):
-            raise TypeError(f"kwargs must be dict, not {type(kwargs)}")
+            raise TypeError(f'kwargs must be dict, not {type(kwargs)}')
         self._kwargs = kwargs
 
     @property
@@ -125,7 +125,7 @@ class MiddlewareScheduler:
             if not ctx._core_ran:
                 raise RuntimeError(
                     f"Core function '{func.__name__}' was not invoked. "
-                    "A middleware returned without calling ctx.next()."
+                    'A middleware returned without calling ctx.next().'
                 )
             return result
 
@@ -138,12 +138,12 @@ class MiddlewareScheduler:
             # self._wrap(func)()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     scheduler = MiddlewareScheduler()
 
     # @scheduler.add_middleware
     def the_1nd_middleware(*args, ctx: Context, **kwargs):
-        print("the_1nd_middleware")
+        print('the_1nd_middleware')
         # print("The first one", ctx.__dict__)
         # print("The first one", args, kwargs)
         return ctx.next(*args, **kwargs)
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     class Obj:
         # @classmethod
         def the_2nd_middleware(self, *args: tuple[Any, ...], ctx: Context, **kwargs: dict[str, Any]):
-            print("the_2nd_middleware")
+            print('the_2nd_middleware')
             # print("The 2nd one", cls, ctx)
             # print("The 2nd one", ctx.__dict__)
             # print("The 2nd one", args, kwargs)
@@ -164,18 +164,18 @@ if __name__ == "__main__":
     scheduler.add_middleware(Obj.the_2nd_middleware)
     scheduler.add_middleware(obj.the_2nd_middleware)
 
-    @scheduler.add_func("core_func")
+    @scheduler.add_func('core_func')
     def core_func(*args, ctx: Context, **kwargs):
-        print("core_func", ctx)
-        return "The Core Function"
+        print('core_func', ctx)
+        return 'The Core Function'
 
-    @scheduler.add_func("core_func2")
+    @scheduler.add_func('core_func2')
     def core_func2(*args, ctx, **kwargs):
-        print("core_func2", ctx)
-        return "The Core Function2"
+        print('core_func2', ctx)
+        return 'The Core Function2'
 
     result = scheduler.initialize()
     # print(result)
-    print(getattr(scheduler, "core_func")("a", "b", c="c"))
+    print(getattr(scheduler, 'core_func')('a', 'b', c='c'))
     # print(getattr(obj, 'core_func')('a', 'b', 'd', c='c'))
     # print(scheduler.core_func2('a', 'b', c='c'))

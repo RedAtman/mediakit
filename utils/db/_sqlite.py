@@ -1,17 +1,14 @@
 import logging
-from queue import Queue
 import sqlite3
 import threading
+from queue import Queue
 from typing import Any, Dict, Optional, Tuple, Union
 
 from config import CONFIG
 
-
 logger = logging.getLogger()
 
-__all__ = [
-    "Engine",
-]
+__all__ = ['Engine']
 
 
 class Engine:
@@ -20,12 +17,9 @@ class Engine:
         self.connection_pool: Queue[sqlite3.Connection] = Queue()
         self.lock = threading.Lock()
         self.create_connection_pool()
-        logger.debug("Engine: %s", self)
+        logger.debug('Engine: %s', self)
 
-    def create_connection_pool(
-        self,
-        pool_size: int = CONFIG.SQLITE_CONNECTION_POOL_SIZE,
-    ):
+    def create_connection_pool(self, pool_size: int = CONFIG.SQLITE_CONNECTION_POOL_SIZE):
         with self.lock:
             for _ in range(pool_size):
                 connection = sqlite3.connect(
@@ -42,13 +36,9 @@ class Engine:
     def release_connection(self, connection: sqlite3.Connection) -> None:
         self.connection_pool.put(connection)
 
-    def execute_query(
-        self,
-        query: str,
-        params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None,
-    ):
+    def execute_query(self, query: str, params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None):
         connection = self.get_connection()
-        logger.debug("Connection: %s", connection)
+        logger.debug('Connection: %s', connection)
         cursor = connection.cursor()
         try:
             if params:
@@ -62,11 +52,7 @@ class Engine:
             cursor.close()
             self.release_connection(connection)
 
-    def execute_insert_update_delete(
-        self,
-        query: str,
-        params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None,
-    ):
+    def execute_insert_update_delete(self, query: str, params: Optional[Union[Tuple[Any, ...], Dict[str, Any]]] = None):
         connection = self.get_connection()
         cursor = connection.cursor()
         try:
@@ -94,12 +80,12 @@ class Engine:
 
 
 def worker(db: Engine):
-    result = db.execute_query("SELECT * FROM media")
+    result = db.execute_query('SELECT * FROM media')
     logger.debug(result)
     return result
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     db = Engine(CONFIG.SQLITE_DATABASE)
 
     num_threads = 5

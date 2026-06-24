@@ -14,7 +14,6 @@ import logging
 
 from utils.cli import create_parser
 
-
 logger = logging.getLogger()
 
 
@@ -30,9 +29,9 @@ def main():
         from src.schedulers import folder
 
         scheduler = getattr(folder, args.action)
-    result = getattr(scheduler, "core")(**args.__dict__)
+    result = getattr(scheduler, 'core')(**args.__dict__)
     logger.info(result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

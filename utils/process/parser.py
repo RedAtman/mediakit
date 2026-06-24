@@ -3,12 +3,10 @@ import logging
 import re
 from typing import IO
 
-
 logger = logging.getLogger()
 
 
 class BaseStdoutParser:
-
     def __init__(self, stdout: IO[str]):
         self.stdout: IO[str] = stdout
 
@@ -30,8 +28,7 @@ class BaseStdoutParser:
 
 
 class FfmpegCurrentFrameStdoutParser(BaseStdoutParser):
-
     def parse_stdout_line(self, stdout_line: str):
-        current = re.findall(r"frame=\s*(\d+)", stdout_line)
+        current = re.findall(r'frame=\s*(\d+)', stdout_line)
         if current:
             return current[-1]

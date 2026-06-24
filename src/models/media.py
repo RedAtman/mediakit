@@ -1,5 +1,5 @@
-from datetime import datetime
 import logging
+from datetime import datetime
 from typing import Union, Unpack
 
 from sqlalchemy import Column, DateTime, String
@@ -12,13 +12,9 @@ from src import db, schemas
 from src.models._type import MediaParams
 from utils import response
 
-
 logger = logging.getLogger()
 
-__all__ = [
-    "Base",
-    "Media",
-]
+__all__ = ['Base', 'Media']
 
 Base = declarative_base()
 
@@ -28,7 +24,7 @@ class Media(Base):
     title = Column(String, nullable=False)
     dirname = Column(String, nullable=False)
     # created_at = Column(DateTime, default=datetime.utcnow, read_only=True)
-    _created_at = Column("created_at", DateTime, default=datetime.utcnow)
+    _created_at = Column('created_at', DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=None, nullable=True)
     state = Column(JSON, default=schemas.State().model_dump(), nullable=False)
 
@@ -41,7 +37,7 @@ class Media(Base):
     # def created_at(self, value):
     #     self._created_at = value
 
-    __tablename__ = "media"
+    __tablename__ = 'media'
     # @classmethod
     # def __tablename__(cls):
     #     return 'media'
@@ -55,7 +51,7 @@ class Media(Base):
     #     return f"<Media(md5={self.md5}, title={self.title}, dirname={self.dirname}, created_at={self.created_at}, updated_at={self.updated_at}, state={self.state})>"
 
     def __str__(self) -> str:
-        return f"<{self.__class__.__name__}({self.__dict__})>"
+        return f'<{self.__class__.__name__}({self.__dict__})>'
 
     # def model_dump(self):
     #     return {
@@ -76,7 +72,7 @@ class Media(Base):
 
     @property
     def path(self):
-        return f"{self.dirname}/{self.title}"
+        return f'{self.dirname}/{self.title}'
 
     # @hybrid_property
     # def compress(self) -> Any:
@@ -140,46 +136,44 @@ class Media(Base):
             return instance
 
     def update_state(self, key: str, val: Union[int, float]):
-        logger.debug("update_state: key=%s, val=%s (type=%s), current self.state=%s",
-                     key, val, type(val).__name__, self.state)
+        logger.debug(
+            'update_state: key=%s, val=%s (type=%s), current self.state=%s', key, val, type(val).__name__, self.state
+        )
         with db.DatabaseEngine.engine().get_session() as session:
             state: dict = self.state.copy()  # type: ignore
             state[key] = val
             new_state = schemas.State(**state).model_dump()
-            logger.debug("update_state: new_state=%s, before session.add", new_state)
+            logger.debug('update_state: new_state=%s, before session.add', new_state)
             self.state = new_state
             session.add(self)
             session.commit()
-            logger.debug("update_state: committed, md5=%s, state=%s", self.md5, self.state)
-            return response.Result(code=0, data={"media": self})
+            logger.debug('update_state: committed, md5=%s, state=%s', self.md5, self.state)
+            return response.Result(code=0, data={'media': self})
 
     def delete(self):
         with db.DatabaseEngine.engine().get_session() as session:
             session.delete(self)
             session.commit()
-            return response.Result(code=0, data={"media": self})
+            return response.Result(code=0, data={'media': self})
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     from utils.db import _sqlmodel
 
     engine = _sqlmodel.Engine(CONFIG.SQLITE_DATABASE)
     # engine.create_db_and_tables()
     company: Media = Media(
-        md5="md5",
-        title="title",
-        dirname="dirname",
+        md5='md5',
+        title='title',
+        dirname='dirname',
         # state={'compress': 'compress', 'trim': 'trim'},
-        state=schemas.State(
-            compress=schemas.StateChoices.unprocessed,
-            trim=schemas.StateChoices.unprocessed,
-        ),
+        state=schemas.State(compress=schemas.StateChoices.unprocessed, trim=schemas.StateChoices.unprocessed),
     )
     logger.info(company)
     logger.info(company.__dict__)
     logger.info(company.state)
-    instance = Media.get(md5="md5")
-    instance2 = Media.get(md5="md5")
+    instance = Media.get(md5='md5')
+    instance2 = Media.get(md5='md5')
     logger.info((id(instance), instance))
     logger.info((id(instance2), instance2))
     logger.info(instance == instance2)

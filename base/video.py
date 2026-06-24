@@ -3,8 +3,9 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Set, Union
 
-from base.media import BaseMedia
 import ffmpeg
+
+from base.media import BaseMedia
 from src.mixins.transcriber import MixinMediaTranscriber
 from utils import decorator, translator
 from utils.command import CommandExecutor
@@ -12,25 +13,17 @@ from utils.video import VideoResolution
 
 from .media import BaseMedia
 
-
 logger = logging.getLogger()
-__all__ = [
-    "Video",
-]
+__all__ = ['Video']
 
 
-class Video(
-    BaseMedia,
-    MixinMediaTranscriber,
-):
-    _INCLUDE_TYPE = [
-        "video",
-    ]
+class Video(BaseMedia, MixinMediaTranscriber):
+    _INCLUDE_TYPE = ['video']
 
     def __init__(
         self,
         *args,
-        artist: str = "",
+        artist: str = '',
         category: List[str] = [],
         camera: List[str] = [],
         lens: List[str] = [],
@@ -62,15 +55,7 @@ class Video(
         Returns:
             [list] -- [命令行执行order]
         """
-        meta_key_list = [
-            "title",
-            "artist",
-            "album_artist",
-            "category",
-            "camera",
-            "lens",
-            "keywords",
-        ]
+        meta_key_list = ['title', 'artist', 'album_artist', 'category', 'camera', 'lens', 'keywords']
         order_metadata: List[str] = []
         for key in meta_key_list:
             meta: Union[str, list] = getattr(self, key)
@@ -78,59 +63,47 @@ class Video(
                 continue
 
             if isinstance(meta, str):
-                order_metadata.extend(["-metadata", str(key) + "=" + meta])
+                order_metadata.extend(['-metadata', str(key) + '=' + meta])
                 self.keywords_list.add(meta)
             if isinstance(meta, list):
-                order_metadata.extend(["-metadata", str(key) + "=" + ",".join(meta)])
+                order_metadata.extend(['-metadata', str(key) + '=' + ','.join(meta)])
                 self.keywords_list.update(meta)
             # 若是dict 则拼接values
             if isinstance(meta, dict):
 
                 def concat(a, b):
-                    logger.info(("concat", type(a), type(b)))
+                    logger.info(('concat', type(a), type(b)))
                     a.extend(b)
                     return a
 
                 meta_concat = functools.reduce(concat, list(meta.values()))
 
-                order_metadata.extend(["-metadata", str(key) + "=" + ",".join(meta_concat)])
+                order_metadata.extend(['-metadata', str(key) + '=' + ','.join(meta_concat)])
                 self.keywords_list.update(meta_concat)
 
         keywords_en_list = translator.Translator.translate(self.keywords_list)
         self.keywords_list.update(keywords_en_list)
         self.keywords_list = {i.strip() for i in self.keywords_list}
 
-        order_metadata.extend(["-metadata", "keywords" + "=" + ",".join(self.keywords_list)])
+        order_metadata.extend(['-metadata', 'keywords' + '=' + ','.join(self.keywords_list)])
 
         return order_metadata
 
     @decorator.timer
     def save_metadata(self):
         """Save metadata to file(txt)."""
-        return [
-            "-f",
-            "ffmetadata",
-            self.dirname + "/" + self.title + "_metadate" + ".txt",
-        ]
+        return ['-f', 'ffmetadata', self.dirname + '/' + self.title + '_metadate' + '.txt']
 
     @decorator.timer
     def set_metadata(self):
         """Set metadata to file."""
-        return self.order_metadata.extend(
-            [
-                "-c:a",
-                "copy",
-                "-c:v",
-                "copy",
-                self.get_output_path(suffix="set_metadata"),
-            ]
-        )
+        return self.order_metadata.extend(['-c:a', 'copy', '-c:v', 'copy', self.get_output_path(suffix='set_metadata')])
 
     @property
     def fps(self):
         fps: Dict[str, Any] = self._fps()
-        assert isinstance(fps, str), f"fps must be str, but got: {type(fps)}: {fps}"
-        assert fps.isdigit(), f"fps must be digit, but got: {type(fps)}: {fps}"
+        assert isinstance(fps, str), f'fps must be str, but got: {type(fps)}: {fps}'
+        assert fps.isdigit(), f'fps must be digit, but got: {type(fps)}: {fps}'
         return float(fps)
 
     @decorator.timer
@@ -138,27 +111,27 @@ class Video(
         """Get video fps."""
         command = [
             self._FFPROBE_BIN,
-            "-v",
-            "error",
-            "-select_streams",
-            "v",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            "-show_entries",
-            "stream=r_frame_rate",
+            '-v',
+            'error',
+            '-select_streams',
+            'v',
+            '-of',
+            'default=noprint_wrappers=1:nokey=1',
+            '-show_entries',
+            'stream=r_frame_rate',
             self.path,
-            "|",
-            "bc",
+            '|',
+            'bc',
             # "-l",
         ]
-        return CommandExecutor.run(command, mode="pipe")
+        return CommandExecutor.run(command, mode='pipe')
 
     @property
     def resolution(self) -> tuple[int, int]:
         probe = ffmpeg.probe(self.path, cmd=self._FFPROBE_BIN)
         video_streams = [stream for stream in probe['streams'] if stream['codec_type'] == 'video']
         if not video_streams:
-            raise ValueError("No video streams found")
+            raise ValueError('No video streams found')
         return video_streams[0]['width'], video_streams[0]['height']
 
     @functools.cached_property
@@ -173,7 +146,7 @@ class Video(
             if result.isdigit():
                 return int(result)
             default_frames_count = 10000000
-            logger.warning(f"Cannot get frames count: {self.path}, set to {default_frames_count}.")
+            logger.warning(f'Cannot get frames count: {self.path}, set to {default_frames_count}.')
             return default_frames_count
 
     @functools.cached_property
@@ -202,28 +175,28 @@ class Video(
     @decorator.execute
     def reverse(self):
         """Reverse video stream."""
-        new_file_path = self.get_output_path(suffix="reverse")
+        new_file_path = self.get_output_path(suffix='reverse')
         command = self._FFMPEG_PREFIX + [
-            "-i",
+            '-i',
             self.path,
-            "-vf",
-            "reverse",
+            '-vf',
+            'reverse',
             # '-aspect', '3:2',
-            "-aspect",
-            "16:9",
-            "-c:v",
-            "libx265",
-            "-pix_fmt",
-            "yuv420p10le",
+            '-aspect',
+            '16:9',
+            '-c:v',
+            'libx265',
+            '-pix_fmt',
+            'yuv420p10le',
             # "-threads",
             # "0",
-            "-tag:v",
-            "hvc1",
-            "-x265-params",
-            "crf=22",
-            "-an",
+            '-tag:v',
+            'hvc1',
+            '-x265-params',
+            'crf=22',
+            '-an',
             # '-metadata', 'creation_time="2020-08-11T21:30:32"',
-            "-metadata",
+            '-metadata',
             f'creation_time={time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())}',
             # '-color_primaries', '9',
             # '-colorspace', '9',
@@ -258,12 +231,12 @@ class Video(
     @decorator.execute
     def combine(
         self,
-        watermark_path="/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png",
+        watermark_path='/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png',
         watermark_transparent=0.3,
         audio_path: Optional[str] = None,
         audio_defer: float = 0,
         fade_duration: float = 1,
-        crop: str = "1080p",
+        crop: str = '1080p',
         crop_y: int = 0,
         reverse: bool = False,
     ):
@@ -292,40 +265,26 @@ class Video(
         filter_complex: List[str] = []
 
         if watermark_path:
-            command.extend(
-                [
-                    "-i",
-                    watermark_path,
-                ]
-            )
+            command.extend(['-i', watermark_path])
             filter_complex.extend(
                 [
                     """atempo=2,[1:v][0:v]scale2ref=h=ow/mdar:w=iw/9[logo][video]""",
-                    """[logo]format=argb,colorchannelmixer=aa=""" + str(watermark_transparent) + "[logo]",
+                    """[logo]format=argb,colorchannelmixer=aa=""" + str(watermark_transparent) + '[logo]',
                     """[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7""",
                 ]
             )
         if audio_path is not None:
-            command.extend(
-                [
-                    "-ss",
-                    str(audio_defer),
-                    "-t",
-                    str(float(self.duration)),
-                    "-i",
-                    audio_path,
-                ]
-            )
+            command.extend(['-ss', str(audio_defer), '-t', str(float(self.duration)), '-i', audio_path])
             filter_complex.extend(
                 [
                     # '[0:a]aeval=0:c=same[audio]',
-                    "[2:a]afade=t=in:st=0:d="
+                    '[2:a]afade=t=in:st=0:d='
                     + str(fade_duration)
-                    + ",afade=t=out:st="
+                    + ',afade=t=out:st='
                     + str(float(self.duration) - 1)
-                    + ":d="
+                    + ':d='
                     + str(fade_duration)
-                    + ",volume=12dB",
+                    + ',volume=12dB'
                     # '[audio][music]amix=inputs=2:duration=shortest:dropout_transition=2',
                 ]
             )
@@ -334,8 +293,8 @@ class Video(
         video_step_one: List[str] = []
 
         resolution_mapper = {
-            "1080p": [1920, 1080],
-            "4k": [4096, 2160],
+            '1080p': [1920, 1080],
+            '4k': [4096, 2160],
             # '4k': '4096:2304',
             # '4k': '4096:2736'
         }
@@ -355,12 +314,12 @@ class Video(
             video_step_one.append(f'scale=4096:-1[video_step_zero];[video_step_zero]crop={":".join(map(str, ret))}')
 
         if reverse:
-            video_step_one.append("reverse")
+            video_step_one.append('reverse')
 
         if video_step_one:
             # print('filter_complex', filter_complex)
-            filter_complex[0] = "[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]"
-            filter_complex.insert(0, "[0:v]" + ",".join(video_step_one) + "[video_step_one]")
+            filter_complex[0] = '[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]'
+            filter_complex.insert(0, '[0:v]' + ','.join(video_step_one) + '[video_step_one]')
 
         # if vf:
         #     # 反转视频流及相关视频压缩控制（为了兼容apple设备）
@@ -380,14 +339,14 @@ class Video(
 
         command.extend(
             [
-                "-filter_complex",
-                ";".join(filter_complex),
+                '-filter_complex',
+                ';'.join(filter_complex),
                 # 时长取最短的media
                 # '-shortest',
             ]
         )
 
-        new_file_path = self.get_output_path(suffix="combine")
+        new_file_path = self.get_output_path(suffix='combine')
         command.extend(
             [
                 # 长宽比约束
@@ -395,9 +354,9 @@ class Video(
                 # '-pix_fmt', 'yuv420p10le',
                 # '-threads', '0',
                 # '-tag:v', 'hvc1',
-                "-x265-params",
+                '-x265-params',
                 # 视频质量范围（1-51） 8为Ultra Hight 22为Low
-                "crf=8",
+                'crf=8',
                 # 禁掉源文件中的音频
                 # '-an',
                 # '-metadata','creation_time="2020-08-11T21:30:32"',
@@ -406,14 +365,14 @@ class Video(
                 # '-color_primaries', '22',
                 # '-colorspace', '11',
                 # '-color_trc', '18',
-                "-color_primaries",
-                "9",
-                "-colorspace",
-                "9",
-                "-color_trc",
-                "14",
-                "-color_range",
-                "2",
+                '-color_primaries',
+                '9',
+                '-colorspace',
+                '9',
+                '-color_trc',
+                '14',
+                '-color_range',
+                '2',
                 # 视频码率
                 # '-b:v', '4000k',
                 # 视频速度调整
@@ -426,27 +385,27 @@ class Video(
         return self, command, new_file_path
 
     @decorator.timer
-    def images_to_video(self, images_path: str, image_format: str, bit_rate: str = "5000k"):
-        create_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
-        new_file_path = f"{images_path}/output_{bit_rate}_1920_{create_time}.mp4"
+    def images_to_video(self, images_path: str, image_format: str, bit_rate: str = '5000k'):
+        create_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime())
+        new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
         command = self._FFMPEG_PREFIX + [
             # 关闭每帧都提醒是否overwrite
-            "-pattern_type",
-            "glob",
+            '-pattern_type',
+            'glob',
             # 设置帧率
-            "-r",
-            "24",
+            '-r',
+            '24',
             # 设置images文件路径,
-            "-i",
-            images_path + "/*." + image_format,
+            '-i',
+            images_path + '/*.' + image_format,
             # 码率
             # '-b:v', bit_rate,
             # 线程(待验证)
             # "-threads",
             # "4",
             # 画面缩放比率
-            "-vf",
-            "scale=1920:-1",
+            '-vf',
+            'scale=1920:-1',
             # 对video类型文件设置编码类型
             # '-c:v', 'libx264',
             # '-c:v', 'libx265',
@@ -460,12 +419,7 @@ class Video(
     @decorator.timer
     def delete_voice(self):
         """silence audio."""
-        return [
-            "-an",
-            "-c:v",
-            "copy",
-            self.get_output_path(suffix="delete_voice"),
-        ]
+        return ['-an', '-c:v', 'copy', self.get_output_path(suffix='delete_voice')]
 
     @decorator.timer
     @decorator.execute
@@ -481,18 +435,18 @@ class Video(
             bool -- [description]
         """
         if not isinstance(trim_time, (tuple, list)) and len(trim_time) != 2:
-            raise ValueError("参数[time]必须为长度为2的tuple或list")
+            raise ValueError('参数[time]必须为长度为2的tuple或list')
         ss, to = trim_time
-        new_file_path = self.create_file_path(self.path, suffix="trim", suffix_number=suffix_number)
+        new_file_path = self.create_file_path(self.path, suffix='trim', suffix_number=suffix_number)
         command = self._FFMPEG_PREFIX + [
             # 截取时间
-            "-ss",
+            '-ss',
             ss,
-            "-to",
+            '-to',
             to,
             # 使用copy后 避免太过于精确切割而丢失帧
-            "-accurate_seek",
-            "-i",
+            '-accurate_seek',
+            '-i',
             self.path,
             # 线程(设置为4效率最高, 但通用性待验证)
             # '-threads', '4',
@@ -502,10 +456,10 @@ class Video(
             # '-c:a', 'copy',
             # '-c:v', 'copy',
             # 若voice copy失败
-            "-c:v",
-            "copy",
-            "-c:a",
-            "copy",
+            '-c:v',
+            'copy',
+            '-c:a',
+            'copy',
             # '-acodec', 'aac',
             # '-avoid_negative_ts', '1',
             new_file_path,
@@ -516,7 +470,7 @@ class Video(
 
     @decorator.timer
     @decorator.execute
-    def compress(self, ext: str = "mp4", resolution=VideoResolution.HD, fps: int = 24):
+    def compress(self, ext: str = 'mp4', resolution=VideoResolution.HD, fps: int = 24):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
@@ -526,11 +480,11 @@ class Video(
         -c:v: hevc_videotoolbox, h264_videotoolbox
         """
         command = self._ffmpeg_prefix + [
-            "-progress",
-            "pipe:1",
-            "-nostats",
+            '-progress',
+            'pipe:1',
+            '-nostats',
             # '-hwaccel', 'auto',
-            "-i",
+            '-i',
             self.path,
             # # To scale to half size
             # '-vf', "scale=trunc(iw/4)*2:trunc(ih/4)*2",
@@ -546,30 +500,30 @@ class Video(
             pass
             # command.extend(["-s", f"{width}x{height}"])
         else:
-            command.extend(["-s", f"{resolution.width}x{resolution.height}"])
+            command.extend(['-s', f'{resolution.width}x{resolution.height}'])
 
-        suffix, vcodec, preset = "compress", "libx265", "slow"
-        new_file_path = self.create_file_path(self.path, suffix=f"[{suffix}.{vcodec}.{preset}]", ext=ext)
+        suffix, vcodec, preset = 'compress', 'libx265', 'slow'
+        new_file_path = self.create_file_path(self.path, suffix=f'[{suffix}.{vcodec}.{preset}]', ext=ext)
 
         command.extend(
             [
                 # Change FPS
-                "-r",
+                '-r',
                 str(fps),
                 # More faster, but more bigger size.
                 # '-vcodec', 'libx264',
                 # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
                 # -preset: ultrafast, superfast, veryfast, faster, fast, medium(default), slow, slower, veryslow, placebo
                 # '-vcodec', vcodec,
-                "-c:v",
+                '-c:v',
                 vcodec,
-                "-preset",
+                '-preset',
                 preset,
                 # Use RGBA pixel format to keep transparency
                 # '-pix_fmt', 'rgba',
                 # Ensure that the output video has a preview image
-                "-tag:v",
-                "hvc1",
+                '-tag:v',
+                'hvc1',
                 # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
                 # '-crf', '24',
                 # '-avoid_negative_ts', 'make_zero',
@@ -654,60 +608,60 @@ class Video(
         #     sys._getframe().f_code.co_name
         # )
 
-        new_file_path = cls.create_file_path(path, suffix="compress")
+        new_file_path = cls.create_file_path(path, suffix='compress')
         command = cls._FFMPEG_PREFIX + [
-            "-i",
+            '-i',
             path,
-            "-s",
-            str(width) + "x" + str(height),
-            "-aspect",
-            str(width) + ":" + str(height),
+            '-s',
+            str(width) + 'x' + str(height),
+            '-aspect',
+            str(width) + ':' + str(height),
             # "-threads",
             # "0",
-            "-c:v",
-            "hevc_videotoolbox",
-            "-r",
-            "24.00",
-            "-pix_fmt",
-            "yuv420p",
-            "-b:v",
+            '-c:v',
+            'hevc_videotoolbox',
+            '-r',
+            '24.00',
+            '-pix_fmt',
+            'yuv420p',
+            '-b:v',
             str(bitrate),
-            "-maxrate",
+            '-maxrate',
             str(bitrate + 200000),
-            "-bufsize",
-            "4M",
-            "-allow_sw",
-            "1",
-            "-profile:v",
-            "main",
-            "-vtag",
-            "hvc1",
-            "-c:a:0",
-            "aac",
-            "-ac:a:0",
-            "2",
-            "-ar:a:0",
-            "32000",
-            "-b:a:0",
-            "128k",
+            '-bufsize',
+            '4M',
+            '-allow_sw',
+            '1',
+            '-profile:v',
+            'main',
+            '-vtag',
+            'hvc1',
+            '-c:a:0',
+            'aac',
+            '-ac:a:0',
+            '2',
+            '-ar:a:0',
+            '32000',
+            '-b:a:0',
+            '128k',
             # '-b:a:0', '256k',
-            "-strict",
-            "-2",
-            "-sn",
+            '-strict',
+            '-2',
+            '-sn',
             # ffmpeg can automatically determine the appropriate format
             # from the output file name, so most users can omit the -f option.
-            "-f",
-            "mp4",
-            "-map",
-            "0:0",
-            "-map",
-            "0:1?",
-            "-map_chapters",
-            "0",
-            "-max_muxing_queue_size",
-            "40000",
-            "-map_metadata",
-            "0",
+            '-f',
+            'mp4',
+            '-map',
+            '0:0',
+            '-map',
+            '0:1?',
+            '-map_chapters',
+            '0',
+            '-max_muxing_queue_size',
+            '40000',
+            '-map_metadata',
+            '0',
             new_file_path,
         ]
         # logger.warning(
@@ -721,11 +675,11 @@ class Video(
 
     @decorator.timer
     @decorator.execute
-    def decode(self, ext: str = "mp4"):
+    def decode(self, ext: str = 'mp4'):
         """解码视频"""
-        new_file_path = self.dirname + "/" + self.title + "_decode_." + ext
+        new_file_path = self.dirname + '/' + self.title + '_decode_.' + ext
         command = self._FFMPEG_PREFIX + [
-            "-i",
+            '-i',
             self.path,
             # 线程(待验证)
             # '-threads', '4',
@@ -735,25 +689,25 @@ class Video(
         return self, command, new_file_path
 
     def concat(self):
-        return "ffmpeg -f concat -i concat.txt -c copy concat.mov"
+        return 'ffmpeg -f concat -i concat.txt -c copy concat.mov'
 
     @decorator.timer
     @decorator.execute
-    def convert_format(self, ext: str = "mp4", **kwargs):
+    def convert_format(self, ext: str = 'mp4', **kwargs):
         """转换视频格式"""
-        new_file_path = self.create_file_path(self.path, suffix=f"[convert.{ext}]", ext=ext)
-        vcodec = "copy"
-        vcodec = "libx265"
+        new_file_path = self.create_file_path(self.path, suffix=f'[convert.{ext}]', ext=ext)
+        vcodec = 'copy'
+        vcodec = 'libx265'
         command = self._FFMPEG_PREFIX + [
-            "-i",
+            '-i',
             self.path,
             # '-map', '0', '-c', 'copy',
-            "-c:v",
+            '-c:v',
             vcodec,
-            "-c:a",
-            "copy",
-            "-tag:v",
-            "hvc1",
+            '-c:a',
+            'copy',
+            '-tag:v',
+            'hvc1',
             # '-avoid_negative_ts', '1',
             new_file_path,
         ]
@@ -763,16 +717,16 @@ class Video(
     @decorator.execute
     def scale(self, width: int = 1920, height: int = 1080, **kwargs):
         """Scale video resolution."""
-        new_file_path = self.create_file_path(self.path, suffix=f"[scale.{width}x{height}]", ext="mp4")
+        new_file_path = self.create_file_path(self.path, suffix=f'[scale.{width}x{height}]', ext='mp4')
         command = self._FFMPEG_PREFIX + [
-            "-i",
+            '-i',
             self.path,
-            "-vf",
-            f"scale={width}:{height}",
-            "-c:v",
-            "libx265",
-            "-tag:v",
-            "hvc1",
+            '-vf',
+            f'scale={width}:{height}',
+            '-c:v',
+            'libx265',
+            '-tag:v',
+            'hvc1',
             new_file_path,
         ]
         return self, command, new_file_path

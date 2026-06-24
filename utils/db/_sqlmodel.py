@@ -1,30 +1,28 @@
-from contextlib import contextmanager
 import logging
+from contextlib import contextmanager
 from typing import Any, AsyncGenerator, Iterator
 
-from config import CONFIG
-from sqlalchemy import select, text
 import sqlalchemy.exc
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncEngine, AsyncSession, create_async_engine
-from sqlalchemy.orm import scoped_session, Session, sessionmaker
-from sqlmodel import create_engine, select, Session, SQLModel
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
+from sqlmodel import Session, SQLModel, create_engine, select
+
+from config import CONFIG
 from utils import response
 
 from .base import BaseEngine
 
-
 logger = logging.getLogger()
 
-__all__ = [
-    "Engine",
-]
+__all__ = ['Engine']
 
 
 class Engine(BaseEngine):
     def __init__(self, database: str):
         super().__init__(database)
         # e.g. sqlite:///sqlite.db | sqlite+aiosqlite:///sqlite.db | postgresql://user:password@localhost:5432/dbname
-        self.database: str = f"sqlite:///{self.database}"
+        self.database: str = f'sqlite:///{self.database}'
         self.engine = create_engine(
             self.database,
             # creates StreamHandler which outputs to console.
@@ -44,11 +42,7 @@ class Engine(BaseEngine):
 
     @property
     def SessionLocal(self):
-        session_factory = sessionmaker(
-            bind=self.engine,
-            autocommit=False,
-            autoflush=False,
-        )
+        session_factory = sessionmaker(bind=self.engine, autocommit=False, autoflush=False)
         # Use scoped_session to create a thread-local session. For thread safety, it’s usually best to create a new Session instance for each incoming request, and scope it to that request.
         return scoped_session(session_factory)
         return sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -56,11 +50,7 @@ class Engine(BaseEngine):
     @property
     def AsyncSessionLocal(self):
         async_engine: AsyncEngine = create_async_engine(self.database)
-        return async_sessionmaker(
-            bind=async_engine,
-            expire_on_commit=False,
-            class_=AsyncSession,
-        )
+        return async_sessionmaker(bind=async_engine, expire_on_commit=False, class_=AsyncSession)
 
     # @property
     # def session(self) -> Session:
@@ -104,14 +94,14 @@ class Engine(BaseEngine):
             return response.Result(code=0, data=medias)
 
 
-if __name__ == "__main__":
-    engine = Engine("sqlite:///" + CONFIG.SQLITE_DATABASE)
+if __name__ == '__main__':
+    engine = Engine('sqlite:///' + CONFIG.SQLITE_DATABASE)
     from models.media import Media
 
     # synchronous usage
     with engine.get_session() as session:
         # use session here
-        result = session.execute(text("SELECT * FROM media"))
+        result = session.execute(text('SELECT * FROM media'))
         print(result.all())
         statement = select(Media)
         result = session.execute(statement)

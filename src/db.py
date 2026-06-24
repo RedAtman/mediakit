@@ -3,10 +3,7 @@ from functools import cache
 from config import CONFIG
 from utils.db import _sqlalchemy, base
 
-
-__all__ = [
-    "DatabaseEngine",
-]
+__all__ = ['DatabaseEngine']
 
 
 class DatabaseEngine:

@@ -1,15 +1,11 @@
-from enum import IntEnum
 import logging
+from enum import IntEnum
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
-
 logger = logging.getLogger()
 
-__all__ = [
-    "StateChoices",
-    "State",
-]
+__all__ = ['StateChoices', 'State']
 
 
 class StateChoices(IntEnum):
@@ -41,47 +37,43 @@ class State(BaseModel):
     # trim: StateChoices = StateChoices.unprocessed
 
     def __str__(self) -> str:
-        return f"<{self.__class__.__name__}({self.__dict__})>"
+        return f'<{self.__class__.__name__}({self.__dict__})>'
 
     def __getitem__(self, key):
         return self.__dict__.get(key)
 
-    @field_validator("compress", "trim")
+    @field_validator('compress', 'trim')
     @classmethod
     def field_validator(cls, value: float, info: ValidationInfo) -> float:
-        assert StateChoices.failed <= value <= StateChoices.finished, f"{info.field_name} must be between 0 and 1."
+        assert StateChoices.failed <= value <= StateChoices.finished, f'{info.field_name} must be between 0 and 1.'
         return value
 
 
-if __name__ == "__main__":
-    from config import CONFIG
-
+if __name__ == '__main__':
     logger.info(StateChoices.__str__())
 
     state = State()
     logger.info((type(state), state))
     logger.info(state.model_dump())
-    setattr(state, "trim", "value")
+    setattr(state, 'trim', 'value')
     logger.info((type(state), state))
     logger.info(state.model_dump())
-    _dict = {
-        "key": "value",
-    }
+    _dict = {'key': 'value'}
     logger.info(
         (
-            "dict",
+            'dict',
             type(_dict),
             _dict,
             _dict.keys(),
-            "key" in _dict,
-            _dict["key"],
-            hasattr(dict, "key"),
-            getattr(_dict, "key", "233"),
+            'key' in _dict,
+            _dict['key'],
+            hasattr(dict, 'key'),
+            getattr(_dict, 'key', '233'),
         )
     )
 
     logger.info(State.model_fields.keys())
-    logger.info("compress" in State.model_fields.keys())
+    logger.info('compress' in State.model_fields.keys())
 
     try:
         # result = State()

@@ -32,12 +32,7 @@ class ProcessThrottler(threading.Thread):
     process exits (detected via ESRCH on sample).
     """
 
-    def __init__(
-        self,
-        pid: int,
-        target_fn: Callable[[], int],
-        sample_interval: float = DEFAULT_SAMPLE_INTERVAL,
-    ):
+    def __init__(self, pid: int, target_fn: Callable[[], int], sample_interval: float = DEFAULT_SAMPLE_INTERVAL):
         super().__init__(daemon=True)
         self.pid = pid
         self._target_fn = target_fn
@@ -110,12 +105,7 @@ class ProcessThrottler(threading.Thread):
 
         if avg <= new_target:
             self._stop_until = 0.0
-            logger.info(
-                'PID %d target raised to %d%% >= avg %.1f%% — waking immediately',
-                self.pid,
-                new_target,
-                avg,
-            )
+            logger.info('PID %d target raised to %d%% >= avg %.1f%% — waking immediately', self.pid, new_target, avg)
             return
 
         overshoot = avg / new_target
@@ -127,8 +117,7 @@ class ProcessThrottler(threading.Thread):
         self._stop_until = now + remaining
 
         logger.info(
-            'PID %d target changed to %d%% mid-stop: '
-            'avg=%.1f%% stop_time=%.1fs elapsed=%.1fs remaining=%.1fs',
+            'PID %d target changed to %d%% mid-stop: avg=%.1f%% stop_time=%.1fs elapsed=%.1fs remaining=%.1fs',
             self.pid,
             new_target,
             avg,
@@ -185,13 +174,7 @@ class ProcessThrottler(threading.Thread):
             stop_time = max(MIN_STOP_TIME, min(MAX_STOP_TIME, stop_time))
             self._stop_until = now + stop_time
 
-            logger.info(
-                'PID %d avg=%.1f%% > target=%d%%, stopping for %.1fs',
-                self.pid,
-                avg,
-                current_target,
-                stop_time,
-            )
+            logger.info('PID %d avg=%.1f%% > target=%d%%, stopping for %.1fs', self.pid, avg, current_target, stop_time)
             try:
                 os.kill(self.pid, signal.SIGSTOP)
                 self._is_stopped_state = True

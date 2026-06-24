@@ -1,19 +1,14 @@
-from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 import logging
 import multiprocessing
-import os
-import sys
 import threading
+from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 from typing import Any, Callable, NamedTuple
 
 from utils.response import Result
 
-
 logger = logging.getLogger()
 
-__all__ = [
-    "TaskManager",
-]
+__all__ = ['TaskManager']
 
 
 class _FutureContext(NamedTuple):
@@ -50,7 +45,7 @@ class TaskManager:
     def _task_done(self, _future: Future[Any]):
         """Called once task is done, releases the queue if blocked."""
         result = _future.result()
-        logger.info("TaskManager._task_done: %s", result)
+        logger.info('TaskManager._task_done: %s', result)
         # self.shutdown(False)
         return result
 
@@ -71,11 +66,7 @@ class TaskManager:
             not_done = self.futures
             try:
                 while not_done:
-                    done, not_done = wait(
-                        not_done,
-                        timeout=1,
-                        return_when=FIRST_EXCEPTION,
-                    )
+                    done, not_done = wait(not_done, timeout=1, return_when=FIRST_EXCEPTION)
 
             # Cancel any futures not done on KeyboardInterrupt
             except KeyboardInterrupt as err:
@@ -89,7 +80,7 @@ class TaskManager:
                             msg=err,
                             data={
                                 # TODO: Not recommended to use fn.args[0] to obtain the handler
-                                "media": future_context.fn.args[0],
+                                'media': future_context.fn.args[0]
                             },
                         )
                         future.set_result(result)

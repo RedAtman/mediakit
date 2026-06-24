@@ -2,10 +2,9 @@ import logging
 from pprint import pformat
 from typing import Any, Union
 
-
 logger = logging.getLogger(__name__)
 
-__all__ = ["json"]
+__all__ = ['json']
 
 
 json = lambda msg: pformat(msg, indent=1, width=80, depth=9)
@@ -43,7 +42,7 @@ try:
                 # style="colorful",
                 # style="lightbulb",
                 # style="material",
-                style="nord",
+                style='nord'
                 # style="staroffice",
                 # style="zenburn",
             ),
@@ -52,11 +51,11 @@ try:
         )
 
 except ImportError:
-    logger.warning("Using default json lexer formatter. Install pygments `pip install pygments` for better output.")
+    logger.warning('Using default json lexer formatter. Install pygments `pip install pygments` for better output.')
     pass
 
 
-if __name__ == "__main__":
-    print(json("Hello, world!"))
+if __name__ == '__main__':
+    print(json('Hello, world!'))
     # print(output(output.__dict__))
     print(json(locals()))
