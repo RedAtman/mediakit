@@ -1,5 +1,5 @@
-import logging
 from datetime import datetime
+import logging
 from typing import Union, Unpack
 
 from sqlalchemy import Column, DateTime, String

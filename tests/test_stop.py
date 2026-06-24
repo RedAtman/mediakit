@@ -1,6 +1,6 @@
 import os
-import signal
 from pathlib import Path
+import signal
 from unittest import TestCase, mock
 
 

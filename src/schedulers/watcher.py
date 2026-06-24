@@ -1,11 +1,11 @@
+from concurrent.futures import Future
+from functools import partial
 import logging
 import os
+from pathlib import Path
 import signal
 import threading
 import time
-from concurrent.futures import Future
-from functools import partial
-from pathlib import Path
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer

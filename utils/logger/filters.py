@@ -1,8 +1,8 @@
 import logging
 import operator as _operator
 import os
-import sys
 from pprint import pformat
+import sys
 from typing import Any, Callable
 
 from .formatters import Color, LevelColor

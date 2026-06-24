@@ -1,15 +1,15 @@
+from enum import Enum
 import functools
 import json
 import logging
 import os
 import sys
 import traceback
+from unittest import TestCase
 import urllib
 import urllib.error
 import urllib.parse
 import urllib.request
-from enum import Enum
-from unittest import TestCase
 
 from dotenv import load_dotenv, set_key
 
@@ -27,7 +27,7 @@ logger = logging.getLogger()
 #     },
 # )
 
-from utils.response import Response
+from utils.response import Response  # noqa: E402
 
 classproperty = type(
     'classproperty', (property,), {'__get__': lambda self, cls, owner: self.fget.__get__(None, owner)()}
@@ -142,7 +142,7 @@ class BaseTest(TestCase, metaclass=AssertWrap):
     def check_schema(schema):
         if schema is None:
             raise Exception('schema is None, please set schema in testCase')
-        schema = Schema(schema)
+        schema = Schema(schema)  # noqa: F821
         return schema
 
     @classmethod

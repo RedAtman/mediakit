@@ -1,7 +1,7 @@
 import hashlib
+from itertools import chain
 import json
 import logging
-from itertools import chain
 from typing import Union
 
 import requests

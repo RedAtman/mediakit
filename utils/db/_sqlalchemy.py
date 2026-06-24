@@ -1,10 +1,10 @@
-import logging
 from functools import cached_property
+import logging
 from typing import Any, Dict
 
 import sqlalchemy as db
-import sqlalchemy.exc
 from sqlalchemy import TextClause, text
+import sqlalchemy.exc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select

@@ -15,7 +15,7 @@ def _load_extension_map():
     try:
         with open(os.path.join(os.path.dirname(__file__), 'media_types.json')) as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         return {}
     result = {}
     for category, extensions in data.items():

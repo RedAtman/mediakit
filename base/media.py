@@ -1,11 +1,11 @@
+from functools import cached_property
 import json
 import logging
 import os
+from pathlib import Path
 import sys
 import threading
 import time
-from functools import cached_property
-from pathlib import Path
 from typing import List, Optional, Type
 
 from config import CONFIG

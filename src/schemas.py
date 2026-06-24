@@ -1,5 +1,5 @@
-import logging
 from enum import IntEnum
+import logging
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 

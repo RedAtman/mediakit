@@ -1,5 +1,5 @@
-import logging
 from datetime import datetime
+import logging
 from typing import Any, Generator
 
 from sqlalchemy import Integer, TextClause, select
@@ -115,7 +115,7 @@ class SqliteFolderMixin(BaseFolderMixin):
         cls.engine.execute_query(
             f"""
             CREATE TABLE IF NOT EXISTS {cls._DB_TABLE} (
-                # id INT PRIMARY KEY default(random()),
+                -- id INT PRIMARY KEY default(random()),
                 title TEXT UNIQUE,
                 md5 TEXT NOT NULL UNIQUE,
                 dirname TEXT,

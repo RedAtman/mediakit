@@ -1,9 +1,9 @@
-import logging
-import os as _os
-import signal as _signal
 from concurrent.futures import Future
 from functools import partial
+import logging
+import os as _os
 from pathlib import Path as _Path
+import signal as _signal
 from typing import Any
 
 from config import CONFIG
@@ -207,7 +207,7 @@ def _stop(**kwargs):
     logger.info('Stop signal sent to PID %d.', pid)
 
 
-from .watcher import WatcherScheduler
+from .watcher import WatcherScheduler  # noqa: E402
 
 watch = WatcherScheduler()
 

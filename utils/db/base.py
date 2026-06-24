@@ -1,6 +1,6 @@
 import abc
-import logging
 from contextlib import contextmanager
+import logging
 from typing import Any, Dict, Generator, Type
 
 from sqlalchemy import MetaData, TextClause

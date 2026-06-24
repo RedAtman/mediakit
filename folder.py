@@ -1,9 +1,9 @@
 import functools
+from importlib import import_module
 import json
 import logging
 import os
 import time
-from importlib import import_module
 from typing import Any, Callable, Dict, Generator, List, Optional, Type
 
 from base.folder import BaseFolder

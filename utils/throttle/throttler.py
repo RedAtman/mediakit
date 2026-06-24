@@ -1,11 +1,11 @@
 """Per-process CPU throttler using SIGSTOP/SIGCONT duty cycle."""
 
+from collections import deque
 import logging
 import os
 import signal
 import threading
 import time
-from collections import deque
 from typing import Callable, Optional
 
 from .sampling import sample_cpu_time
@@ -75,7 +75,7 @@ class ProcessThrottler(threading.Thread):
             t1 = sample_cpu_time(self.pid)
             time.sleep(self.sample_interval)
             t2 = sample_cpu_time(self.pid)
-        except (ProcessLookupError, OSError):
+        except ProcessLookupError, OSError:
             logger.debug('PID %d sample failed, continuing', self.pid)
             return 0.0
 
@@ -196,6 +196,6 @@ class ProcessThrottler(threading.Thread):
             if self._is_stopped_state:
                 try:
                     os.kill(self.pid, signal.SIGCONT)
-                except (ProcessLookupError, PermissionError):
+                except ProcessLookupError, PermissionError:
                     pass
             logger.info('ProcessThrottler stopped for PID %d', self.pid)

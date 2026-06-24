@@ -13,7 +13,7 @@ def check_method_bound_to(method: Callable):
     if not isinstance(method, MethodType):
         return False, None
     __self__ = getattr(method, '__self__', None)
-    assert not __self__ is None
+    assert __self__ is not None
     assert isinstance(__self__, object)
     if isinstance(__self__, type):
         name = method.__name__

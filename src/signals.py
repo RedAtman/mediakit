@@ -1,5 +1,5 @@
-import logging
 from datetime import datetime, timezone
+import logging
 
 from sqlalchemy import event
 

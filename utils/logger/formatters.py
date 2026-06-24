@@ -33,7 +33,7 @@ class RelativePathFormatter(logging.Formatter):
         return super().format(record)
 
 
-from enum import IntEnum
+from enum import IntEnum  # noqa: E402
 
 _PREFIX = '\033['
 _SUFFIX = '\033[0m'
@@ -97,7 +97,7 @@ class LevelColor(IntEnum):
     EXCEPTION = Color.RED
 
 
-from pprint import pformat
+from pprint import pformat  # noqa: E402
 
 
 class ColorFormatter(logging.Formatter):

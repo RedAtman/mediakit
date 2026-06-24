@@ -1,7 +1,7 @@
 import logging
 import tempfile
-import unittest
 from typing import Generator, Iterable
+import unittest
 from unittest import mock
 
 from sqlalchemy import Integer, func, select, text, update

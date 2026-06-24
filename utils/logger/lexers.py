@@ -7,7 +7,10 @@ logger = logging.getLogger(__name__)
 __all__ = ['json']
 
 
-json = lambda msg: pformat(msg, indent=1, width=80, depth=9)
+def json(msg: Union[dict[str, Any], list[Any], tuple[Any], str, int, float, bool, None]) -> str:
+    return pformat(msg, indent=1, width=80, depth=9)
+
+
 try:
     from pygments import formatters, highlight, lexers
 

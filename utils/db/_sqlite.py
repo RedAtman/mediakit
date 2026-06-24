@@ -1,7 +1,7 @@
 import logging
+from queue import Queue
 import sqlite3
 import threading
-from queue import Queue
 from typing import Any, Dict, Optional, Tuple, Union
 
 from config import CONFIG

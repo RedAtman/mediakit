@@ -14,14 +14,15 @@ typeCheckingMode = "basic"
 
 [tool.ruff.lint.isort]
 split-on-trailing-comma = false
+force-sort-within-sections = true
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py314"
 exclude = ["docs/reference.py"]
 
 [tool.ruff.lint]
-select = ["F401", "F841", "I"]
+select = ["F401", "F841", "I", "F821", "E", "W"]
 fixable = ["F401", "F841", "I"]
 
 [tool.ruff.format]
@@ -63,6 +64,17 @@ dependencies = [
 
 [project.scripts]
 mediakit = "cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "codespell",
+    "pytest>=9.0.3",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.15.12",
+    "vulture>=2.16",
+]
+test = []
+prod = []
 
 [dependency-groups]
 dev = [

@@ -1,7 +1,7 @@
+from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 import logging
 import multiprocessing
 import threading
-from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 from typing import Any, Callable, NamedTuple
 
 from utils.response import Result
