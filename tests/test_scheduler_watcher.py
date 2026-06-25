@@ -235,27 +235,25 @@ class TestWatcherScheduler(TestCase):
     def test_batch_callback_soft_removes_on_success(self):
         from concurrent.futures import Future
 
-        from src.schedulers.watcher import _batch_callback
         from utils import response
 
         future = Future()
         result_data = {'media': mock.Mock(path='/tmp/file.mp4')}
         future.set_result(response.Result(0, data=result_data))
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
-            _batch_callback(future)
+            self.scheduler._batch_callback(future)
             mock_remove.assert_called_once_with('/tmp/file.mp4')
 
     def test_batch_callback_does_not_remove_on_failure(self):
         from concurrent.futures import Future
 
-        from src.schedulers.watcher import _batch_callback
         from utils import response
 
         future = Future()
         result_data = {'media': mock.Mock(path='/tmp/file.mp4')}
         future.set_result(response.Result(1, data=result_data))
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
-            _batch_callback(future)
+            self.scheduler._batch_callback(future)
             mock_remove.assert_not_called()
 
     def test_run_event_loop_calls_config_check(self):
@@ -301,14 +299,158 @@ class TestWatcherScheduler(TestCase):
     def test_batch_callback_skips_result_without_data(self):
         from concurrent.futures import Future
 
-        from src.schedulers.watcher import _batch_callback
         from utils import response
 
         future = Future()
         future.set_result(response.Result(0, data=None))
         with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
-            _batch_callback(future)
+            self.scheduler._batch_callback(future)
             mock_remove.assert_not_called()
+
+    def test_flush_callback_skips_already_processing_file(self):
+        scheduler = self.scheduler
+        scheduler._processing_files.add(os.path.realpath('/tmp/media/file.mp4'))
+
+        with mock.patch.object(scheduler, '_batch_callback') as mock_callback:
+            scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 1)
+            mock_callback.assert_not_called()
+        self.assertIn(os.path.realpath('/tmp/media/file.mp4'), scheduler._processing_files)
+
+    def test_flush_callback_submits_new_file_and_tracks_it(self):
+        scheduler = self.scheduler
+        mock_media = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls:
+            mock_folder = mock.Mock()
+            mock_folder.MEDIA_CLS.return_value = mock_media
+            mock_folder_cls.return_value = mock_folder
+            with mock.patch('src.schedulers.watcher.Folder.run___') as mock_run:
+                scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 1)
+                self.assertEqual(mock_run.call_count, 1)
+                callback_list = mock_run.call_args.kwargs['callback_list']
+                self.assertEqual(len(callback_list), 1)
+        self.assertIn(os.path.realpath('/tmp/media/file.mp4'), scheduler._processing_files)
+
+    def test_batch_callback_removes_file_from_processing_set(self):
+        from concurrent.futures import Future
+
+        from utils import response
+
+        scheduler = self.scheduler
+        scheduler._processing_files.add(os.path.realpath('/tmp/file.mp4'))
+        future = Future()
+        result_data = {'media': mock.Mock(path=os.path.realpath('/tmp/file.mp4'))}
+        future.set_result(response.Result(0, data=result_data))
+        with mock.patch('src.schedulers.watcher.file.soft_remove'):
+            scheduler._batch_callback(future)
+        self.assertNotIn(os.path.realpath('/tmp/file.mp4'), scheduler._processing_files)
+
+    def test_batch_callback_removes_file_on_future_exception(self):
+        from concurrent.futures import Future
+
+        import src.schedulers.watcher as watcher_module
+
+        scheduler = self.scheduler
+        scheduler._processing_files.add(os.path.realpath('/tmp/file.mp4'))
+        future = Future()
+        future.set_exception(RuntimeError('task failed'))
+        watcher_module._thread_context.current_path = os.path.realpath('/tmp/file.mp4')
+        try:
+            with mock.patch('src.schedulers.watcher.logger'):
+                scheduler._batch_callback(future)
+        finally:
+            watcher_module._thread_context.current_path = None
+        self.assertNotIn(os.path.realpath('/tmp/file.mp4'), scheduler._processing_files)
+
+    def test_batch_callback_exception_with_none_current_path_leaves_path_in_set(self):
+        """Known limitation: if task never executed, callback cannot identify path."""
+        from concurrent.futures import Future
+
+        scheduler = self.scheduler
+        scheduler._processing_files.add(os.path.realpath('/tmp/file.mp4'))
+        future = Future()
+        future.set_exception(RuntimeError('task failed'))
+        with mock.patch('src.schedulers.watcher.logger'):
+            scheduler._batch_callback(future)
+        # Path remains because current_path was never set (task never ran)
+        self.assertIn(os.path.realpath('/tmp/file.mp4'), scheduler._processing_files)
+
+    def test_batch_callback_removes_file_when_data_is_none(self):
+        from concurrent.futures import Future
+
+        import src.schedulers.watcher as watcher_module
+        from utils import response
+
+        scheduler = self.scheduler
+        scheduler._processing_files.add(os.path.realpath('/tmp/file.mp4'))
+        future = Future()
+        future.set_result(response.Result(0, data=None))
+        watcher_module._thread_context.current_path = os.path.realpath('/tmp/file.mp4')
+        try:
+            with mock.patch('src.schedulers.watcher.logger'):
+                scheduler._batch_callback(future)
+        finally:
+            watcher_module._thread_context.current_path = None
+        self.assertNotIn(os.path.realpath('/tmp/file.mp4'), scheduler._processing_files)
+
+    def test_batch_callback_removes_file_when_media_is_none(self):
+        from concurrent.futures import Future
+
+        import src.schedulers.watcher as watcher_module
+        from utils import response
+
+        scheduler = self.scheduler
+        scheduler._processing_files.add(os.path.realpath('/tmp/file.mp4'))
+        future = Future()
+        future.set_result(response.Result(0, data={}))
+        watcher_module._thread_context.current_path = os.path.realpath('/tmp/file.mp4')
+        try:
+            with mock.patch('src.schedulers.watcher.logger'):
+                scheduler._batch_callback(future)
+        finally:
+            watcher_module._thread_context.current_path = None
+        self.assertNotIn(os.path.realpath('/tmp/file.mp4'), scheduler._processing_files)
+
+    def test_batch_callback_resets_thread_context_on_success(self):
+        from concurrent.futures import Future
+
+        import src.schedulers.watcher as watcher_module
+        from utils import response
+
+        scheduler = self.scheduler
+        future = Future()
+        result_data = {'media': mock.Mock(path='/tmp/file.mp4')}
+        future.set_result(response.Result(0, data=result_data))
+        watcher_module._thread_context.current_path = '/tmp/file.mp4'
+        try:
+            with mock.patch('src.schedulers.watcher.logger'):
+                with mock.patch('src.schedulers.watcher.file.soft_remove'):
+                    scheduler._batch_callback(future)
+            self.assertIsNone(getattr(watcher_module._thread_context, 'current_path', None))
+        finally:
+            watcher_module._thread_context.current_path = None
+
+    def test_flush_callback_cleans_up_on_folder_exception(self):
+        scheduler = self.scheduler
+        with mock.patch('src.schedulers.watcher.Folder', side_effect=RuntimeError('folder failed')):
+            with self.assertRaises(RuntimeError):
+                scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 1)
+        self.assertNotIn(os.path.realpath('/tmp/media/file.mp4'), scheduler._processing_files)
+
+    def test_flush_callback_passes_bound_batch_callback(self):
+        scheduler = self.scheduler
+        mock_media = mock.Mock()
+
+        with mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls:
+            mock_folder = mock.Mock()
+            mock_folder.MEDIA_CLS.return_value = mock_media
+            mock_folder_cls.return_value = mock_folder
+            with mock.patch('src.schedulers.watcher.Folder.run___') as mock_run:
+                scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 1)
+                self.assertEqual(mock_run.call_count, 1)
+                callback_list = mock_run.call_args.kwargs['callback_list']
+                self.assertEqual(len(callback_list), 1)
+                self.assertEqual(callback_list[0], scheduler._batch_callback)
 
     def test_check_config_changes_detects_added_path(self):
         scheduler = self.scheduler

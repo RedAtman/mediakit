@@ -88,52 +88,33 @@ class _WatchEventHandler(FileSystemEventHandler):
             self.debounce_buffer.add(path)
 
 
-def _batch_callback(future: Future):
-    logger.debug('_batch_callback entered')
-    try:
-        result = future.result()
-        logger.debug(
-            '_batch_callback: future.result() type=%s, data=%s, result=%s',
-            type(result).__name__,
-            result.data if hasattr(result, 'data') else 'N/A',
-            result,
-        )
-    except Exception as e:
-        logger.warning('_batch_callback: future.result() raised %s: %s', type(e).__name__, e)
-        return
-    if not hasattr(result, 'data') or result.data is None:
-        logger.debug('_batch_callback: result.data is None or missing, early return')
-        return
-    media = result.data.get('media')
-    if media is None:
-        logger.error('_batch_callback: result.data.get("media") returned None, data=%s', result.data)
-        return
-    if result == 0:
-        logger.debug('_batch_callback: SUCCESS, setting state to finished=2')
-        try:
-            media.model.update_state('compress', StateChoices.finished)
-        except Exception as exc:
-            logger.error('_batch_callback: update_state(finished) raised %s: %s', type(exc).__name__, exc)
-        try:
-            file.soft_remove(media.path)
-            logger.debug('_batch_callback: soft_remove completed for %s', media.path)
-        except Exception as exc:
-            logger.error('_batch_callback: soft_remove(%s) raised %s: %s', media.path, type(exc).__name__, exc)
-    else:
-        logger.debug('_batch_callback: FAILURE path (result=%s), setting state to failed=-2', result)
-        try:
-            media.model.update_state('compress', StateChoices.failed)
-        except Exception as exc:
-            logger.error('_batch_callback: update_state(failed) raised %s: %s', type(exc).__name__, exc)
+_thread_context = threading.local()
+
+
+def _make_watched_task(scheduler, media):
+    def task():
+        _thread_context.current_path = media.path
+        return scheduler(media)
+
+    return task
 
 
 class WatcherScheduler:
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        try:
+            return os.path.realpath(path)
+        except (OSError, ValueError) as _:
+            return os.path.abspath(path)
+
     def __init__(self):
         self._stop_event = threading.Event()
         self.observer: Observer | None = None
         self.task_manager = None
         self._inflight_batch = threading.Event()
         self._flush_lock = threading.Lock()
+        self._processing_files: set[str] = set()
+        self._processing_lock = threading.Lock()
 
         # Dynamic config file watch state
         self._handler: _WatchEventHandler | None = None
@@ -148,6 +129,73 @@ class WatcherScheduler:
         self._media_type: str = 'video'
         self._max_workers: int = 1
         self._action: str = 'compress'
+
+    def _batch_callback(self, future: Future):
+        logger.debug('_batch_callback entered')
+        try:
+            result = future.result()
+            logger.debug(
+                '_batch_callback: future.result() type=%s, data=%s, result=%s',
+                type(result).__name__,
+                result.data if hasattr(result, 'data') else 'N/A',
+                result,
+            )
+        except Exception as e:
+            logger.warning('_batch_callback: future.result() raised %s: %s', type(e).__name__, e)
+            current_path = getattr(_thread_context, 'current_path', None)
+            if current_path is not None:
+                _thread_context.current_path = None
+            with self._processing_lock:
+                if current_path is not None:
+                    self._processing_files.discard(current_path)
+            return
+        if not hasattr(result, 'data') or result.data is None:
+            logger.debug('_batch_callback: result.data is None or missing, early return')
+            current_path = getattr(_thread_context, 'current_path', None)
+            if current_path is not None:
+                _thread_context.current_path = None
+            with self._processing_lock:
+                if current_path is not None:
+                    self._processing_files.discard(current_path)
+            return
+        media = result.data.get('media')
+        if media is None:
+            logger.error('_batch_callback: result.data.get("media") returned None, data=%s', result.data)
+            current_path = getattr(_thread_context, 'current_path', None)
+            if current_path is not None:
+                _thread_context.current_path = None
+            with self._processing_lock:
+                if current_path is not None:
+                    self._processing_files.discard(current_path)
+            return
+        # Always cleanup thread-local and processing set
+        current_path = getattr(_thread_context, 'current_path', None)
+        if current_path is not None:
+            _thread_context.current_path = None
+        with self._processing_lock:
+            if current_path is not None:
+                self._processing_files.discard(current_path)
+            if hasattr(media, 'path'):
+                normalized_media_path = self._normalize_path(media.path)
+                if normalized_media_path != current_path:
+                    self._processing_files.discard(normalized_media_path)
+        if result == 0:
+            logger.debug('_batch_callback: SUCCESS, setting state to finished=2')
+            try:
+                media.model.update_state('compress', StateChoices.finished)
+            except Exception as exc:
+                logger.error('_batch_callback: update_state(finished) raised %s: %s', type(exc).__name__, exc)
+            try:
+                file.soft_remove(media.path)
+                logger.debug('_batch_callback: soft_remove completed for %s', media.path)
+            except Exception as exc:
+                logger.error('_batch_callback: soft_remove(%s) raised %s: %s', media.path, type(exc).__name__, exc)
+        else:
+            logger.debug('_batch_callback: FAILURE path (result=%s), setting state to failed=-2', result)
+            try:
+                media.model.update_state('compress', StateChoices.failed)
+            except Exception as exc:
+                logger.error('_batch_callback: update_state(failed) raised %s: %s', type(exc).__name__, exc)
 
     @staticmethod
     def _ensure_pid_dir() -> str:
@@ -183,21 +231,34 @@ class WatcherScheduler:
         with self._flush_lock:
             self._inflight_batch.set()
             try:
-                folder = Folder(os.path.dirname(paths[0]) if paths else '.')
-                medias = []
-                for path in paths:
-                    try:
-                        medias.append(folder.MEDIA_CLS(path))
-                    except exceptions.NotMediaException:
-                        logger.warning('Ignoring non-media file during watch: %s', path)
-                if not medias:
+                with self._processing_lock:
+                    normalized = [self._normalize_path(p) for p in paths]
+                    new_paths = [p for p in normalized if p not in self._processing_files]
+                    self._processing_files.update(new_paths)
+
+                if not new_paths:
                     return
+
                 try:
-                    scheduler = media_compress.core
-                    tasks = [partial(scheduler, media) for media in medias]
-                    Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[_batch_callback])
+                    folder = Folder(os.path.dirname(new_paths[0]) if new_paths else '.')
+                    medias = []
+                    for path in new_paths:
+                        try:
+                            medias.append(folder.MEDIA_CLS(path))
+                        except exceptions.NotMediaException:
+                            with self._processing_lock:
+                                self._processing_files.discard(self._normalize_path(path))
+                            logger.warning('Ignoring non-media file during watch: %s', path)
+                    if medias:
+                        scheduler = media_compress.core
+                        tasks = [_make_watched_task(scheduler, media) for media in medias]
+                        Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
                 except Exception as exc:
                     logger.error('Batch processing failed: %s: %s', type(exc).__name__, exc)
+                    for path in new_paths:
+                        with self._processing_lock:
+                            self._processing_files.discard(self._normalize_path(path))
+                    raise
             finally:
                 self._inflight_batch.clear()
 
@@ -224,13 +285,24 @@ class WatcherScheduler:
         result = folder.query(query)
         assert isinstance(result, response.Result)
         if result == 0 and result.data:
-            medias = [folder.MEDIA_CLS(m.path) for m in result.data]
+            with self._processing_lock:
+                medias = []
+                for m in result.data:
+                    normalized = self._normalize_path(m.path)
+                    if normalized not in self._processing_files:
+                        medias.append(m)
+                        self._processing_files.add(normalized)
+            if not medias:
+                return
             try:
                 scheduler = media_compress.core
-                tasks = [partial(scheduler, media) for media in medias]
-                Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[_batch_callback])
+                tasks = [_make_watched_task(scheduler, folder.MEDIA_CLS(m.path)) for m in medias]
+                Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
             except Exception as exc:
                 logger.error('Failed to process existing media: %s: %s', type(exc).__name__, exc)
+                for m in medias:
+                    with self._processing_lock:
+                        self._processing_files.discard(self._normalize_path(m.path))
 
     def _check_config_file_changes(self):
         """Poll WATCH_FOLDER_FILE for modifications and reconcile watched directories."""
