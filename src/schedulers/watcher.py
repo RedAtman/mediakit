@@ -255,10 +255,14 @@ class WatcherScheduler:
                         Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
                 except Exception as exc:
                     logger.error('Batch processing failed: %s: %s', type(exc).__name__, exc)
-                    for path in new_paths:
-                        with self._processing_lock:
+                    with self._processing_lock:
+                        for path in new_paths:
                             self._processing_files.discard(self._normalize_path(path))
                     raise
+                finally:
+                    with self._processing_lock:
+                        for path in new_paths:
+                            self._processing_files.discard(self._normalize_path(path))
             finally:
                 self._inflight_batch.clear()
 
@@ -300,8 +304,10 @@ class WatcherScheduler:
                 Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
             except Exception as exc:
                 logger.error('Failed to process existing media: %s: %s', type(exc).__name__, exc)
-                for m in medias:
-                    with self._processing_lock:
+                raise
+            finally:
+                with self._processing_lock:
+                    for m in medias:
                         self._processing_files.discard(self._normalize_path(m.path))
 
     def _check_config_file_changes(self):
