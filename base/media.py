@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 import sys
 import threading
 import time
@@ -29,12 +30,14 @@ class BaseMedia:
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
 
-    _FFMPEG_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffmpeg')
-    _FFPROBE_BIN = os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffprobe')
-    if not os.path.exists(_FFMPEG_BIN):
-        raise FileNotFoundError(f'File not found at path: {_FFMPEG_BIN}')
-    if not os.path.exists(_FFPROBE_BIN):
-        raise FileNotFoundError(f'File not found at path: {_FFPROBE_BIN}')
+    _FFMPEG_BIN = (
+        os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffmpeg') if CONFIG.FFMPEG_BIN_DIR else (shutil.which('ffmpeg') or 'ffmpeg')
+    )
+    _FFPROBE_BIN = (
+        os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffprobe')
+        if CONFIG.FFMPEG_BIN_DIR
+        else (shutil.which('ffprobe') or 'ffprobe')
+    )
     logger.debug('_FFPROBE_BIN: %s', _FFPROBE_BIN)
 
     _FFMPEG_PREFIX: list[str] = [

@@ -55,7 +55,7 @@ class _BaseConfig:
     SQLITE_CONNECTION_POOL_SIZE = int(os.getenv('SQLITE_CONNECTION_POOL_SIZE', 10))
 
     # FFMPEG
-    FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '/opt/homebrew/bin')
+    FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '')
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 1))
 
     # BAIDU_TRANSLATE
