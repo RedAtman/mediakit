@@ -77,6 +77,36 @@ class TestFolder(unittest.TestCase):
         assert isinstance(result, response.Result)
         assert result.code == response.ResultStatus.SUCCESS
 
+    def test_query_unprocessed_includes_failed(self):
+        """QUERY_UNPROCESSED must return both unprocessed (-1) and failed (-2) files,
+        so a transient failure (e.g. bad ffmpeg path at startup) does not strand files."""
+        import uuid
+
+        from src.schemas import StateChoices
+
+        folder = Folder(self.temp_dir)
+        # Insert two records in the temp dir: one failed, one unprocessed.
+        failed_md5 = str(uuid.uuid4())
+        unprocessed_md5 = str(uuid.uuid4())
+        failed_model = models.Media.get_or_create(md5=failed_md5, title='failed.mp4', dirname=folder.abspath)
+        unprocessed_model = models.Media.get_or_create(
+            md5=unprocessed_md5, title='unprocessed.mp4', dirname=folder.abspath
+        )
+        try:
+            failed_model.update_state('compress', StateChoices.failed)
+            unprocessed_model.update_state('compress', StateChoices.unprocessed)
+            query = folder.get_query_statement('QUERY_UNPROCESSED')
+            self.assertIsNotNone(query)
+            result = folder.query(query)
+            self.assertIsInstance(result, response.Result)
+            self.assertEqual(result.code, response.ResultStatus.SUCCESS)
+            paths = {m.title for m in result.data}
+            self.assertIn('failed.mp4', paths)
+            self.assertIn('unprocessed.mp4', paths)
+        finally:
+            failed_model.delete()
+            unprocessed_model.delete()
+
     @unittest.skip('Folder.query__ is not implemented')
     def test_query__(self):
         import os

@@ -41,7 +41,13 @@ class BaseFolderMixin:
         MAPPER_QUERY_STATEMENT = {
             'QUERY_UNPROCESSED': select(models.Media)
             .where(models.Media.dirname == self.abspath)
-            .where(models.Media.state.op('->>')('compress').cast(Integer) == StateChoices.unprocessed)  # type: ignore
+            .where(
+                models.Media.state.op('->>')('compress')
+                .cast(Integer)
+                .in_([StateChoices.unprocessed, StateChoices.failed])
+            )  # type: ignore
+            # Failed (-2) is included so a transient failure (e.g. bad ffmpeg path at
+            # startup) does not strand files forever; both states are retryable.
         }
         return MAPPER_QUERY_STATEMENT.get(key)
 
