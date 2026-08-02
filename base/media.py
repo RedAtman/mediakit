@@ -69,7 +69,7 @@ class BaseMedia:
         self.path: str = Path(path).absolute().as_posix()
         self.dirname, self.title, self.ext = self.get_file_info(path)
         self.model: models.Media = self._MEDIA_CLS.get_or_create(
-            md5=self.md5, title=self.title + '.' + self.ext, dirname=self.dirname
+            md5=self.md5, title=os.path.basename(path), dirname=self.dirname
         )
 
     def __repr__(self):
