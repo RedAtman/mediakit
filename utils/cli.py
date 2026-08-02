@@ -15,6 +15,7 @@ mapper_action = {
     'convert_format': None,
     'save_text': None,
     'stop': None,
+    'dedupe': None,
 }
 
 
@@ -72,5 +73,14 @@ def create_parser():
         action='store_true',
         default=False,
         help='Force stop: immediately kill all mediakit and ffmpeg processes',
+    )
+    parser.add_argument(
+        '--apply',
+        action='store_true',
+        default=False,
+        help='Dedupe: actually move duplicate files to Trash (default is dry-run)',
+    )
+    parser.add_argument(
+        '--db', type=str, default='db.db', help='Dedupe: path to the media database (for survivor preference)'
     )
     return parser

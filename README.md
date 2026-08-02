@@ -33,16 +33,16 @@ mediakit trim --watch -f /path/to/folder -t video
 mediakit scale --watch -f /path/to/folder -t video
 ```
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--watch` | Enable watch mode (add to any action) | `False` |
-| `-f` | Folder to watch | `MEDIA_FILE_FOLDER` |
-| `-t` | Media type (video/audio/image) | `video` |
-| `-w` | Number of worker threads | `MAX_WORKERS` |
-| `-c` | CPU limit per worker (%) | auto |
-| `--folder-file` | Path to text file with folder paths (one per line, # comments) | — |
-| `--recursive` | Watch subdirectories | `False` (non-recursive default) |
-| `--no-scan-existing` | Skip processing existing files at startup | `False` |
+| Flag                 | Description                                                    | Default                         |
+| -------------------- | -------------------------------------------------------------- | ------------------------------- |
+| `--watch`            | Enable watch mode (add to any action)                          | `False`                         |
+| `-f`                 | Folder to watch                                                | `MEDIA_FILE_FOLDER`             |
+| `-t`                 | Media type (video/audio/image)                                 | `video`                         |
+| `-w`                 | Number of worker threads                                       | `MAX_WORKERS`                   |
+| `-c`                 | CPU limit per worker (%)                                       | auto                            |
+| `--folder-file`      | Path to text file with folder paths (one per line, # comments) | —                               |
+| `--recursive`        | Watch subdirectories                                           | `False` (non-recursive default) |
+| `--no-scan-existing` | Skip processing existing files at startup                      | `False`                         |
 
 When `--folder-file` is not specified and `-f` is not explicitly set, the watcher reads from the default file (`var/folder.sh`) and falls back to `MEDIA_FILE_FOLDER`.
 
@@ -58,38 +58,60 @@ mediakit stop
 mediakit stop --force
 ```
 
-| Flag | Description | Default |
-|------|-------------|---------|
+| Flag      | Description                                        | Default |
+| --------- | -------------------------------------------------- | ------- |
 | `--force` | Immediately kill all mediakit and ffmpeg processes | `False` |
 
 Use PID file at `~/.mediakit/daemon.pid` to track the running daemon. See `src/schedulers/folder.py:_stop()` and `src/schedulers/watcher.py` for implementation details.
 
+### Deduplicate Media Files
+
+Find media files that share the same md5 (same content under different names) and move the duplicates to the macOS Trash (recoverable, not permanently deleted):
+
+```sh
+# Dry-run: list what would be removed (default)
+mediakit dedupe
+
+# Actually move duplicates to Trash
+mediakit dedupe --apply
+```
+
+| Flag      | Description                                                           | Default |
+| --------- | --------------------------------------------------------------------- | ------- |
+| `--apply` | Move duplicate files to Trash instead of dry-run                      | `False` |
+| `--db`    | Path to the media database (prefers the DB-recorded path as survivor) | `db.db` |
+
 ### Available Commands
 
-| Command | Description |
-|---------|-------------|
-| `compress` | Compress media files (H.264/H.265, quality/size control) |
-| `scale` | Resize/rescale video resolution |
-| `trim` | Trim/cut video segments |
-| `change_file_extension` | Batch rename file extensions |
-| `convert_format` | Convert between container formats |
-| `save_text` | Extract subtitle/text tracks |
-| `stop` | Stop the running watch daemon (graceful or force) |
+| Command                 | Description                                                      |
+| ----------------------- | ---------------------------------------------------------------- |
+| `compress`              | Compress media files (H.264/H.265, quality/size control)         |
+| `scale`                 | Resize/rescale video resolution                                  |
+| `trim`                  | Trim/cut video segments                                          |
+| `change_file_extension` | Batch rename file extensions                                     |
+| `convert_format`        | Convert between container formats                                |
+| `save_text`             | Extract subtitle/text tracks                                     |
+| `dedupe`                | Find media files with identical md5 and move duplicates to Trash |
+| `stop`                  | Stop the running watch daemon (graceful or force)                |
 
 ## macOS LaunchAgent (Scheduled Service)
 
 MediaKit can run as a scheduled service via macOS LaunchAgent — useful for unattended batch processing (e.g., watching a folder).
 
 ### Step 1: Configure Virtual Environment
+
 Ensure dependencies are installed and `.venv` is set up (see Installation above).
 
 ### Step 2: Edit `watcher.sh`
+
 `watcher.sh` automatically activates the virtual environment and delegates to `watcher_.sh` for the main processing loop. Edit the `ENV` variable in `watcher_.sh` to switch between `development`/`production` if needed.
 
 ### Step 3: Configure LaunchAgent
+
 An example plist is provided at `macOS/LaunchAgents/mediakit.plist`.
 
 Key fields:
+
 - `ProgramArguments`: Absolute path to `watcher.sh`
 - `StartInterval`: Execution interval in seconds (e.g., 60 = every minute)
 - `WorkingDirectory`: Must point to the project root
@@ -110,6 +132,7 @@ launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 Log files are written to the `logs/` directory (e.g., `logs/watcher.log.YYYY-MM-DD.log`).
 
 ### Notes
+
 - `watcher.sh` automatically activates the `.venv` environment and calls `watcher_.sh`
 - `watcher_.sh` checks if the script is already running to prevent duplicate processes
 - Debugging: run `watcher.sh` manually or via crontab
@@ -119,6 +142,7 @@ Log files are written to the `logs/` directory (e.g., `logs/watcher.log.YYYY-MM-
 MediaKit has a built-in dynamic CPU throttler using `SIGSTOP`/`SIGCONT` signals. It monitors each ffmpeg process's CPU usage in real-time and dynamically adjusts.
 
 The throttler has three layers:
+
 - **`CPULimiterCoordinator`** — Scheduler layer: manages throttler instances for all worker processes, handles manual overrides, SIGUSR1 signals, and file-based overrides
 - **`ProcessThrottler`** — One daemon thread per monitored process: samples CPU usage and calculates SIGSTOP/SIGCONT durations via duty cycle controller
 - **`macos_sample_cpu_time()`** — Sampling layer: macOS prefers `ps` subprocess (avoids `proc_pidinfo` ctypes struct incompatibility on macOS 26), falls back to `proc_pidinfo` or Linux `/proc/stat`
@@ -127,11 +151,11 @@ The throttler has three layers:
 
 Configure via the `CPU_LIMIT` environment variable (default `CPU_LIMIT=100`, i.e., 100%). This is used directly as the total budget distributed to all workers:
 
-| Env Variable | Per-Worker Budget |
-|-------------|-------------------|
-| `CPU_LIMIT=100` (default) | 100% / worker count |
-| `CPU_LIMIT=50` | 50% / worker count |
-| `CPU_LIMIT=1` | 1% / worker count (minimum 1%) |
+| Env Variable              | Per-Worker Budget              |
+| ------------------------- | ------------------------------ |
+| `CPU_LIMIT=100` (default) | 100% / worker count            |
+| `CPU_LIMIT=50`            | 50% / worker count             |
+| `CPU_LIMIT=1`             | 1% / worker count (minimum 1%) |
 
 ### Method 2: CLI Argument
 

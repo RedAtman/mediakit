@@ -27,26 +27,27 @@ mediakit/
 
 ## WHERE TO LOOK
 
-| Task | Location | Notes |
-|------|----------|-------|
-| CLI entry | `cli.py` | Entry point (`mediakit` via `[project.scripts]`), parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
-| Media operations | `base/video.py` (777L), `base/audio.py` | FFmpeg wrapper methods |
-| Folder batch ops | `folder.py` + `base/folder.py` | `Folder` class with DB mixin |
-| DB models | `src/models/media.py` | SQLAlchemy model (single source) |
-| State machine | `src/schemas.py` | Pydantic State model (-2 failed → 2 finished) |
-| DB engine | `src/db.py` | Injectable engine via `get_engine(engine=None)` |
-| Scheduler dispatcher | `src/schedulers/folder.py` | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop) |
-| Watcher scheduler | `src/schedulers/watcher.py` (360L) | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + _batch_callback |
-| Middleware pattern | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it |
-| Config | `config.py` | Environment subclass pattern (Development/Testing/Production) |
-| CPU throttler coordinator | `utils/throttle/coordinator.py` (241L) | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution |
-| CPU throttler process | `utils/throttle/throttler.py` (154L) | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller |
-| CPU sampling | `utils/throttle/sampling.py` (233L) | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat` |
-| Media type registry | `utils/media_types.json` | Data-driven extension→category mapping loaded by `utils/media.py` |
-| Logging setup | `utils/logger/init.py` | dictConfig with custom filters |
-| Progress bars | `utils/progress.py` | tqdm (stdout TTY / stderr non-TTY) + MediaStateProgress (DB) |
-| Translation | `utils/translator.py` | Baidu Translate API; lazy config validation (`_require_config()` at runtime, not import) |
-| Test base | `base/basetest.py` (349L) | HTTP + auth mixin |
+| Task                      | Location                                     | Notes                                                                                                            |
+| ------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| CLI entry                 | `cli.py`                                     | Entry point (`mediakit` via `[project.scripts]`), parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
+| Media operations          | `base/video.py` (777L), `base/audio.py`      | FFmpeg wrapper methods                                                                                           |
+| Folder batch ops          | `folder.py` + `base/folder.py`               | `Folder` class with DB mixin                                                                                     |
+| DB models                 | `src/models/media.py`                        | SQLAlchemy model (single source)                                                                                 |
+| State machine             | `src/schemas.py`                             | Pydantic State model (-2 failed → 2 finished)                                                                    |
+| DB engine                 | `src/db.py`                                  | Injectable engine via `get_engine(engine=None)`                                                                  |
+| Scheduler dispatcher      | `src/schedulers/folder.py`                   | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop)                                        |
+| Watcher scheduler         | `src/schedulers/watcher.py` (360L)           | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + _batch_callback                                   |
+| Dedupe                    | `src/schedulers/dedupe.py`                   | md5-based dedup: scans watched folders, moves duplicate media copies to macOS Trash (dry-run by default)          |
+| Middleware pattern        | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it                     |
+| Config                    | `config.py`                                  | Environment subclass pattern (Development/Testing/Production)                                                    |
+| CPU throttler coordinator | `utils/throttle/coordinator.py` (241L)       | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution               |
+| CPU throttler process     | `utils/throttle/throttler.py` (154L)         | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller                         |
+| CPU sampling              | `utils/throttle/sampling.py` (233L)          | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat`                                         |
+| Media type registry       | `utils/media_types.json`                     | Data-driven extension→category mapping loaded by `utils/media.py`                                                |
+| Logging setup             | `utils/logger/init.py`                       | dictConfig with custom filters                                                                                   |
+| Progress bars             | `utils/progress.py`                          | tqdm (stdout TTY / stderr non-TTY) + MediaStateProgress (DB)                                                     |
+| Translation               | `utils/translator.py`                        | Baidu Translate API; lazy config validation (`_require_config()` at runtime, not import)                         |
+| Test base                 | `base/basetest.py` (349L)                    | HTTP + auth mixin                                                                                                |
 
 ## CONVENTIONS
 
@@ -121,6 +122,10 @@ mediakit stop
 
 # Force stop watch daemon (SIGKILL to process group)
 mediakit stop --force
+
+# Dedupe: find media files with identical md5, move duplicates to Trash
+# (dry-run by default; --apply performs the actual removal)
+mediakit dedupe [--apply]
 
 # Watcher (macOS LaunchAgent)
 launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist

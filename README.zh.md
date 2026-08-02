@@ -35,37 +35,59 @@ mediakit stop
 mediakit stop --force
 ```
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
+| 参数      | 说明                                 | 默认值  |
+| --------- | ------------------------------------ | ------- |
 | `--force` | 立即杀死所有 mediakit 和 ffmpeg 进程 | `False` |
 
 通过 `~/.mediakit/daemon.pid` PID 文件追踪守护进程。详见 `src/schedulers/folder.py:_stop()` 和 `src/schedulers/watcher.py`。
 
+### 媒体去重
+
+查找 md5 相同（内容相同但文件名不同）的媒体文件，并将重复文件移入 macOS 废纸篓（可恢复，非永久删除）：
+
+```sh
+# 预演：仅列出将要删除的文件（默认）
+mediakit dedupe
+
+# 实际将重复文件移入废纸篓
+mediakit dedupe --apply
+```
+
+| 参数      | 说明                                                 | 默认值  |
+| --------- | ---------------------------------------------------- | ------- |
+| `--apply` | 将重复文件移入废纸篓（默认仅预演）                   | `False` |
+| `--db`    | 媒体数据库路径（优先保留 DB 中记录的文件作为幸存者） | `db.db` |
+
 ### 可用命令
 
-| 命令 | 说明 |
-|------|------|
-| `compress` | 压缩媒体文件（H.264/H.265，质量/大小控制） |
-| `scale` | 调整视频分辨率 |
-| `change_file_extension` | 批量修改文件扩展名 |
-| `convert_format` | 转换容器格式 |
-| `save_text` | 提取字幕/文本轨道 |
-| `stop` | 停止正在运行的 watch 守护进程（优雅或强制） |
+| 命令                    | 说明                                          |
+| ----------------------- | --------------------------------------------- |
+| `compress`              | 压缩媒体文件（H.264/H.265，质量/大小控制）    |
+| `scale`                 | 调整视频分辨率                                |
+| `change_file_extension` | 批量修改文件扩展名                            |
+| `convert_format`        | 转换容器格式                                  |
+| `save_text`             | 提取字幕/文本轨道                             |
+| `dedupe`                | 查找 md5 相同的媒体文件，将重复文件移入废纸篓 |
+| `stop`                  | 停止正在运行的 watch 守护进程（优雅或强制）   |
 
 ## macOS LaunchAgent（定时服务）
 
 MediaKit 可通过 macOS LaunchAgent 以定时服务方式自动运行，适用于无人值守的批量处理（如文件夹监控）。
 
 ### 步骤一：配置虚拟环境
+
 确保已完成依赖安装和虚拟环境配置（见上文"安装"部分）。
 
 ### 步骤二：编辑 watcher.sh
+
 `watcher.sh` 会自动激活虚拟环境并调用 `watcher_.sh` 进行主循环处理。可根据需要修改 `watcher_.sh` 中的 `ENV` 变量（`development`/`production`）。
 
 ### 步骤三：配置 LaunchAgent
+
 示例配置文件位于 `macOS/LaunchAgents/mediakit.plist`。
 
 主要字段说明：
+
 - `ProgramArguments`：指向 `watcher.sh` 的绝对路径
 - `StartInterval`：定时执行间隔（单位：秒，例如 60 表示每分钟执行一次）
 - `WorkingDirectory`：工作目录（需为项目根目录）
@@ -86,6 +108,7 @@ launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 日志文件位于 `logs/` 目录下，如 `logs/watcher.log.YYYY-MM-DD.log`。
 
 ### 其他说明
+
 - `watcher.sh` 会自动激活 `.venv` 环境并调用 `watcher_.sh`
 - `watcher_.sh` 会检测脚本是否已在运行，避免重复进程
 - 支持通过 crontab 或手动运行 `watcher.sh` 进行调试
@@ -95,6 +118,7 @@ launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 项目内置了基于 SIGSTOP/SIGCONT 信号的 CPU 动态限流器，实时监控每个 ffmpeg 进程的 CPU 使用率并动态调整。
 
 限流器由三层组成：
+
 - **`CPULimiterCoordinator`** — 调度器层：管理所有 worker 进程的限流器实例，处理手动覆盖、SIGUSR1 信号和文件覆盖
 - **`ProcessThrottler`** — 每个被监控进程一个 daemon 线程：采样 CPU 使用率并通过 duty cycle controller 计算 SIGSTOP/SIGCONT 时长
 - **`macos_sample_cpu_time()`** — CPU 使用率采样层：macOS 优先使用 `ps` 子进程（规避 `proc_pidinfo` ctypes struct 在 macOS 26 上的兼容性问题），回退到 `proc_pidinfo` 或 Linux `/proc/stat`
@@ -103,11 +127,11 @@ launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 
 通过环境变量 `CPU_LIMIT` 配置（默认 `CPU_LIMIT=100`，即 100%），直接作为总预算分配给所有 worker：
 
-| 环境变量 | 每个 worker 配额 |
-|---------|----------------|
-| `CPU_LIMIT=100`（默认） | 100% / worker 数量 |
-| `CPU_LIMIT=50` | 50% / worker 数量 |
-| `CPU_LIMIT=1` | 1% / worker 数量（最低 1%） |
+| 环境变量                | 每个 worker 配额            |
+| ----------------------- | --------------------------- |
+| `CPU_LIMIT=100`（默认） | 100% / worker 数量          |
+| `CPU_LIMIT=50`          | 50% / worker 数量           |
+| `CPU_LIMIT=1`           | 1% / worker 数量（最低 1%） |
 
 ### 方式二：CLI 参数
 

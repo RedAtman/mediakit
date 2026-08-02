@@ -21,7 +21,7 @@ _coordinator = CPULimiterCoordinator(default_limit=CONFIG.CPU_LIMIT, auto_mode=T
 CommandExecutor.coordinator = _coordinator
 
 
-__all__ = ['compress', 'scale', 'change_file_extension', 'convert_format', 'save_text', 'watch', 'stop']
+__all__ = ['compress', 'scale', 'change_file_extension', 'convert_format', 'save_text', 'watch', 'stop', 'dedupe']
 
 
 logger = logging.getLogger()
@@ -212,6 +212,11 @@ from .watcher import WatcherScheduler  # noqa: E402
 watch = WatcherScheduler()
 
 stop = _SimpleScheduler(_stop)
+
+
+from .dedupe import dedupe as _dedupe_func  # noqa: E402
+
+dedupe = _SimpleScheduler(lambda **kwargs: _dedupe_func(**kwargs))
 
 
 if __name__ == '__main__':

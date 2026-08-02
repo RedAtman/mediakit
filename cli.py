@@ -5,6 +5,7 @@ Usage:
     mediakit change_file_extension --old_ext avi --ext mp4 -f /path/to/folder
     mediakit change_file_extension --old_ext mp4 --ext avi
     mediakit convert_format -t video -f /path/to/folder
+    mediakit dedupe [--apply]
 
 Also available via direct python invocation:
     python cli.py compress -t video -w 1 -f /path/to/folder
