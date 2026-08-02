@@ -116,6 +116,11 @@ class Media(Base):
         with db.DatabaseEngine.engine().get_session() as session:
             instance = session.query(cls).filter_by(md5=md5).first()
             if instance:
+                # If already successfully processed, keep it untouched: no title/dirname
+                # sync and no updated_at bump. Files with identical md5 (duplicate
+                # downloads) would otherwise flip title/updated_at on every scan.
+                if instance.state.get('compress') == schemas.StateChoices.finished:
+                    return instance
                 changed = False
                 for key in ('title', 'dirname'):
                     if key in kwargs and getattr(instance, key) != kwargs[key]:

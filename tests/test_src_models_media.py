@@ -38,3 +38,17 @@ class MediaTest(unittest.TestCase):
         result = self.model.update_state('compress', StateChoices.finished)
         logger.debug(result)
         assert isinstance(result, response.Result)
+
+    def test_get_or_create_skips_title_dirname_update_when_finished(self):
+        """Finished records must stay untouched: no title/dirname sync and no updated_at bump."""
+        self.model.update_state('compress', StateChoices.finished)
+        existing = Media.get(md5=self.test_md5)
+        if existing is None:
+            self.fail('test record should exist')
+        before = existing.updated_at
+
+        # Simulate re-scan with different title/dirname (e.g. a duplicate file with same md5)
+        m = Media.get_or_create(md5=self.test_md5, title='moved.mp4', dirname='/tmp/moved')
+        self.assertEqual(m.title, 'test_video')
+        self.assertEqual(m.dirname, '/tmp/test')
+        self.assertEqual(m.updated_at, before)
