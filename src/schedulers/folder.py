@@ -7,7 +7,7 @@ import signal as _signal
 from typing import Any
 
 from config import CONFIG
-from folder import Folder
+from folder import Folder, make_media
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
 from src.schemas import StateChoices
 from utils import file, response
@@ -64,9 +64,11 @@ def _query(*args: Any, ctx: Context, folder: Folder, **kwargs: dict[str, Any]):
     assert isinstance(result, response.Result)
     assert result == 0
     assert result == 'Success'
-    medias = [folder.MEDIA_CLS(media.path) for media in result.data]
-    if not medias:
-        pass
+    medias = []
+    for media in result.data:
+        constructed = make_media(folder, media.path)
+        if constructed is not None:
+            medias.append(constructed)
     return ctx.next(*args, medias=medias, **kwargs)
 
 
