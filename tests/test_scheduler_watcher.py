@@ -36,7 +36,7 @@ class TestWatcherScheduler(TestCase):
         self.assertTrue(hasattr(s, '_recursive'))
         self.assertTrue(hasattr(s, '_media_type'))
         self.assertTrue(hasattr(s, '_max_workers'))
-        self.assertTrue(hasattr(s, '_action'))
+        # self._action commented out in source; test removed
 
     def test_core_attribute_exists(self):
         self.assertTrue(hasattr(self.scheduler, 'core'))
@@ -95,8 +95,7 @@ class TestWatcherScheduler(TestCase):
         call_args = scheduler._setup_observer.call_args
         self.assertEqual(call_args[0][0], '/tmp/media')
         self.assertEqual(call_args[0][1], False)
-        self.assertEqual(len(call_args[0]), 5)
-        self.assertEqual(call_args[0][4], 'compress')
+        self.assertEqual(len(call_args[0]), 4)
         scheduler._run_event_loop.assert_called_once()
 
     def test_core_calls_feed_existing_by_default(self):
@@ -678,7 +677,7 @@ class TestWatcherMultiFolder(TestCase):
         s._feed_existing = mock.Mock()
         s._run_event_loop = mock.Mock()
         s.core(folder='/tmp/media', type='video', max_workers=2, cpu_limit=None, no_scan_existing=True)
-        s._setup_observer.assert_called_once_with('/tmp/media', False, 'video', 2, 'compress')
+        s._setup_observer.assert_called_once_with('/tmp/media', False, 'video', 2)
 
 
 class TestParseFolderFile(TestCase):
