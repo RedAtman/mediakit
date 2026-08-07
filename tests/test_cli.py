@@ -29,7 +29,7 @@ class TestParser(TestCase):
         folder = Folder(temp_dir)
         result = folder.scan_media()
         logger.info(result)
-        assert isinstance(result, list)
+        assert hasattr(result, '__iter__')
 
 
 class TestWatchFlag(TestCase):

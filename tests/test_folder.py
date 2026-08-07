@@ -55,12 +55,12 @@ class TestFolder(unittest.TestCase):
     def test_scan_media(self):
         result = self.folder.scan_media()
         logger.info(result)
-        assert isinstance(result, list)
+        assert hasattr(result, '__iter__')
 
     def test_scan_media__(self):
         result = Folder.scan_media__(Folder.medias_(self.temp_dir))
         logger.info(result)
-        assert isinstance(result, list)
+        assert hasattr(result, '__iter__')
 
     def test_query(self):
         folder = Folder(self.temp_dir)

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from types import SimpleNamespace
 from typing import Any, Callable, Dict, Generator, List, Optional, Type
 
 from base.folder import BaseFolder
@@ -15,6 +16,15 @@ from utils.command import CommandExecutor
 from utils.tools import Dict2Obj
 
 logger = logging.getLogger()
+
+
+def make_media(folder, path):
+    """Construct media for a path, or None if the file is unprocessable (missing/not media)."""
+    try:
+        return folder.MEDIA_CLS(path)
+    except (exceptions.NotMediaException, OSError) as exc:
+        logger.warning('Skipping unprocessable media: %s: %s', path, exc)
+        return None
 
 
 class Folder(BaseFolder, SqlAlchemyFolderMixin):
@@ -42,29 +52,11 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
     # @functools.cache
     def medias_(cls, path: str, media_type: str = 'video') -> Generator[BaseMedia, Any, None]:
         MEDIA_CLS: Type[BaseMedia] = cls.media_cls(media_type)
+        folder = SimpleNamespace(MEDIA_CLS=MEDIA_CLS)
         for file in cls.get_files(path):
-            try:
-                media = MEDIA_CLS(file)
+            media = make_media(folder, file)
+            if media is not None:
                 yield media
-            except exceptions.NotMediaException:
-                continue
-            except Exception as err:
-                logger.exception(err)
-                continue
-        # try:
-        #     while True:
-        #         file = next(cls.get_files(path))
-        #         try:
-        #             media = MEDIA_CLS(file)
-        #             logger.warning(media, file)
-        #             yield media
-        #         except exceptions.NotMediaException:
-        #             continue
-        #         except Exception as err:
-        #             logger.exception(err)
-        #             continue
-        # except StopIteration:
-        #     pass
 
     def run(self, media_method: str):
         return self.run_(media_method, path=self.path, media_type=self.media_type)
