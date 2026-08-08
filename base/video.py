@@ -521,9 +521,22 @@ class Video(BaseMedia, MixinMediaTranscriber):
                 preset,
                 # Use RGBA pixel format to keep transparency
                 # '-pix_fmt', 'rgba',
+                # 10-bit 提升压缩效率 (~5-10% 同视觉质量下体积减少)
                 # Ensure that the output video has a preview image
                 '-tag:v',
                 'hvc1',
+                '-pix_fmt',
+                'yuv420p10le',
+                # x265 调优参数: 自适应量化 + 关闭 SAO 滤波器
+                '-x265-params',
+                'aq-mode=3:no-sao=1',
+                # 音频: AAC 96k 44100Hz (平衡质量与体积)
+                '-c:a',
+                'aac',
+                '-b:a',
+                '96k',
+                '-ar',
+                '44100',
                 # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
                 # '-crf', '24',
                 # '-avoid_negative_ts', 'make_zero',
