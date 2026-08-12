@@ -90,9 +90,12 @@ class Video(BaseMedia, MixinMediaTranscriber):
         return order_metadata
 
     @decorator.timer
+    @decorator.execute
     def save_metadata(self):
         """Save metadata to file(txt)."""
-        return ['-f', 'ffmetadata', self.dirname + '/' + self.title + '_metadate' + '.txt']
+        new_file_path = self.dirname + '/' + self.title + '_metadata.txt'
+        command = self._FFMPEG_PREFIX + ['-i', self.path, '-f', 'ffmetadata', new_file_path]
+        return self, command, new_file_path
 
     @decorator.timer
     def set_metadata(self):
@@ -417,9 +420,12 @@ class Video(BaseMedia, MixinMediaTranscriber):
         return self, command, new_file_path
 
     @decorator.timer
+    @decorator.execute
     def delete_voice(self):
         """silence audio."""
-        return ['-an', '-c:v', 'copy', self.get_output_path(suffix='delete_voice')]
+        new_file_path = self.get_output_path(suffix='delete_voice')
+        command = self._FFMPEG_PREFIX + ['-i', self.path, '-an', '-c:v', 'copy', new_file_path]
+        return self, command, new_file_path
 
     @decorator.timer
     @decorator.execute
