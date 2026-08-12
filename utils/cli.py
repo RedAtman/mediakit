@@ -14,6 +14,11 @@ mapper_action = {
     'change_file_extension': None,
     'convert_format': None,
     'save_text': None,
+    'combine': None,
+    'reverse': None,
+    'decode': None,
+    'delete_voice': None,
+    'save_metadata': None,
     'stop': None,
     'dedupe': None,
 }

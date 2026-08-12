@@ -21,7 +21,21 @@ _coordinator = CPULimiterCoordinator(default_limit=CONFIG.CPU_LIMIT, auto_mode=T
 CommandExecutor.coordinator = _coordinator
 
 
-__all__ = ['compress', 'scale', 'change_file_extension', 'convert_format', 'save_text', 'watch', 'stop', 'dedupe']
+__all__ = [
+    'compress',
+    'scale',
+    'change_file_extension',
+    'convert_format',
+    'save_text',
+    'combine',
+    'reverse',
+    'decode',
+    'delete_voice',
+    'save_metadata',
+    'watch',
+    'stop',
+    'dedupe',
+]
 
 
 logger = logging.getLogger()
@@ -176,6 +190,25 @@ save_text = _SimpleScheduler(
         **{k: v for k, v in kwargs.items() if k not in ('action', 'folder', 'cpu_limit', 'type', 'worker')},
     )
 )
+
+
+def _video_action(name):
+    """Build a _SimpleScheduler running a named Video method over the folder's videos."""
+    return _SimpleScheduler(
+        lambda **kwargs: Folder.run_(
+            media_method=name,
+            path=kwargs.get('folder', ''),
+            media_type='video',
+            max_workers=kwargs.get('max_workers', CONFIG.MAX_WORKERS),
+        )
+    )
+
+
+combine = _video_action('combine')
+reverse = _video_action('reverse')
+decode = _video_action('decode')
+delete_voice = _video_action('delete_voice')
+save_metadata = _video_action('save_metadata')
 
 
 def _stop(**kwargs):
