@@ -7,7 +7,6 @@ from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base
 
-from config import CONFIG
 from src import db, schemas
 from src.models._type import MediaParams
 from utils import response
@@ -160,26 +159,3 @@ class Media(Base):
             session.delete(self)
             session.commit()
             return response.Result(code=0, data={'media': self})
-
-
-if __name__ == '__main__':
-    from utils.db import _sqlmodel
-
-    engine = _sqlmodel.Engine(CONFIG.SQLITE_DATABASE)
-    # engine.create_db_and_tables()
-    company: Media = Media(
-        md5='md5',
-        title='title',
-        dirname='dirname',
-        # state={'compress': 'compress', 'trim': 'trim'},
-        state=schemas.State(compress=schemas.StateChoices.unprocessed, trim=schemas.StateChoices.unprocessed),
-    )
-    logger.info(company)
-    logger.info(company.__dict__)
-    logger.info(company.state)
-    instance = Media.get(md5='md5')
-    instance2 = Media.get(md5='md5')
-    logger.info((id(instance), instance))
-    logger.info((id(instance2), instance2))
-    logger.info(instance == instance2)
-    logger.info(instance is instance2)
