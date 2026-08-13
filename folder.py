@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, Generator, List, Optional, Type
+from typing import Any, Callable, Dict, Generator, List, Type
 
 from base.folder import BaseFolder
 from base.media import BaseMedia
@@ -106,25 +106,8 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
             raise NotImplementedError(f'{MEDIA_CLS} has not implemented {media_method} method.')
         if not isinstance(_media_method, Callable):
             raise TypeError(f'{MEDIA_CLS} has not implemented {_media_method} method.')
-        medias = cls.medias_(path, media_type)
-        logger.debug(('run_', MEDIA_CLS, medias, type(medias), path, media_type, callback_list))
-        return cls.run__(
-            media_method, *args, medias=medias, max_workers=max_workers, callback_list=callback_list, **kwargs
-        )
-
-    @classmethod
-    def run__(
-        cls,
-        media_method: str,
-        *args: Any,
-        medias: Optional[Generator[BaseMedia, None, None]] = None,
-        max_workers: int = CONFIG.MAX_WORKERS,
-        callback_list: List[Callable[..., Any]] = [],
-        **kwargs: Any,
-    ):
-        if medias is None:
-            raise TypeError('medias is None.')
-        tasks = [getattr(media, media_method) for media in medias]
+        tasks = [getattr(media, media_method) for media in cls.medias_(path, media_type)]
+        logger.debug(('run_', MEDIA_CLS, tasks, type(tasks), path, media_type, callback_list))
         return cls.run___(*args, tasks=tasks, max_workers=max_workers, callback_list=callback_list, **kwargs)
 
     @staticmethod
