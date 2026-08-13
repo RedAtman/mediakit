@@ -41,11 +41,10 @@ __all__ = [
 logger = logging.getLogger()
 
 
-class _SimpleScheduler:
-    """Wrapper giving a plain function a .core attribute for CLI dispatch."""
-
-    def __init__(self, func):
-        self.core = func
+def _scheduler(func):
+    """Attach a .core attribute to a plain function so CLI dispatcher can call scheduler.core()."""
+    func.core = func
+    return func
 
 
 def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
@@ -149,7 +148,7 @@ compress.add_func('core')(_compress)
 compress.initialize()
 
 
-# --- Trivial scheduler replacements (MiddlewareScheduler → _SimpleScheduler) ---
+# --- Trivial scheduler replacements (MiddlewareScheduler → _scheduler) ---
 # These were MiddlewareScheduler instances wrapping one middleware + identity _core.
 # Each middleware did the real work then called ctx.next() → identity returns result.
 # Now they call the core logic directly and return the result.
@@ -163,7 +162,7 @@ def _run_folder_action(**kwargs):
     return Folder.run_(media_method=action, path=folder_path, **kwargs)
 
 
-scale = _SimpleScheduler(
+scale = _scheduler(
     lambda **kwargs: Folder.run_(
         media_method=kwargs.get('action', 'scale'),
         path=kwargs.get('folder', ''),
@@ -172,17 +171,17 @@ scale = _SimpleScheduler(
 )
 
 
-change_file_extension = _SimpleScheduler(
+change_file_extension = _scheduler(
     lambda **kwargs: file.change_file_extension(
         **{k: v for k, v in kwargs.items() if k in ('old_ext', 'ext', 'folder') and v}
     )
 )
 
 
-convert_format = _SimpleScheduler(lambda **kwargs: _run_folder_action(**kwargs))
+convert_format = _scheduler(lambda **kwargs: _run_folder_action(**kwargs))
 
 
-save_text = _SimpleScheduler(
+save_text = _scheduler(
     lambda **kwargs: Folder.run_(
         media_method='save_text',
         path=kwargs.get('folder', ''),
@@ -193,8 +192,8 @@ save_text = _SimpleScheduler(
 
 
 def _video_action(name):
-    """Build a _SimpleScheduler running a named Video method over the folder's videos."""
-    return _SimpleScheduler(
+    """Build a _scheduler running a named Video method over the folder's videos."""
+    return _scheduler(
         lambda **kwargs: Folder.run_(
             media_method=name,
             path=kwargs.get('folder', ''),
@@ -246,12 +245,12 @@ from .watcher import WatcherScheduler  # noqa: E402
 
 watch = WatcherScheduler()
 
-stop = _SimpleScheduler(_stop)
+stop = _scheduler(_stop)
 
 
 from .dedupe import dedupe as _dedupe_func  # noqa: E402
 
-dedupe = _SimpleScheduler(lambda **kwargs: _dedupe_func(**kwargs))
+dedupe = _scheduler(lambda **kwargs: _dedupe_func(**kwargs))
 
 
 if __name__ == '__main__':
