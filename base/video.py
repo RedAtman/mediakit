@@ -80,7 +80,6 @@ class Video(BaseMedia, MixinMediaTranscriber):
 
                 order_metadata.extend(['-metadata', str(key) + '=' + ','.join(meta_concat)])
                 self.keywords_list.update(meta_concat)
-
         keywords_en_list = translator.Translator.translate(self.keywords_list)
         self.keywords_list.update(keywords_en_list)
         self.keywords_list = {i.strip() for i in self.keywords_list}
@@ -98,9 +97,17 @@ class Video(BaseMedia, MixinMediaTranscriber):
         return self, command, new_file_path
 
     @decorator.timer
+    @decorator.execute
     def set_metadata(self):
-        """Set metadata to file."""
-        return self.order_metadata.extend(['-c:a', 'copy', '-c:v', 'copy', self.get_output_path(suffix='set_metadata')])
+        """Set metadata onto the video (stream copy)."""
+        new_file_path = self.get_output_path(suffix='set_metadata')
+        command = (
+            self._FFMPEG_PREFIX
+            + ['-i', self.path]
+            + self.order_metadata
+            + ['-c:a', 'copy', '-c:v', 'copy', new_file_path]
+        )
+        return self, command, new_file_path
 
     @property
     def fps(self):
@@ -388,38 +395,6 @@ class Video(BaseMedia, MixinMediaTranscriber):
         return self, command, new_file_path
 
     @decorator.timer
-    def images_to_video(self, images_path: str, image_format: str, bit_rate: str = '5000k'):
-        create_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime())
-        new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
-        command = self._FFMPEG_PREFIX + [
-            # 关闭每帧都提醒是否overwrite
-            '-pattern_type',
-            'glob',
-            # 设置帧率
-            '-r',
-            '24',
-            # 设置images文件路径,
-            '-i',
-            images_path + '/*.' + image_format,
-            # 码率
-            # '-b:v', bit_rate,
-            # 线程(待验证)
-            # "-threads",
-            # "4",
-            # 画面缩放比率
-            '-vf',
-            'scale=1920:-1',
-            # 对video类型文件设置编码类型
-            # '-c:v', 'libx264',
-            # '-c:v', 'libx265',
-            # 时长取最短的media
-            # '-shortest',
-            new_file_path,
-        ]
-        CommandExecutor.run(command)
-        return self, command, new_file_path
-
-    @decorator.timer
     @decorator.execute
     def delete_voice(self):
         """silence audio."""
@@ -591,9 +566,6 @@ class Video(BaseMedia, MixinMediaTranscriber):
             new_file_path,
         ]
         return self, command, new_file_path
-
-    def concat(self):
-        return 'ffmpeg -f concat -i concat.txt -c copy concat.mov'
 
     @decorator.timer
     @decorator.execute
