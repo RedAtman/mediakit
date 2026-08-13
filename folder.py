@@ -223,26 +223,11 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
                         logger.exception(err)
             logger.info('Waiting for all subprocesses done...')
 
-    @decorator.timer
-    def convert_images_to_video(self, image_format: str, bit_rate='5000k'):
-        """Convert images to video.
-
-        Arguments:
-            image_format {[str]} -- [Image format] (default: {'jpg'})
-                e.g.: 'jpg', 'png', ...
-            bit_rate {[str]} -- [Video bitrate] (default: {'5000k'})
-                e.g.: '5000k', '10000k', ...
-
-        TODO: delete image_format
-        """
-        self._convert_images_to_video(self.path, image_format, bit_rate)
-
     @classmethod
-    def _convert_images_to_video(cls, images_path: str, image_format: str, bit_rate='5000k', media_type='image'):
+    def images_to_video(cls, images_path: str, image_format: str, bit_rate='5000k'):
         create_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime())
         new_file_path = f'{images_path}/output_{bit_rate}_1920_{create_time}.mp4'
-        MEDIA_CLS: Type[BaseMedia] = BaseMedia._SUBCLASS_MAPPER.get(media_type, BaseMedia)
-        command = MEDIA_CLS._FFMPEG_PREFIX + [
+        command = BaseMedia._FFMPEG_PREFIX + [
             # 关闭每帧都提醒是否overwrite
             '-pattern_type',
             'glob',
@@ -268,3 +253,11 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
         ]
         CommandExecutor.run(command)
         return cls, command, new_file_path
+
+    @classmethod
+    def concat(cls, concat_list: str):
+        """Concatenate media listed in a concat demuxer file (folder-level)."""
+        output = os.path.join(os.path.dirname(concat_list), 'concat_output.mov')
+        command = BaseMedia._FFMPEG_PREFIX + ['-f', 'concat', '-safe', '0', '-i', concat_list, '-c', 'copy', output]
+        CommandExecutor.run(command)
+        return cls, command, output
