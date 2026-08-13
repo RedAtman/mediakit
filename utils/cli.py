@@ -19,6 +19,9 @@ mapper_action = {
     'decode': None,
     'delete_voice': None,
     'save_metadata': None,
+    'set_metadata': None,
+    'images_to_video': None,
+    'concat': None,
     'stop': None,
     'dedupe': None,
 }
@@ -88,4 +91,8 @@ def create_parser():
     parser.add_argument(
         '--db', type=str, default='db.db', help='Dedupe: path to the media database (for survivor preference)'
     )
+    parser.add_argument('--concat-list', type=str, default='', help='Concat: path to a concat demuxer list file')
+    parser.add_argument('--images-path', type=str, default='', help='Images: folder containing the image sequence')
+    parser.add_argument('--image-format', type=str, default='jpg', help='Images: image format (jpg/png/...)')
+    parser.add_argument('--bit-rate', type=str, default='5000k', help='Images: output video bitrate')
     return parser

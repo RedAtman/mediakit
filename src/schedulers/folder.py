@@ -32,6 +32,9 @@ __all__ = [
     'decode',
     'delete_voice',
     'save_metadata',
+    'set_metadata',
+    'images_to_video',
+    'concat',
     'watch',
     'stop',
     'dedupe',
@@ -208,6 +211,18 @@ reverse = _video_action('reverse')
 decode = _video_action('decode')
 delete_voice = _video_action('delete_voice')
 save_metadata = _video_action('save_metadata')
+set_metadata = _video_action('set_metadata')
+
+
+images_to_video = _scheduler(
+    lambda **kwargs: Folder.images_to_video(
+        images_path=kwargs.get('images_path', ''),
+        image_format=kwargs.get('image_format', 'jpg'),
+        bit_rate=kwargs.get('bit_rate', '5000k'),
+    )
+)
+
+concat = _scheduler(lambda **kwargs: Folder.concat(concat_list=kwargs.get('concat_list', '')))
 
 
 def _stop(**kwargs):
