@@ -129,6 +129,15 @@ dependencies = [
     { name = "watchdog" },
 ]
 
+[package.optional-dependencies]
+dev = [
+    { name = "codespell" },
+    { name = "pytest" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
+    { name = "vulture" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "codespell" },
@@ -140,20 +149,26 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "codespell", marker = "extra == 'dev'" },
     { name = "ffmpeg-python", specifier = "==0.2.0" },
     { name = "psutil", specifier = "==7.0.0" },
     { name = "pyaudio", specifier = "==0.2.14" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pygments", specifier = "==2.17.2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
+    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.15.1" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "pyttsx3", specifier = "==2.90" },
     { name = "requests", specifier = "==2.31.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.12" },
     { name = "speechrecognition", specifier = "==3.10.1" },
     { name = "sqlalchemy", specifier = ">=2.0.36" },
     { name = "sqlmodel", specifier = ">=0.0.34" },
     { name = "tqdm", specifier = ">=4.67" },
+    { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.16" },
     { name = "watchdog", specifier = ">=6.0.0" },
 ]
+provides-extras = ["dev", "test", "prod"]
 
 [package.metadata.requires-dev]
 dev = [
