@@ -357,10 +357,21 @@ class WatcherScheduler:
         logger.info('Config monitoring: applying change: remove=%s, add=%s', to_remove, to_add)
 
         if self.observer is None:
-            logger.warning(
-                'Config monitoring: observer not initialized (no valid paths at startup). '
-                'Updating tracking state only. Restart watcher to pick up new paths.'
-            )
+            # No observer at startup means no path was valid at startup. If any
+            # are now valid, install the observer and feed them. Otherwise just
+            # sync state.
+            if to_add:
+                logger.info(
+                    'Config monitoring: observer was not initialized at startup; installing now for %d new path(s)',
+                    len(to_add),
+                )
+                self._setup_multi_observer(sorted(to_add), self._recursive, self._media_type, self._max_workers)
+                for path in to_add:
+                    self._feed_existing(path, self._media_type, self._max_workers)
+            else:
+                logger.info(
+                    'Config monitoring: observer not initialized and no new valid paths; nothing to do'
+                )
             for path in to_remove:
                 self._path_to_watch.pop(path, None)
                 self._watched_paths.discard(path)
@@ -419,7 +430,10 @@ class WatcherScheduler:
         handler = _WatchEventHandler(buffer, tracker)
         self._handler = handler
 
+        # New Observer + clear stale state so the dict matches what this Observer
+        # actually schedules (callers may pass a subset when adding late paths).
         self.observer = Observer()
+        self._path_to_watch.clear()
         for path in paths:
             watch = self.observer.schedule(handler, path, recursive=recursive)
             self._path_to_watch[path] = watch

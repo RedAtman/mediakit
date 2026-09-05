@@ -611,6 +611,36 @@ class TestWatcherScheduler(TestCase):
         scheduler._config_filepath = None
         scheduler._check_config_file_changes()
 
+    def test_check_config_changes_installs_observer_when_observer_was_none_at_startup(self):
+        # Regression: at startup no path was valid (e.g. all paths missing), so
+        # observer was never installed. When mtime changes and a path now exists,
+        # the watcher must install the observer and feed existing files instead
+        # of silently dropping the new path.
+        scheduler = self.scheduler
+        scheduler._config_filepath = '/tmp/fake_folder.sh'
+        scheduler._config_mtime = 100.0
+        scheduler._watched_paths = set()
+        scheduler._path_to_watch = {}
+        scheduler.observer = None  # never installed at startup
+        scheduler._recursive = False
+        scheduler._media_type = 'video'
+        scheduler._max_workers = 1
+
+        with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
+            with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
+                with mock.patch(
+                    'src.schedulers.watcher._parse_folder_file', return_value=['/now_valid']
+                ):
+                    with mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True):
+                        with mock.patch.object(scheduler, '_setup_multi_observer') as mock_setup:
+                            with mock.patch.object(scheduler, '_feed_existing') as mock_feed:
+                                scheduler._check_config_file_changes()
+
+        mock_setup.assert_called_once()
+        mock_feed.assert_called_once_with('/now_valid', 'video', 1)
+        self.assertEqual(scheduler._watched_paths, {'/now_valid'})
+        self.assertEqual(scheduler._config_mtime, 200.0)
+
 
 class TestWatcherMultiFolder(TestCase):
     def setUp(self):
