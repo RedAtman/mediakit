@@ -82,7 +82,22 @@ class BaseFolderMixin:
     def scan_media__(cls, medias: Generator[BaseMedia, None, None] | None = None):
         if medias is None:
             raise TypeError('medias is None.')
-        return medias
+        from src.schemas import StateChoices  # local import avoids circular refs
+        results = []
+        for media in medias:
+            try:
+                # Explicit DB registration for discovered media (restores design
+                # intent: scan folder file list → insert/update DB → query picks up
+                # unprocessed rows). Uses media.md5 (cached property) for key.
+                models.Media.get_or_create(
+                    md5=media.md5,
+                    title=media.title,
+                    dirname=media.dirname,
+                )
+                results.append(media)
+            except Exception as exc:
+                logger.warning('Failed to register media %s in DB: %s', media.path, exc)
+        return iter(results)
 
 
 class SqlAlchemyFolderMixin(BaseFolderMixin):
