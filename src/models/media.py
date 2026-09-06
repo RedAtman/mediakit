@@ -21,6 +21,7 @@ Base = declarative_base()
 class Media(Base):
     md5 = Column(String, primary_key=True, nullable=False)
     title = Column(String, nullable=False)
+    ext = Column(String, nullable=False, default='')
     dirname = Column(String, nullable=False)
     # created_at = Column(DateTime, default=datetime.utcnow, read_only=True)
     _created_at = Column('created_at', DateTime, default=datetime.utcnow)
@@ -71,6 +72,8 @@ class Media(Base):
 
     @property
     def path(self):
+        if self.ext:
+            return f'{self.dirname}/{self.title}.{self.ext}'
         return f'{self.dirname}/{self.title}'
 
     # @hybrid_property
@@ -121,7 +124,7 @@ class Media(Base):
                 if instance.state.get('compress') == schemas.StateChoices.finished:
                     return instance
                 changed = False
-                for key in ('title', 'dirname'):
+                for key in ('title', 'dirname', 'ext'):
                     if key in kwargs and getattr(instance, key) != kwargs[key]:
                         setattr(instance, key, kwargs[key])
                         changed = True

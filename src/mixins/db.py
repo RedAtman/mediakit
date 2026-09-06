@@ -93,6 +93,7 @@ class BaseFolderMixin:
                     md5=media.md5,
                     title=media.title,
                     dirname=media.dirname,
+                    ext=media.ext,
                 )
                 results.append(media)
             except Exception as exc:

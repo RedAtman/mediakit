@@ -1,5 +1,6 @@
 from concurrent.futures import Future
 from functools import partial
+import glob
 import logging
 import os
 from pathlib import Path
@@ -298,7 +299,20 @@ class WatcherScheduler:
                 scheduler = media_compress.core
                 tasks = []
                 for m in medias:
-                    media = make_media(folder, m.path)
+                    # Fallback: if Media.path doesn't exist on disk, try glob with
+                    # any extension. Handles legacy rows where the file was moved/renamed.
+                    candidate = m.path
+                    media = make_media(folder, candidate) if os.path.isfile(candidate) else None
+                    if media is None:
+                        # glob.escape protects against titles with [] and other regex-active chars
+                        matches = glob.glob(
+                            f'{glob.escape(m.dirname)}/{glob.escape(m.title)}.*'
+                        )
+                        for match in matches:
+                            if os.path.isfile(match):
+                                media = make_media(folder, match)
+                                if media is not None:
+                                    break
                     if media is not None:
                         tasks.append(_make_watched_task(scheduler, media))
                 Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
