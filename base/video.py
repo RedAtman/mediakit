@@ -479,9 +479,16 @@ class Video(BaseMedia, MixinMediaTranscriber):
             pass
         elif resolution.pixels >= (width * height):
             pass
-            # command.extend(["-s", f"{width}x{height}"])
         else:
-            command.extend(['-s', f'{resolution.width}x{resolution.height}'])
+            # 用 scale 保持原始长宽比, 而非 -s 强制目标 WxH (会拉伸/裁剪, 破坏竖屏等非 16:9 视频)
+            # force_original_aspect_ratio=decrease 只缩小不放大, 第二个 scale 保证宽高为偶数 (x265 硬性要求)
+            command.extend(
+                [
+                    '-vf',
+                    f'scale={resolution.width}:{resolution.height}:'
+                    'force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2',
+                ]
+            )
 
         suffix, vcodec, preset = 'compress', 'libx265', 'slow'
         new_file_path = self.create_file_path(self.path, suffix=f'[{suffix}.{vcodec}.{preset}]', ext=ext)
