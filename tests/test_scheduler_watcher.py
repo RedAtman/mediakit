@@ -628,9 +628,7 @@ class TestWatcherScheduler(TestCase):
 
         with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
             with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
-                with mock.patch(
-                    'src.schedulers.watcher._parse_folder_file', return_value=['/now_valid']
-                ):
+                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/now_valid']):
                     with mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True):
                         with mock.patch.object(scheduler, '_setup_multi_observer') as mock_setup:
                             with mock.patch.object(scheduler, '_feed_existing') as mock_feed:
