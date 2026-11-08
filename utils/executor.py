@@ -1,6 +1,6 @@
 from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 import logging
-import multiprocessing
+import os
 import threading
 from typing import Any, Callable, NamedTuple
 
@@ -23,7 +23,10 @@ class TaskManager:
 
     # PoolExecutor = ProcessPoolExecutor
     def __init__(self, max_workers: int = 1):
-        max_workers = max_workers if max_workers <= multiprocessing.cpu_count() else multiprocessing.cpu_count()
+        # os.cpu_count() 而不是 multiprocessing.cpu_count(): 后者为了一个数字把整个
+        # multiprocessing 运行时拖进包, PyInstaller 的 onefile 子进程会因缺 array 而崩
+        cpu_count = os.cpu_count() or 1
+        max_workers = max_workers if max_workers <= cpu_count else cpu_count
         # self.semaphore = multiprocessing.Semaphore(max_workers)
         self.semaphore = threading.Semaphore(max_workers)
         self.executor = self.PoolExecutor(max_workers=max_workers)
