@@ -17,7 +17,7 @@ mediakit/
 ├── utils/        # Shared utilities: command, db, logger, process, media
 │   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 │   └── media_types.json  # Extension→category mapping (data-driven)
-├── tests/        # pytest suite (flat, 17 files)
+├── tests/        # pytest suite (flat, 21 files)
 ├── cli.py          # Entry point (shebang + [project.scripts] → mediakit)
 ├── folder.py       # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py       # Environment config with side-effect imports (sys.path, logging init, find_dotenv)
@@ -47,7 +47,6 @@ mediakit/
 | Logging setup             | `utils/logger/init.py`                       | dictConfig with custom filters                                                                                   |
 | Progress bars             | `utils/progress.py`                          | tqdm (stdout TTY / stderr non-TTY) + MediaStateProgress (DB)                                                     |
 | Translation               | `utils/translator.py`                        | Baidu Translate API; lazy config validation (`_require_config()` at runtime, not import)                         |
-| Test base                 | `base/basetest.py` (349L)                    | HTTP + auth mixin                                                                                                |
 
 ## CONVENTIONS
 
@@ -75,7 +74,7 @@ mediakit/
 ## UNIQUE STYLES
 
 - **MiddlewareScheduler**: Pre-configured middleware chains instead of argparse subcommands. Each action (compress, scale, etc.) is a `MiddlewareScheduler` instance in `src/schedulers/folder.py`
-- **Dual model pattern**: `_media.py` (SQLModel) and `media.py` (SQLAlchemy) coexist — migration in progress
+- **Single SQLAlchemy model**: `src/models/media.py` is the only ORM model (`utils/db/_sqlalchemy.py` engine); the old SQLModel `_media.py` was removed
 - **Class-level thread lock**: `BaseMedia._LOCK = threading.Lock()` — shared across all instances
 - **Static method triples**: `run_()` / `run__()` / `run___()` for batch dispatch
 - **Lazy config validation**: `utils/translator.py` defers Baidu Translate credential checks to `_require_config()` called inside `translate()` — avoids import-time crashes when env vars are missing
@@ -88,7 +87,7 @@ mediakit/
 
 ```bash
 # Fix lint issues
-uv run ruff check --fix acme tests
+uv run ruff check --fix . tests
 
 # Install pre-commit hook (one-time setup)
 pre-commit install
@@ -100,7 +99,7 @@ pre-commit run --all-files
 pytest -vv --rootdir . --color=yes --capture=tee-sys
 
 # Lint
-uv run ruff check acme tests
+uv run ruff check . tests
 
 # Format
 uv run ruff format .
