@@ -1,7 +1,30 @@
+from contextlib import redirect_stdout
+from importlib.metadata import version as distribution_version
+import io
 import logging
 from unittest import TestCase
 
 logger = logging.getLogger()
+
+
+class TestVersionFlag(TestCase):
+    def _version_output(self, flag: str) -> str:
+        from utils.cli import create_parser
+
+        buffer = io.StringIO()
+        with self.assertRaises(SystemExit) as exit_info, redirect_stdout(buffer):
+            create_parser().parse_args([flag])
+        self.assertEqual(exit_info.exception.code, 0)
+        return buffer.getvalue().strip()
+
+    def test_version_flag_prints_packaging_version(self):
+        expected = distribution_version('mediakit')
+        # 版本号唯一来源是 pyproject.toml 的 [project].version
+        self.assertTrue(self._version_output('--version').endswith(expected))
+        self.assertTrue(self._version_output('-v').endswith(expected))
+
+    def test_version_flag_works_without_an_action(self):
+        self.assertIn('0.1.0', self._version_output('-v'))
 
 
 class TestParser(TestCase):

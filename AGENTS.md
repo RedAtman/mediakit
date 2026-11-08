@@ -104,6 +104,9 @@ uv run ruff check . tests
 # Format
 uv run ruff format .
 
+# Print version (single source: pyproject.toml [project].version)
+mediakit -v
+
 # Run CLI (compress)
 mediakit compress -t video -w 1 -f /path/to/folder
 

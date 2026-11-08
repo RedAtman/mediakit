@@ -1,10 +1,24 @@
 import argparse
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as distribution_version
 import logging
 
 from config import CONFIG
 from utils.video import VideoResolution
 
 logger = logging.getLogger()
+
+
+def _version() -> str:
+    """版本号唯一来源: 打包元数据 ([project].version in pyproject.toml)
+
+    ponytail: 不在这里重复一份版本号字符串. 未安装的源码树查不到 dist 元数据,
+    此时报 unknown 而不是去猜一个可能过期的值
+    """
+    try:
+        return distribution_version(CONFIG.PROJECT_NAME)
+    except PackageNotFoundError:
+        return 'unknown'
 
 
 def _resolution_arg(value: str) -> VideoResolution:
@@ -57,6 +71,7 @@ def create_parser():
         """
     )
     parser.add_argument('action', type=str, choices=mapper_action.keys(), default='compress', help='Action to run')
+    parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {_version()}')
     parser.add_argument(
         '-f',
         '--folder',
