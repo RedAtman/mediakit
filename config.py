@@ -35,8 +35,12 @@ class _BaseConfig:
 
     DEBUG = False
     TESTING = False
-    # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    # PyInstaller onefile 下 __file__ 指向临时解包目录 (_MEIPASS), 退出即删;
+    # 那样 db.db / logs 会随每次运行丢失, 所以冻结时改用可执行文件所在目录.
+    if getattr(sys, 'frozen', False):
+        BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+    else:
+        BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     sys.path.insert(0, BASE_DIR)
     LOG_DIR = os.path.join(BASE_DIR, 'logs')
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -114,5 +118,7 @@ class Production(_BaseConfig):
 env: str = os.getenv('ENV', 'development')
 CONFIG: type[_BaseConfig] = _BaseConfig.mapping.get(env, Development)
 
+# utils.logger.init 优先读 env BASE_DIR, 这样冻结版不会把日志写进临时解包目录
+os.environ.setdefault('BASE_DIR', _BaseConfig.BASE_DIR)
 
 import_module('utils.logger.init')

@@ -196,7 +196,10 @@ class MediaStateProgress(BaseProgress):
         self.run()
 
     def run(self):
-        self.model.update_state('compress', self.percent)
+        # percent = 当前帧 / 源帧数; 而 compress 会强制 -r 24, 低帧率源(如 10fps 延时)
+        # 的输出帧数会超过分母, 算出 >1 的比值. 这里夹到 [0,1] 而不是让
+        # State.compress (ge=-2, le=2) 抛 ValidationError 把整次压缩弄挂.
+        self.model.update_state('compress', min(self.percent, 1.0))
 
 
 if __name__ == '__main__':

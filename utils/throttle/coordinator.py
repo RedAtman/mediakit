@@ -3,6 +3,7 @@
 import glob
 import logging
 import os
+import platform
 import signal
 import threading
 import time
@@ -19,6 +20,8 @@ MIN_PER_WORKER = 1
 PROFILES = [None, 100, 50, 25]
 FILE_SCAN_INTERVAL = 2.0
 FILE_OVERRIDE_PATTERN = '/tmp/mediakit_cpu_*'
+# sampling.py 只实现了 Linux/Darwin; 其他平台不报错, 只是不启用节流
+SUPPORTED_PLATFORMS = ('Linux', 'Darwin')
 
 
 class CPULimiterCoordinator:
@@ -41,8 +44,14 @@ class CPULimiterCoordinator:
             signal.signal(signal.SIGUSR1, self._handle_sigusr1)
         except (ValueError, AttributeError) as err:
             logger.warning('Cannot register SIGUSR1 handler: %s', err)
+        # Windows 上 sample_cpu_time/system_cpu_load 会抛 NotImplementedError,
+        # 监控线程每 2s 打一次栈就变成噪音, 所以直接不启用
+        self.supported = platform.system() in SUPPORTED_PLATFORMS
+        if not self.supported:
+            logger.warning('CPU throttling is not implemented on %s: running unthrottled', platform.system())
         self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self._monitor_thread.start()
+        if self.supported:
+            self._monitor_thread.start()
 
     def _stop_monitor(self):
         """Stop the background monitor thread."""
@@ -85,6 +94,8 @@ class CPULimiterCoordinator:
 
     def attach(self, pid: int):
         """Register a new process for throttling."""
+        if not self.supported:
+            return
         with self._lock:
             if pid in self._throttlers:
                 logger.debug('PID %d already attached', pid)

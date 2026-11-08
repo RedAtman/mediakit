@@ -63,3 +63,62 @@ jobs:
             dist/*.whl
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+
+  binary:
+    # Runs after the release job so the release (and its generated notes) already
+    # exists; these legs only attach files to it.
+    needs: release
+    name: Binary (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-arm64
+            runner: macos-latest
+            asset: mediakit-macos-arm64
+          # PyInstaller cannot cross-build a wheel-architecture mismatch, so Intel
+          # macOS needs an Intel runner. macos-13 is the last one GitHub offers;
+          # when it is retired this leg has to be dropped or retargeted.
+          - target: macos-x86_64
+            runner: macos-13
+            asset: mediakit-macos-x86_64
+          - target: linux-x86_64
+            runner: ubuntu-latest
+            asset: mediakit-linux-x86_64
+          - target: windows-x86_64
+            runner: windows-latest
+            asset: mediakit-windows-x86_64.exe
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          python-version: '3.14'
+      - name: Install dependencies
+        run: uv sync --frozen
+      # --with keeps pyinstaller out of pyproject/uv.lock (no lock churn) while
+      # still building against the project's own environment and interpreter.
+      - name: Build single-file binary
+        run: uv run --with pyinstaller==6.22.3 pyinstaller --noconfirm mediakit.spec --distpath binary --workpath build-binary
+      - name: Rename for the release asset
+        shell: bash
+        run: |
+          mkdir -p asset
+          if [ "${{ matrix.runner }}" = "windows-latest" ]; then
+            mv binary/mediakit.exe "asset/${{ matrix.asset }}"
+          else
+            mv binary/mediakit "asset/${{ matrix.asset }}"
+          fi
+      # ffmpeg is deliberately NOT bundled: the binary shells out to a system
+      # ffmpeg on PATH, same as the pip/uv install does.
+      - name: Smoke test the binary
+        shell: bash
+        run: |
+          "./asset/${{ matrix.asset }}" -v
+          "./asset/${{ matrix.asset }}" --help > /dev/null
+      - name: Attach binary to the release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: asset/${{ matrix.asset }}
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}

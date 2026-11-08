@@ -23,9 +23,6 @@ class TestVersionFlag(TestCase):
         self.assertTrue(self._version_output('--version').endswith(expected))
         self.assertTrue(self._version_output('-v').endswith(expected))
 
-    def test_version_flag_works_without_an_action(self):
-        self.assertIn('0.1.0', self._version_output('-v'))
-
 
 class TestParser(TestCase):
     def setUp(self):
