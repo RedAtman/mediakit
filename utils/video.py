@@ -1,4 +1,5 @@
 from enum import Enum
+import re
 
 
 class VideoResolution(Enum):
@@ -64,6 +65,29 @@ class VideoResolution(Enum):
             if resolution.width == width and resolution.height == height:
                 return resolution
         return None
+
+    @classmethod
+    def parse(cls, value):
+        """
+        把用户输入（CLI 参数 / 环境变量）解析为 VideoResolution 成员
+        :param value: 枚举成员、枚举名（大小写不敏感）或 '1920x1080' 尺寸字符串
+        :return: VideoResolution 成员
+        :raises ValueError: 无法识别时直接报错, 不静默回退兜底值
+        """
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            text = value.strip()
+            # 尺寸写法: 1920x1080 / 1920*1080 / 1920X1080
+            if re.fullmatch(r'\d+\s*[xX*]\s*\d+', text):
+                width, height = (int(n) for n in re.split(r'[xX*]', text))
+                matched = cls.get_resolution(width, height)
+                if matched is not None:
+                    return matched
+            elif text.upper() in cls.__members__:
+                return cls[text.upper()]
+        supported = ', '.join(cls.__members__)
+        raise ValueError(f'Unknown resolution {value!r}. Supported: {supported} or WxH (e.g. 1920x1080)')
 
     @classmethod
     def find_closest_resolutions(cls, width, height, by_pixels=True):

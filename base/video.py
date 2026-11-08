@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 import ffmpeg
 
 from base.media import BaseMedia
+from config import CONFIG
 from src.mixins.transcriber import MixinMediaTranscriber
 from utils import decorator, translator
 from utils.command import CommandExecutor
@@ -451,15 +452,23 @@ class Video(BaseMedia, MixinMediaTranscriber):
 
     @decorator.timer
     @decorator.execute
-    def compress(self, ext: str = 'mp4', resolution=VideoResolution.HD, fps: int = 24):
+    def compress(self, ext: str = 'mp4', resolution=None, fps=None):
         """Push the compression lever further by increasing the CRF value — add, say, 4 or 6,
         since a reasonable range for H.265 may be 24 to 30. Note that lower CRF values correspond
         to higher bitrates, and hence produce higher quality videos.
+
+        :param resolution: 目标分辨率, 接受 VideoResolution 成员 / 枚举名 (HD/FHD/UHD...) / '1920x1080';
+            None 时取 CONFIG.COMPRESS_RESOLUTION 兜底值
+        :param fps: 输出帧率, None 时取 CONFIG.COMPRESS_FPS 兜底值
 
         -c:v: libx264, libx265, qtrle, libvpx, libvpx-vp9
         hardware acceleration:
         -c:v: hevc_videotoolbox, h264_videotoolbox
         """
+        # 兜底值来自 CONFIG (可 env/.env 覆盖), CLI 显式传入时以 CLI 为准
+        resolution = VideoResolution.parse(resolution if resolution is not None else CONFIG.COMPRESS_RESOLUTION)
+        fps = CONFIG.COMPRESS_FPS if fps is None else int(fps)
+
         command = self._ffmpeg_prefix + [
             '-progress',
             'pipe:1',

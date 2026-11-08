@@ -57,6 +57,9 @@ class _BaseConfig:
     # FFMPEG
     FFMPEG_BIN_DIR = os.getenv('FFMPEG_BIN_DIR', '')
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 1))
+    # compress 兜底参数: CLI 未显式指定 --resolution / --fps 时使用
+    COMPRESS_RESOLUTION = os.getenv('COMPRESS_RESOLUTION', 'HD')
+    COMPRESS_FPS = int(os.getenv('COMPRESS_FPS', '24'))
 
     # BAIDU_TRANSLATE
     BAIDU_TRANSLATE_API = os.getenv('BAIDU_TRANSLATE_API', '')

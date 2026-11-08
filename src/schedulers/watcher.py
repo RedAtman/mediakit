@@ -18,6 +18,7 @@ from src.file.stability import FileStabilityTracker
 from src.schemas import StateChoices
 from utils import exceptions, file, response
 
+from .media import COMPRESS_OPTS
 from .media import compress as media_compress
 
 logger = logging.getLogger()
@@ -92,15 +93,23 @@ class _WatchEventHandler(FileSystemEventHandler):
 _thread_context = threading.local()
 
 
-def _make_watched_task(scheduler, media):
+def _make_watched_task(scheduler, media, opts=None):
+    """opts: 透传给 Video.compress 的参数 (resolution/fps), watch 模式下来自 CLI
+
+    ponytail: 每次调用都重新解开 kwargs, 不做参数快照, 改 env 仍需重启 daemon
+    """
+
     def task():
         _thread_context.current_path = media.path
-        return scheduler(media)
+        return scheduler(media, **(opts or {}))
 
     return task
 
 
 class WatcherScheduler:
+    # Video.compress 透传参数 (resolution/fps), 由 core() 按 CLI 覆盖; 默认空 = 全走 CONFIG 兜底
+    _compress_opts: dict = {}
+
     @staticmethod
     def _normalize_path(path: str) -> str:
         try:
@@ -252,7 +261,7 @@ class WatcherScheduler:
                             logger.warning('Ignoring non-media file during watch: %s', path)
                     if medias:
                         scheduler = media_compress.core
-                        tasks = [_make_watched_task(scheduler, media) for media in medias]
+                        tasks = [_make_watched_task(scheduler, media, self._compress_opts) for media in medias]
                         Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
                 except Exception:
                     raise
@@ -305,16 +314,14 @@ class WatcherScheduler:
                     media = make_media(folder, candidate) if os.path.isfile(candidate) else None
                     if media is None:
                         # glob.escape protects against titles with [] and other regex-active chars
-                        matches = glob.glob(
-                            f'{glob.escape(m.dirname)}/{glob.escape(m.title)}.*'
-                        )
+                        matches = glob.glob(f'{glob.escape(m.dirname)}/{glob.escape(m.title)}.*')
                         for match in matches:
                             if os.path.isfile(match):
                                 media = make_media(folder, match)
                                 if media is not None:
                                     break
                     if media is not None:
-                        tasks.append(_make_watched_task(scheduler, media))
+                        tasks.append(_make_watched_task(scheduler, media, self._compress_opts))
                 Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
             except Exception as exc:
                 logger.error('Failed to process existing media: %s: %s', type(exc).__name__, exc)
@@ -383,9 +390,7 @@ class WatcherScheduler:
                 for path in to_add:
                     self._feed_existing(path, self._media_type, self._max_workers)
             else:
-                logger.info(
-                    'Config monitoring: observer not initialized and no new valid paths; nothing to do'
-                )
+                logger.info('Config monitoring: observer not initialized and no new valid paths; nothing to do')
             for path in to_remove:
                 self._path_to_watch.pop(path, None)
                 self._watched_paths.discard(path)
@@ -494,6 +499,8 @@ class WatcherScheduler:
         self._watched_paths = set(valid_paths)
         self._media_type = media_type
         self._max_workers = max_workers
+        # 只白名单透传 Video.compress 认的参数, watch 模式下 CLI 显式指定时以 CLI 为准
+        self._compress_opts = {key: kwargs[key] for key in COMPRESS_OPTS if kwargs.get(key) is not None}
         # self._action = action  # unused; kept for future extensibility
         self._recursive = recursive
         # Resolve the config file path being used

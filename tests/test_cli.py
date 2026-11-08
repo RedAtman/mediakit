@@ -32,6 +32,37 @@ class TestParser(TestCase):
         assert hasattr(result, '__iter__')
 
 
+class TestCompressOutputFlags(TestCase):
+    def test_resolution_and_fps(self):
+        from utils.cli import create_parser
+        from utils.video import VideoResolution
+
+        kwargs = create_parser().parse_args(['compress', '--resolution', 'FHD', '--fps', '30'])
+        # argparse type 已把字符串解析成枚举, 非法值在解析阶段就会退出
+        self.assertIs(kwargs.resolution, VideoResolution.FHD)
+        self.assertEqual(kwargs.fps, 30)
+
+    def test_default_none_falls_back_to_config(self):
+        from utils.cli import create_parser
+
+        kwargs = create_parser().parse_args(['compress'])
+        # None 表示交给 CONFIG.COMPRESS_RESOLUTION / CONFIG.COMPRESS_FPS 兜底
+        self.assertIsNone(kwargs.resolution)
+        self.assertIsNone(kwargs.fps)
+
+    def test_invalid_resolution_exits_at_parse_time(self):
+        from utils.cli import create_parser
+
+        with self.assertRaises(SystemExit):
+            create_parser().parse_args(['compress', '--resolution', '1080p'])
+
+    def test_invalid_fps_exits_at_parse_time(self):
+        from utils.cli import create_parser
+
+        with self.assertRaises(SystemExit):
+            create_parser().parse_args(['compress', '--fps', '0'])
+
+
 class TestWatchFlag(TestCase):
     def test_watch_flag_on_compress(self):
         from utils.cli import create_parser

@@ -2,8 +2,28 @@ import argparse
 import logging
 
 from config import CONFIG
+from utils.video import VideoResolution
 
 logger = logging.getLogger()
+
+
+def _resolution_arg(value: str) -> VideoResolution:
+    """argparse type: 在命令行解析阶段就校验分辨率, 避免批量任务逐个文件失败
+
+    ponytail: 不自建 choices 列表, 可选值以 VideoResolution 枚举为唯一来源
+    """
+    try:
+        return VideoResolution.parse(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(str(err)) from err
+
+
+def _fps_arg(value: str) -> int:
+    """argparse type: ffmpeg -r 不接受 <=0"""
+    fps = int(value)
+    if fps < 1:
+        raise argparse.ArgumentTypeError(f'fps must be >= 1, got {fps}')
+    return fps
 
 
 mapper_action = {
@@ -76,6 +96,16 @@ def create_parser():
     )
     parser.add_argument('--old_ext', type=str, default=argparse.SUPPRESS, help='Old extension')
     parser.add_argument('--ext', type=str, default=argparse.SUPPRESS, help='New extension')
+    parser.add_argument(
+        '--resolution',
+        type=_resolution_arg,
+        default=None,
+        help='Compress: target resolution, e.g. FHD / 1920x1080 / UHD (enum name or WxH, case-insensitive). '
+        'Downscale only, keeps aspect ratio. Default: COMPRESS_RESOLUTION env (HD)',
+    )
+    parser.add_argument(
+        '--fps', type=_fps_arg, default=None, help='Compress: output fps (>=1). Default: COMPRESS_FPS env (24)'
+    )
     parser.add_argument(
         '--force',
         action='store_true',

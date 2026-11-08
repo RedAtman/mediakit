@@ -111,6 +111,10 @@ mediakit compress -t video -w 1 -f /path/to/folder
 # Run CLI with CPU throttling (-c = CPU limit %)
 mediakit compress -t video -w 1 -c 50 -f /path/to/folder
 
+# Compress output resolution / fps (default fallback: COMPRESS_RESOLUTION=HD, COMPRESS_FPS=24)
+# --resolution takes an enum name (HD/FHD/WQHD/UHD...) or WxH, case-insensitive; downscale only
+mediakit compress -t video -f /path/to/folder --resolution FHD --fps 30
+
 # Watch mode (auto-process new files)
 mediakit compress -t video --watch -f /path/to/folder
 

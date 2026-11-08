@@ -5,7 +5,7 @@ from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
 from src.schemas import StateChoices
 from utils import decorator, response
 
-__all__ = ['compress']
+__all__ = ['compress', 'COMPRESS_OPTS']
 
 logger = logging.getLogger()
 
@@ -17,9 +17,14 @@ def update_state(self: Video, *args, ctx: Context, key='compress', val=StateChoi
     return ctx.next(self, *args, **kwargs)
 
 
+# 只白名单透传 Video.compress 认的参数; kwargs 里还混着 folder/type/max_workers 等 CLI 键
+COMPRESS_OPTS = ('resolution', 'fps')
+
+
 def _compress(self: Video, *args, ctx: Context, action: str = 'compress', **kwargs: dict[str, str]):
     timeout = kwargs.get('timeout')
-    result = decorator.exception(getattr(self, action))(timeout=timeout)
+    opts = {key: kwargs[key] for key in COMPRESS_OPTS if kwargs.get(key) is not None}
+    result = decorator.exception(getattr(self, action))(timeout=timeout, **opts)
     return ctx.next(self, *args, result=result, **kwargs)
 
 
