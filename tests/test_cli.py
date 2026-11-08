@@ -1,6 +1,5 @@
 import logging
-import tempfile
-from unittest import TestCase, mock
+from unittest import TestCase
 
 logger = logging.getLogger()
 
@@ -19,17 +18,6 @@ class TestParser(TestCase):
         assert self.kwargs.type == 'video'
         assert isinstance(self.kwargs.max_workers, int)
         assert self.kwargs.daemon is True
-
-    @mock.patch('folder.Folder.scan_media')
-    def test_cli(self, mock_scan_media):
-        from folder import Folder
-
-        mock_scan_media.return_value = []
-        temp_dir = tempfile.mkdtemp()
-        folder = Folder(temp_dir)
-        result = folder.scan_media()
-        logger.info(result)
-        assert hasattr(result, '__iter__')
 
 
 class TestCompressOutputFlags(TestCase):

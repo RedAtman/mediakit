@@ -1,5 +1,4 @@
 import logging
-import time
 from unittest import TestCase, main
 
 from config import CONFIG
@@ -18,19 +17,19 @@ class TestUtils(TestCase):
         self.assertIsInstance(dict2obj.__dict__, dict)
         # logger.info(dict2obj._dict())
         # self.assertIsInstance(dict2obj._dict(), dict)
-        logger.debug(dict2obj.sony_a7r2)
         self.assertIsInstance(dict2obj.sony_a7r2, list)
-        logger.info(dict2obj['sony_a7r2'])
-        logger.info(dict2obj['sony_a7r2'][0])
         self.assertIsInstance(dict2obj['sony_a7r2'], list)
 
-    def test_progress_bar(self):
+    def test_progress_bar_tracks_current_and_percent(self):
         total = 20
         progress = TqdmProgress(total)
-        for i in range(0, total):
+        for i in range(total):
             progress.current = i
-            time.sleep(0.1)
+            self.assertEqual(progress.percent, i / total)
+        progress.current = total
         progress.done()
+        self.assertEqual(progress.current, total)
+        self.assertEqual(progress.percent, 1.0)
 
 
 if __name__ == '__main__':

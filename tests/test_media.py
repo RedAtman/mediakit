@@ -1,7 +1,8 @@
 import logging
 import os
+import shutil
 import tempfile
-from unittest import TestCase, main, mock
+from unittest import TestCase, mock
 
 from base.video import Video
 
@@ -14,102 +15,64 @@ class TestVideo(TestCase):
         self.temp_video = os.path.join(self.temp_dir, 'test_video.mp4')
         with open(self.temp_video, 'w') as f:
             f.write('dummy video content')
-        return super().setUp()
 
     def tearDown(self) -> None:
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-        return super().tearDown()
 
-    @mock.patch('base.media.guess')
-    @mock.patch('base.media.calculate_md5')
-    @mock.patch('base.media.BaseMedia._MEDIA_CLS')
-    def test_class_methods(self, mock_model, mock_md5, mock_guess):
-        mock_guess.return_value = 'video'
-        mock_md5.return_value = 'test_md5_hash'
+    def _make_video(self) -> Video:
+        """构造 Video 实例且不触碰真实 DB (get_or_create 走 mock)"""
         with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:
-            mock_instance = mock.MagicMock()
-            mock_model.get_or_create.return_value = mock_instance
-            mock_instance.state = {'compress': 0}
-            video = Video(path=self.temp_video)
-            assert isinstance(video, Video)
+            mock_model.get_or_create.return_value = mock.MagicMock()
+            return Video(path=self.temp_video)
 
-    @mock.patch('base.media.guess')
-    @mock.patch('base.media.calculate_md5')
-    def test_convert_format(self, mock_md5, mock_guess):
-        mock_guess.return_value = 'video'
-        mock_md5.return_value = 'test_md5_hash'
-        with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:
-            mock_instance = mock.MagicMock()
-            mock_model.get_or_create.return_value = mock_instance
-            mock_instance.state = {'compress': 0}
-            video = Video(path=self.temp_video)
-            result = video.md5
-            logger.info(result)
-            assert isinstance(result, str)
+    def _run(self, video_method, *args, **kwargs):
+        """执行 ffmpeg 封装方法并返回它拼出的 command 列表 (不真正调用 ffmpeg)"""
+        with (
+            mock.patch.object(Video, 'create_file_path', return_value='/tmp/out.mp4'),
+            mock.patch('utils.decorator.CommandExecutor.run', return_value='ok') as run,
+        ):
+            result = video_method(*args, **kwargs)
+        return run.call_args[0][0], result
 
-    @mock.patch('base.media.guess')
-    @mock.patch('base.media.calculate_md5')
-    @mock.patch.object(Video, 'get_metadata')
-    def test_metadata(self, mock_get_metadata, mock_md5, mock_guess):
-        mock_guess.return_value = 'video'
-        mock_md5.return_value = 'test_md5_hash'
-        mock_get_metadata.return_value = {'format': {'width': 1920}}
-        with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:
-            mock_instance = mock.MagicMock()
-            mock_model.get_or_create.return_value = mock_instance
-            mock_instance.state = {'compress': 0}
-            video = Video(path=self.temp_video)
-            result = video.metadata
-            logger.info(result)
-            assert isinstance(result, dict)
+    def test_construct_sets_file_info(self):
+        video = self._make_video()
+        assert video.path == self.temp_video
+        assert video.title == 'test_video'
+        assert video.ext == 'mp4'
 
-    @mock.patch('base.media.guess')
-    @mock.patch('base.media.calculate_md5')
-    def test_md5(self, mock_md5, mock_guess):
-        mock_guess.return_value = 'video'
-        mock_md5.return_value = 'test_md5_hash'
-        with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:
-            mock_instance = mock.MagicMock()
-            mock_model.get_or_create.return_value = mock_instance
-            mock_instance.state = {'compress': 0}
-            video = Video(path=self.temp_video)
-            with mock.patch.object(video, 'trim') as mock_trim:
-                mock_trim.return_value = mock.MagicMock()
-                result = video.trim(trim_time=('00:00:00', '00:00:03'))
-                assert result is not None
+    @mock.patch('base.media.calculate_md5', return_value='test_md5_hash')
+    def test_md5_comes_from_calculate_md5(self, mock_md5):
+        video = self._make_video()
+        assert video.md5 == 'test_md5_hash'
+        mock_md5.assert_called_once_with(self.temp_video)
 
-    @mock.patch('base.media.guess')
-    @mock.patch('base.media.calculate_md5')
-    def test_trim(self, mock_md5, mock_guess):
-        mock_guess.return_value = 'video'
-        mock_md5.return_value = 'test_md5_hash'
-        with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:
-            mock_instance = mock.MagicMock()
-            mock_model.get_or_create.return_value = mock_instance
-            mock_instance.state = {'compress': 0}
-            video = Video(path=self.temp_video)
-            with mock.patch.object(video, 'compress') as mock_compress:
-                mock_compress.return_value = mock.MagicMock()
-                result = video.compress()
-                assert result is not None
+    def test_width_height_reads_video_stream(self):
+        video = self._make_video()
+        probe = {'format': {}, 'streams': [{'codec_type': 'audio'}, {'width': 3840, 'height': 2160}]}
+        # 只 mock ffprobe 的 I/O, width_height 的选取逻辑还是真的
+        with mock.patch.object(Video, 'get_metadata', return_value=probe):
+            assert video.width_height == (3840, 2160)
 
-    @mock.patch('base.media.guess')
-    @mock.patch('base.media.calculate_md5')
-    def test_compress(self, mock_md5, mock_guess):
-        mock_guess.return_value = 'video'
-        mock_md5.return_value = 'test_md5_hash'
-        with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:
-            mock_instance = mock.MagicMock()
-            mock_model.get_or_create.return_value = mock_instance
-            mock_instance.state = {'compress': 0}
-            with mock.patch.object(Video, 'convert_format') as mock_convert:
-                mock_convert.return_value = {'path': 'output.mov'}
-                video = Video(path=self.temp_video)
-                result = video.convert_format(ext='mov')
-                assert isinstance(result, dict)
+    def test_convert_format_re_encodes_video_and_copies_audio(self):
+        video = self._make_video()
+        command, result = self._run(video.convert_format, ext='mov')
 
+        assert command[command.index('-i') + 1] == self.temp_video
+        assert command[command.index('-c:v') + 1] == 'libx265'
+        assert command[command.index('-c:a') + 1] == 'copy'
+        assert command[-1] == '/tmp/out.mp4'
+        assert result['new_file_path'] == '/tmp/out.mp4'
 
-if __name__ == '__main__':
-    main(verbosity=2)
+    def test_trim_passes_seek_window(self):
+        video = self._make_video()
+        command, _ = self._run(video.trim, trim_time=('00:00:01', '00:00:03'))
+
+        # trim 拼的是 f-string 命令而不是 list, 所以按子串断言
+        assert '-ss 00:00:01' in command
+        assert '-to 00:00:03' in command
+        assert '-accurate_seek' in command
+
+    def test_trim_rejects_non_sequence_trim_time(self):
+        video = self._make_video()
+        with self.assertRaises(ValueError):
+            video.trim(trim_time='00:00:01')
