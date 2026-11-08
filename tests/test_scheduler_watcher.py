@@ -735,6 +735,34 @@ class TestParseFolderFile(TestCase):
         finally:
             os.unlink(path)
 
+    def test_normalizes_and_dedupes(self):
+        """每个重复条目在 watch 模式下都是一个多余的 emitter 线程."""
+        from src.schedulers.watcher import _parse_folder_file
+
+        path = self._write_tmp('/media/videos/\n/media//videos\n/media/videos\n/media/videos/../videos\n')
+        try:
+            self.assertEqual(_parse_folder_file(path), ['/media/videos'])
+        finally:
+            os.unlink(path)
+
+    def test_expands_home(self):
+        from src.schedulers.watcher import _parse_folder_file
+
+        path = self._write_tmp('~/Movies\n')
+        try:
+            self.assertEqual(_parse_folder_file(path), [os.path.expanduser('~/Movies')])
+        finally:
+            os.unlink(path)
+
+    def test_collapse_nested_only_when_recursive_is_safe_to_apply(self):
+        from src.schedulers.watcher import _collapse_nested
+
+        paths = ['/a', '/a/b', '/a/b/c', '/a2', '/a2/b']
+        # 子目录被父目录覆盖, 递归 watch 下是冗余条目
+        self.assertEqual(_collapse_nested(paths), ['/a', '/a2'])
+        # 前缀相似但不是目录包含关系, 不能误伤
+        self.assertEqual(_collapse_nested(['/a', '/ab']), ['/a', '/ab'])
+
     def test_all_comments_returns_empty(self):
         from src.schedulers.watcher import _parse_folder_file
 
