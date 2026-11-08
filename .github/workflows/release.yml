@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # fetch-depth: 0 so the tag's ancestry is available for the main check below
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Verify the tagged commit is on main
