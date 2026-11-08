@@ -1,13 +1,8 @@
-import sys
-
-
 # import mimetypes
 # from typing import List
 
 
-__all__ = [
-    "Dict2Obj",
-]
+__all__ = ['Dict2Obj']
 
 
 # class Dict2Obj:
@@ -43,6 +38,3 @@ class Dict2Obj(dict):
 #         if mime_start in include_type:
 #             return True
 #     return False
-
-
-

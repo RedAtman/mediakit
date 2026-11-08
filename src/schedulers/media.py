@@ -5,27 +5,31 @@ from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
 from src.schemas import StateChoices
 from utils import decorator, response
 
-
-__all__ = ["compress"]
+__all__ = ['compress', 'COMPRESS_OPTS']
 
 logger = logging.getLogger()
 
 
-def update_state(self: Video, *args, ctx: Context, key="compress", val=StateChoices.unprocessed, **kwargs):
+def update_state(self: Video, *args, ctx: Context, key='compress', val=StateChoices.unprocessed, **kwargs):
     result = self.model.update_state(key, val)
     assert isinstance(result, response.Result)
     assert result == 0
     return ctx.next(self, *args, **kwargs)
 
 
-def _compress(self: Video, *args, ctx: Context, action: str = "compress", **kwargs: dict[str, str]):
+# 只白名单透传 Video.compress 认的参数; kwargs 里还混着 folder/type/max_workers 等 CLI 键
+COMPRESS_OPTS = ('resolution', 'fps')
+
+
+def _compress(self: Video, *args, ctx: Context, action: str = 'compress', **kwargs: dict[str, str]):
     timeout = kwargs.get('timeout')
-    result = decorator.exception(getattr(self, action))(timeout=timeout)
+    opts = {key: kwargs[key] for key in COMPRESS_OPTS if kwargs.get(key) is not None}
+    result = decorator.exception(getattr(self, action))(timeout=timeout, **opts)
     return ctx.next(self, *args, result=result, **kwargs)
 
 
 compress = MiddlewareScheduler()
 compress.add_middleware(update_state)
 compress.add_middleware(_compress)
-compress.add_func("core")(lambda *args, ctx, result, **kwargs: result)
+compress.add_func('core')(lambda *args, ctx, result, **kwargs: result)
 compress.initialize()

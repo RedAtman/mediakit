@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 so the tag's ancestry is available for the main check below
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify the tagged commit is on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::tag $GITHUB_REF_NAME is not reachable from main - release from main, not from a side branch"
+            exit 1
+          fi
+          echo "tag $GITHUB_REF_NAME is on main"
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          python-version: '3.14'
+      - name: Install dependencies
+        run: uv sync --frozen
+      # Gate the release on the suite: a tag can point at anything, CI on the
+      # branch it came from proves nothing about this exact commit.
+      - name: Run tests
+        run: uv run pytest -q
+      # pyproject.toml is the only source of the version (see `mediakit -v`),
+      # so a mismatched tag would publish a package labelled with a lie.
+      - name: Verify tag matches pyproject version
+        run: |
+          uv run python - <<'PY'
+          import os
+          import pathlib
+          import tomllib
+
+          version = tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+          tag = os.environ['GITHUB_REF_NAME']
+          if tag.removeprefix('v') != version:
+              raise SystemExit(
+                  f'tag {tag} does not match pyproject version {version}: bump '
+                  f'[project].version in pyproject.toml before tagging'
+              )
+          print(f'tag {tag} matches pyproject version {version}')
+          PY
+      - name: Build sdist and wheel
+        run: uv build --out-dir dist
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}

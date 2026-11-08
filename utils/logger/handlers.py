@@ -2,12 +2,10 @@ from logging import LogRecord, StreamHandler
 from pprint import pformat
 from typing import Any, Callable, Dict, Tuple
 
-
-__all__ = ["JsonHandler"]
+__all__ = ['JsonHandler']
 
 
 class JsonHandler(StreamHandler):
-
     def __init__(self, *args: Tuple[Any, ...], lexer: Callable[..., Any] = pformat, **kwargs: Dict[str, Any]):
         super().__init__(*args, **kwargs)
         self.lexer: Callable[..., Any] = lexer
@@ -23,30 +21,25 @@ class JsonHandler(StreamHandler):
         # pprint(_dict)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import logging.config
 
     logging.config.dictConfig(
         {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "handlers": {
-                "json": {
-                    "level": "DEBUG",
+            'version': 1,
+            'disable_existing_loggers': False,
+            'handlers': {
+                'json': {
+                    'level': 'DEBUG',
                     # "class": "base.__.__getattribute__.JsonHandler",
-                    "()": JsonHandler,
-                },
+                    '()': JsonHandler,
+                }
             },
-            "loggers": {
-                "": {
-                    "handlers": ["json"],
-                    "level": "DEBUG",
-                },
-            },
+            'loggers': {'': {'handlers': ['json'], 'level': 'DEBUG'}},
         }
     )
     logger = logging.getLogger()
-    logger.debug("Hello, world!")
+    logger.debug('Hello, world!')
     # logger.info("Hello, world!")
     logger.info(logger.__dict__)
     # logger.warning("Hello, world!")

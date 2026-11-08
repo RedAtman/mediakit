@@ -68,7 +68,7 @@ class TestFileOverrideIntegration(TestCase):
         coord.detach(9998)
         coord.detach(9997)
 
-    @mock.patch("os.kill")
+    @mock.patch('os.kill')
     def test_throttler_sends_sigstop_after_override_to_low_value(self, mock_kill):
         """Throttler sends SIGSTOP when target drops from 100 to a low value."""
         from utils.throttle.throttler import ProcessThrottler
@@ -100,7 +100,7 @@ class TestFileOverrideIntegration(TestCase):
         mock_kill.assert_called_with(9999, signal.SIGSTOP)
         self.assertTrue(throttler._is_stopped_state)
 
-    @mock.patch("os.kill")
+    @mock.patch('os.kill')
     def test_config_middleware_sets_manual_override(self, mock_kill):
         """_config middleware sets manual override from the default cpu_limit."""
         from utils.throttle.coordinator import CPULimiterCoordinator

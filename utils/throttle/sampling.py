@@ -14,13 +14,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-__all__ = [
-    'linux_sample_cpu_time',
-    'macos_sample_cpu_time',
-    'sample_cpu_time',
-    'system_cpu_load',
-    'parse_proc_stat',
-]
+__all__ = ['linux_sample_cpu_time', 'macos_sample_cpu_time', 'sample_cpu_time', 'system_cpu_load', 'parse_proc_stat']
 
 _CLK_TCK: Optional[float] = None
 
@@ -41,7 +35,7 @@ def parse_proc_stat(stat_content: str) -> float:
     """
     try:
         rparen = stat_content.rindex(')')
-        fields = stat_content[rparen + 2:].split()
+        fields = stat_content[rparen + 2 :].split()
         utime = int(fields[11])
         stime = int(fields[12])
         return (utime + stime) / _get_clk_tck()
@@ -69,20 +63,38 @@ def macos_sample_cpu_time(pid: int) -> float:
     Uses ps subprocess as the primary method since proc_pidinfo()
     returns incorrect CPU time values on macOS 26+ (struct layout
     mismatch). Falls back to proc_pidinfo if ps is unavailable.
-    If both methods fail, logs a warning and returns 0.0.
+    If the process no longer exists, returns 0.0 silently.
     Returns total CPU seconds consumed by the process.
     """
+    # Pre-check: test if the process is still alive using signal 0
+    # (which sends no actual signal but performs error-checking).
+    # This avoids spawning ps subprocess or loading ctypes for a process
+    # that already exited — a common case since CommandExecutor attaches
+    # the throttler to every subprocess, including fast utility commands
+    # (mv, mkdir, cp) that finish in milliseconds.
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        # Process already exited — nothing to sample, return 0.0 silently.
+        return 0.0
+    except OSError:
+        # Permission error or other OS-level issue — process may still
+        # be alive. Fall through to normal sampling.
+        pass
+
     try:
         return _macos_ps_fallback(pid)
-    except (ProcessLookupError, ValueError, RuntimeError, subprocess.TimeoutExpired) as err:
+    except ProcessLookupError:
+        # Process died between os.kill pre-check and ps subprocess
+        # execution (TOCTOU race). Return 0.0 silently — same
+        # semantics as the pre-check finding a dead process.
+        return 0.0
+    except (ValueError, RuntimeError, subprocess.TimeoutExpired) as err:
         logger.debug('ps fallback to proc_pidinfo for pid %d: %s', pid, err)
         try:
             return _macos_proc_pidinfo(pid)
         except (ImportError, AttributeError, OSError) as fallback_err:
-            logger.warning(
-                'Both ps and proc_pidinfo failed for pid %d: %s',
-                pid, fallback_err,
-            )
+            logger.warning('Both ps and proc_pidinfo failed for pid %d: %s', pid, fallback_err)
             return 0.0
 
 
@@ -135,20 +147,13 @@ def _macos_ps_fallback(pid: int) -> float:
     """Fallback: parse ps output for utime+stime."""
     try:
         result = subprocess.run(
-            ['ps', '-p', str(pid), '-o', 'utime=,stime='],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ['ps', '-p', str(pid), '-o', 'utime=,stime='], capture_output=True, text=True, timeout=5
         )
         if result.returncode != 0:
-            raise ProcessLookupError(
-                f'ps failed for pid {pid}: {result.stderr.strip()}'
-            )
+            raise ProcessLookupError(f'ps failed for pid {pid}: {result.stderr.strip()}')
         parts = result.stdout.strip().split()
         if len(parts) < 2:
-            raise ValueError(
-                f'Unexpected ps output: {result.stdout.strip()!r}'
-            )
+            raise ValueError(f'Unexpected ps output: {result.stdout.strip()!r}')
         utime = _parse_ps_time(parts[0])
         stime = _parse_ps_time(parts[1])
         return utime + stime

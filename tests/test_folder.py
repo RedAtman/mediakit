@@ -3,21 +3,18 @@ import tempfile
 from typing import Generator, Iterable
 import unittest
 from unittest import mock
+import uuid
 
-from sqlalchemy import Integer, func, select, text, update
+from sqlalchemy import Integer, func, select, update
 
-from config import CONFIG
 from folder import Folder
 from src import models
-from tmp.files import files
 from utils import response
-
 
 logger = logging.getLogger()
 
 
 class TestFolder(unittest.TestCase):
-
     def setUp(self) -> None:
         # Create a temporary directory for testing
         self.temp_dir = tempfile.mkdtemp()
@@ -27,6 +24,7 @@ class TestFolder(unittest.TestCase):
     def tearDown(self) -> None:
         # Clean up temp directory
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         return super().tearDown()
 
@@ -47,39 +45,24 @@ class TestFolder(unittest.TestCase):
         logger.debug(result)
         assert isinstance(result, Iterable)
 
-    @unittest.skip("Requires specific files to exist")
-    @mock.patch.object(CONFIG, "MEDIA_FILE_FOLDER", "samples")
-    def test_trim(self):
-        result = self.folder.trim(
-            files=files,
-            callback_list=[
-                "compress",
-            ],
-        )
-        assert isinstance(result, dict)
-
     def test_scan_media(self):
         result = self.folder.scan_media()
         logger.info(result)
-        assert isinstance(result, list)
+        assert hasattr(result, '__iter__')
 
     def test_scan_media__(self):
-        result = Folder.scan_media__(
-            Folder.medias_(self.temp_dir),
-        )
+        result = Folder.scan_media__(Folder.medias_(self.temp_dir))
         logger.info(result)
-        assert isinstance(result, list)
+        assert hasattr(result, '__iter__')
 
     def test_query(self):
         folder = Folder(self.temp_dir)
         query = (
             select(models.Media)
             .where(models.Media.dirname == folder.abspath)
-            .where(models.Media.state.op("->>")("compress").cast(Integer) == 2)
+            .where(models.Media.state.op('->>')('compress').cast(Integer) == 2)
         )
-        params = {
-            "dirname": folder.abspath,
-        }
+        params = {'dirname': folder.abspath}
         logger.debug((type(query), query))
         result = folder.query(query, params)
         logger.info(result)
@@ -87,102 +70,85 @@ class TestFolder(unittest.TestCase):
         assert isinstance(result, response.Result)
         assert result.code == response.ResultStatus.SUCCESS
 
-    @unittest.skip("Folder.query__ is not implemented")
-    def test_query__(self):
-        import os
+    def test_query_unprocessed_includes_failed(self):
+        """QUERY_UNPROCESSED must return both unprocessed (-1) and failed (-2) files,
+        so a transient failure (e.g. bad ffmpeg path at startup) does not strand files."""
+        import uuid
 
-        from utils.db import _sqlalchemy
+        from src.schemas import StateChoices
 
-        query = "SELECT * FROM media"
-        query = select(models.Media).where(text("media.dirname = :dirname"))
-        logger.info((type(query), query))
-        result = Folder.query__(
-            _sqlalchemy.Engine(CONFIG.SQLITE_DATABASE),
-            query,
-            params={
-                "dirname": os.path.abspath(self.temp_dir),
-            },
+        folder = Folder(self.temp_dir)
+        # Insert two records in the temp dir: one failed, one unprocessed.
+        failed_md5 = str(uuid.uuid4())
+        unprocessed_md5 = str(uuid.uuid4())
+        failed_model = models.Media.get_or_create(md5=failed_md5, title='failed.mp4', dirname=folder.abspath)
+        unprocessed_model = models.Media.get_or_create(
+            md5=unprocessed_md5, title='unprocessed.mp4', dirname=folder.abspath
         )
-        logger.info(result)
-        assert isinstance(result, dict)
-        assert isinstance(result, response.Result)
-        assert result.code == response.ResultStatus.SUCCESS
+        try:
+            failed_model.update_state('compress', StateChoices.failed)
+            unprocessed_model.update_state('compress', StateChoices.unprocessed)
+            query = folder.get_query_statement('QUERY_UNPROCESSED')
+            self.assertIsNotNone(query)
+            result = folder.query(query)
+            self.assertIsInstance(result, response.Result)
+            self.assertEqual(result.code, response.ResultStatus.SUCCESS)
+            paths = {m.title for m in result.data}
+            self.assertIn('failed.mp4', paths)
+            self.assertIn('unprocessed.mp4', paths)
+        finally:
+            failed_model.delete()
+            unprocessed_model.delete()
 
-    @unittest.skip("Pre-existing: hardcoded md5 causes UNIQUE constraint conflict; get_or_create doesn't handle IntegrityError correctly")
     def test_query_update_created_at(self):
-        # First create a test media record
-        models.Media.get_or_create(
-            md5="3a51af5d5e4d3c8b84185729e91e0170",
-            title="test.mp4",
-            dirname=self.temp_dir,
-        )
-        query = (
-            update(models.Media)
-            .where(models.Media.md5 == "3a51af5d5e4d3c8b84185729e91e0170")
-            .values(created_at=func.now())
-        )
+        md5 = str(uuid.uuid4())
+        models.Media.get_or_create(md5=md5, title='test.mp4', dirname=self.temp_dir)
+        query = update(models.Media).where(models.Media.md5 == md5).values(created_at=func.now())
         result = self.folder.query(query)
         logger.info(result)
         assert isinstance(result, dict)
         assert isinstance(result, response.Result)
         assert result.code == response.ResultStatus.SUCCESS
 
-    @unittest.skip("Pre-existing: hardcoded md5 causes UNIQUE constraint conflict; get_or_create doesn't handle IntegrityError correctly")
     def test_query_update_state(self):
-        # First create a test media record
-        models.Media.get_or_create(
-            md5="3a51af5d5e4d3c8b84185729e91e0170",
-            title="test.mp4",
-            dirname=self.temp_dir,
-        )
-        query = (
-            update(models.Media)
-            .where(models.Media.md5 == "3a51af5d5e4d3c8b84185729e91e0170")
-            .values(state={"compress": 1})
-        )
-        query = (
-            update(models.Media)
-            .where(models.Media.md5 == "3a51af5d5e4d3c8b84185729e91e0170")
-            .values(state=func.json_set(models.Media.state, "$.compress", 0))
-        )
+        md5 = str(uuid.uuid4())
+        model = models.Media.get_or_create(md5=md5, title='test.mp4', dirname=self.temp_dir)
+        try:
+            query = (
+                update(models.Media)
+                .where(models.Media.md5 == md5)
+                .values(state=func.json_set(models.Media.state, '$.compress', 0))
+            )
+            result = self.folder.query(query)
+            logger.info(result)
+            assert isinstance(result, dict)
+            assert isinstance(result, response.Result)
+            assert result.code == response.ResultStatus.SUCCESS
+            # data 只回报命中行数, 不再泄露 CursorResult 内部结构
+            assert result.data == {'rowcount': 1}
+        finally:
+            model.delete()
+
+    def test_query_update_matching_nothing_reports_failed(self):
+        query = update(models.Media).where(models.Media.md5 == 'no-such-md5').values(title='x')
         result = self.folder.query(query)
-        logger.info(result)
-        assert isinstance(result, dict)
-        assert isinstance(result, response.Result)
-        assert result.code == response.ResultStatus.SUCCESS
+        self.assertIsInstance(result, response.Result)
+        self.assertEqual(result.code, response.ResultStatus.FAILED)
 
-    @unittest.skip("Folder.query__ is not implemented")
-    def test_query__update_state(self):
-        query = "UPDATE media SET state = json_set(state, '$.compress', 2) WHERE md5 = '3a51af5d5e4d3c8b84185729e91e0170';"
-        from utils.db import _sqlalchemy
-
-        result = Folder.query__(
-            _sqlalchemy.Engine(CONFIG.SQLITE_DATABASE),
-            query,
-        )
-        logger.info(result)
-        assert isinstance(result, response.Result)
-        assert result.code == response.ResultStatus.SUCCESS
-
-    @mock.patch("folder.Folder.scan_media")
+    @mock.patch('folder.Folder.scan_media')
     def test_run(self, mock_scan_media):
         mock_scan_media.return_value = response.Result(code=response.ResultStatus.SUCCESS, data={})
-        result = self.folder.run(
-            "compress",
-        )
+        result = self.folder.run('compress')
         logger.info(result)
         assert isinstance(result, list)
 
-    @mock.patch("folder.Folder.scan_media")
+    @mock.patch('folder.Folder.scan_media')
     def test_run_(self, mock_scan_media):
         mock_scan_media.return_value = response.Result(code=response.ResultStatus.SUCCESS, data={})
-        result = Folder.run_(
-            "compress",
-            path=self.temp_dir,
-        )
+        result = Folder.run_('compress', path=self.temp_dir)
         logger.info(result)
         assert isinstance(result, list)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main(verbosity=2)

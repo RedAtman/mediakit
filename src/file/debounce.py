@@ -1,17 +1,13 @@
-import threading
 import logging
+import threading
 from typing import Callable
-
 
 logger = logging.getLogger()
 
 
 class DebounceBuffer:
     def __init__(
-        self,
-        callback: Callable[[list[str]], None],
-        calm_period: float = 5.0,
-        max_flush_interval: float = 60.0,
+        self, callback: Callable[[list[str]], None], calm_period: float = 5.0, max_flush_interval: float = 60.0
     ):
         self.buffer: set[str] = set()
         self.callback = callback
@@ -29,9 +25,7 @@ class DebounceBuffer:
             self.buffer.add(path)
             self._reset_timer()
             if self._max_timer is None:
-                self._max_timer = threading.Timer(
-                    self.max_flush_interval, self._flush
-                )
+                self._max_timer = threading.Timer(self.max_flush_interval, self._flush)
                 self._max_timer.daemon = True
                 self._max_timer.start()
 

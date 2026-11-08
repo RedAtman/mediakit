@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (pre-commit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          python-version: '3.14'
+      - name: Install dependencies
+        run: uv sync --frozen
+      # Runs exactly the hooks configured in .pre-commit-config.yaml, so CI and
+      # the local hook cannot drift apart into two different rule sets.
+      - name: Run pre-commit hooks
+        run: uvx pre-commit run --all-files --show-diff-on-failure
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # pyobjc (via pyttsx3) carries a sys_platform == 'darwin' marker, so the
+        # Linux leg resolves without it and really does exercise the /proc path
+        # in utils/throttle/sampling.py.
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          # Pinned on purpose: requires-python is >=3.14,<3.15 and uv would
+          # otherwise pick 3.15, where pyobjc has no wheel and the install dies.
+          python-version: '3.14'
+      - name: Install dependencies
+        run: uv sync --frozen
+      # ffmpeg is not installed: every test that would invoke it mocks
+      # utils.decorator.CommandExecutor.run, so the suite stays hermetic.
+      - name: Run tests
+        run: uv run pytest -q

@@ -83,7 +83,7 @@ class TestCPULimiterCoordinator(TestCase):
 
     def test_manual_override_below_min_per_worker(self):
         """Manual override is not floored by MIN_PER_WORKER clamp."""
-        from utils.throttle.coordinator import CPULimiterCoordinator, MIN_PER_WORKER
+        from utils.throttle.coordinator import MIN_PER_WORKER, CPULimiterCoordinator
 
         coord = CPULimiterCoordinator(default_limit=100, auto_mode=False)
         coord._stop_monitor()

@@ -35,7 +35,7 @@ class TestProcessThrottler(TestCase):
         throttler.target = 50
         self.assertEqual(throttler.target, 50)
 
-    @mock.patch("os.kill")
+    @mock.patch('os.kill')
     def test_throttler_stop_stops_loop(self, mock_kill):
         """stop() sets stop event."""
         from utils.throttle.throttler import ProcessThrottler
@@ -45,7 +45,7 @@ class TestProcessThrottler(TestCase):
         throttler.stop()
         self.assertTrue(throttler._stopped.is_set())
 
-    @mock.patch("os.kill")
+    @mock.patch('os.kill')
     def test_throttler_stops_on_esrch(self, mock_kill):
         """Zombie process (ESRCH) causes throttler to mark zombie."""
         from utils.throttle.throttler import ProcessThrottler
@@ -60,7 +60,7 @@ class TestProcessThrottler(TestCase):
         throttler._loop_once()
         self.assertTrue(throttler.zombie)
 
-    @mock.patch("os.kill")
+    @mock.patch('os.kill')
     def test_throttler_sends_sigstop_above_target(self, mock_kill):
         """When window average exceeds target, sends SIGSTOP."""
         from utils.throttle.throttler import ProcessThrottler
@@ -75,7 +75,7 @@ class TestProcessThrottler(TestCase):
         mock_kill.assert_called_with(9999, signal.SIGSTOP)
         self.assertTrue(throttler._is_stopped_state)
 
-    @mock.patch("os.kill")
+    @mock.patch('os.kill')
     def test_throttler_sends_sigcont_below_target(self, mock_kill):
         """When window average drops below 80% of target, sends SIGCONT."""
         from utils.throttle.throttler import ProcessThrottler
@@ -90,7 +90,7 @@ class TestProcessThrottler(TestCase):
         mock_kill.assert_called_with(9999, signal.SIGCONT)
         self.assertFalse(throttler._is_stopped_state)
 
-    @mock.patch("os.kill")
+    @mock.patch('os.kill')
     def test_throttler_noop_within_target(self, mock_kill):
         """When average is within acceptable range, no signal is sent."""
         from utils.throttle.throttler import ProcessThrottler

@@ -1,19 +1,14 @@
 from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 import logging
 import multiprocessing
-import os
-import sys
 import threading
 from typing import Any, Callable, NamedTuple
 
 from utils.response import Result
 
-
 logger = logging.getLogger()
 
-__all__ = [
-    "TaskManager",
-]
+__all__ = ['TaskManager']
 
 
 class _FutureContext(NamedTuple):
@@ -45,37 +40,19 @@ class TaskManager:
             self.mapper_future_args[_future] = _FutureContext(_future, fn, args, kwargs)
             for _callback in callback_list:
                 _future.add_done_callback(_callback)
-            # _future.add_done_callback(self._task_done)
 
-    def _task_done(self, _future: Future[Any]):
-        """Called once task is done, releases the queue if blocked."""
-        result = _future.result()
-        logger.info("TaskManager._task_done: %s", result)
-        # self.shutdown(False)
-        return result
-
-    def shutdown(self, wait=True):
+    def shutdown(self):
+        """Release the semaphore on interrupt cleanup."""
         self.semaphore.release()
-        # self.executor.shutdown(wait)
-        # logger.info(
-        #     '<All done!!!> Task: %s, Thread: %s, Parent Process: %s',
-        #     sys._getframe().f_code.co_name,
-        #     threading.current_thread().name,
-        #     os.getpid()
-        # )
 
-    def submit_all(self, tasks: list[Callable[[], str]], is_wait: bool = True, *args: Any, **kwargs: Any):
+    def submit_all(self, tasks: list[Callable[[], str]], *args: Any, **kwargs: Any):
         with self.executor:
             _ = [self.submit(task, *args, **kwargs) for task in tasks]
 
             not_done = self.futures
             try:
                 while not_done:
-                    done, not_done = wait(
-                        not_done,
-                        timeout=1,
-                        return_when=FIRST_EXCEPTION,
-                    )
+                    done, not_done = wait(not_done, timeout=1, return_when=FIRST_EXCEPTION)
 
             # Cancel any futures not done on KeyboardInterrupt
             except KeyboardInterrupt as err:
@@ -89,7 +66,7 @@ class TaskManager:
                             msg=err,
                             data={
                                 # TODO: Not recommended to use fn.args[0] to obtain the handler
-                                "media": future_context.fn.args[0],
+                                'media': future_context.fn.args[0]
                             },
                         )
                         future.set_result(result)

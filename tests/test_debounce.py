@@ -5,9 +5,12 @@ from unittest import TestCase
 class TestDebounceBuffer(TestCase):
     def setUp(self):
         from src.file.debounce import DebounceBuffer
+
         self.flushed = []
+
         def flush_callback(paths):
             self.flushed.append(list(paths))
+
         self.buffer = DebounceBuffer(callback=flush_callback, calm_period=0.1)
 
     def tearDown(self):
@@ -56,9 +59,12 @@ class TestDebounceBuffer(TestCase):
 
     def test_max_flush_interval(self):
         from src.file.debounce import DebounceBuffer
+
         flushed_batches = []
+
         def collecting_callback(paths):
             flushed_batches.append(list(paths))
+
         buffer = DebounceBuffer(callback=collecting_callback, calm_period=1.0, max_flush_interval=0.2)
         buffer.add('/tmp/file1.mp4')
         buffer.add('/tmp/file2.mp4')

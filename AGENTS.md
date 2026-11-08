@@ -17,51 +17,52 @@ mediakit/
 ├── utils/        # Shared utilities: command, db, logger, process, media
 │   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 │   └── media_types.json  # Extension→category mapping (data-driven)
-├── tests/        # pytest suite (flat, 17 files)
+├── tests/        # pytest suite (flat, 21 files)
 ├── cli.py          # Entry point (shebang + [project.scripts] → mediakit)
 ├── folder.py       # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py       # Environment config with side-effect imports (sys.path, logging init, find_dotenv)
 ├── watcher.sh      # macOS LaunchAgent watcher loop
-└── pyproject.toml  # PDM + pytest + Black + Ruff + isort + pyright + tqdm
+└── pyproject.toml  # uv + pytest + Ruff + pyright + tqdm
 ```
 
 ## WHERE TO LOOK
 
-| Task | Location | Notes |
-|------|----------|-------|
-| CLI entry | `cli.py` | Entry point (`mediakit` via `[project.scripts]`), parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
-| Media operations | `base/video.py` (777L), `base/audio.py` | FFmpeg wrapper methods |
-| Folder batch ops | `folder.py` + `base/folder.py` | `Folder` class with DB mixin |
-| DB models | `src/models/media.py` | SQLAlchemy model (single source) |
-| State machine | `src/schemas.py` | Pydantic State model (-2 failed → 2 finished) |
-| DB engine | `src/db.py` | Injectable engine via `get_engine(engine=None)` |
-| Scheduler dispatcher | `src/schedulers/folder.py` | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop) |
-| Watcher scheduler | `src/schedulers/watcher.py` (360L) | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + _batch_callback |
-| Middleware pattern | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it |
-| Config | `config.py` | Environment subclass pattern (Development/Testing/Production) |
-| CPU throttler coordinator | `utils/throttle/coordinator.py` (241L) | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution |
-| CPU throttler process | `utils/throttle/throttler.py` (154L) | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller |
-| CPU sampling | `utils/throttle/sampling.py` (233L) | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat` |
-| Media type registry | `utils/media_types.json` | Data-driven extension→category mapping loaded by `utils/media.py` |
-| Logging setup | `utils/logger/init.py` | dictConfig with custom filters |
-| Progress bars | `utils/progress.py` | tqdm (stdout TTY / stderr non-TTY) + MediaStateProgress (DB) |
-| Translation | `utils/translator.py` | Baidu Translate API; lazy config validation (`_require_config()` at runtime, not import) |
-| Test base | `base/basetest.py` (349L) | HTTP + auth mixin |
+| Task                      | Location                                     | Notes                                                                                                            |
+| ------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| CLI entry                 | `cli.py`                                     | Entry point (`mediakit` via `[project.scripts]`), parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
+| Media operations          | `base/video.py` (777L), `base/audio.py`      | FFmpeg wrapper methods                                                                                           |
+| Folder batch ops          | `folder.py` + `base/folder.py`               | `Folder` class with DB mixin                                                                                     |
+| DB models                 | `src/models/media.py`                        | SQLAlchemy model (single source)                                                                                 |
+| State machine             | `src/schemas.py`                             | Pydantic State model (-2 failed → 2 finished)                                                                    |
+| DB engine                 | `src/db.py`                                  | Injectable engine via `get_engine(engine=None)`                                                                  |
+| Scheduler dispatcher      | `src/schedulers/folder.py`                   | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop)                                        |
+| Watcher scheduler         | `src/schedulers/watcher.py` (360L)           | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + _batch_callback                                   |
+| Dedupe                    | `src/schedulers/dedupe.py`                   | md5-based dedup: scans watched folders, moves duplicate media copies to macOS Trash (dry-run by default)          |
+| Middleware pattern        | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it                     |
+| Config                    | `config.py`                                  | Environment subclass pattern (Development/Testing/Production)                                                    |
+| CPU throttler coordinator | `utils/throttle/coordinator.py` (241L)       | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution               |
+| CPU throttler process     | `utils/throttle/throttler.py` (154L)         | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller                         |
+| CPU sampling              | `utils/throttle/sampling.py` (233L)          | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat`                                         |
+| Media type registry       | `utils/media_types.json`                     | Data-driven extension→category mapping loaded by `utils/media.py`                                                |
+| Logging setup             | `utils/logger/init.py`                       | dictConfig with custom filters                                                                                   |
+| Progress bars             | `utils/progress.py`                          | tqdm (stdout TTY / stderr non-TTY) + MediaStateProgress (DB)                                                     |
+| Translation               | `utils/translator.py`                        | Baidu Translate API; lazy config validation (`_require_config()` at runtime, not import)                         |
 
 ## CONVENTIONS
 
-- **Line length**: 120 chars (Black, isort, Pylint)
+- **Line length**: 120 chars (Ruff)
 - **Quotes**: Single quotes (Ruff format)
-- **String normalization**: Off (Black `skip-string-normalization`)
-- **Imports**: isort with Black profile, 5-group order, forced alphabetical within sections
+- **String normalization**: Off (Ruff `format.skip-magic-trailing-comma`)
+- **Imports**: Ruff import sorting (I rule), 5-group order, forced alphabetical within sections
 - **Types**: pyright `basic` mode (not strict)
-- **Lint pipeline**: vulture (100%) → codespell → ruff → isort-check → black-check
-- **PDM scripts**: `isort`, `format`, `ruff`, `fix`, `lint`, `codespell`
+- **Lint pipeline**: vulture (100%) → codespell → ruff
+- **Scripts**: shell scripts in `scripts/` directory (format, lint, fix, codespell, vulture)
 - **CLI dispatch**: MiddlewareScheduler pattern (not argparse subcommands)
 - **Config**: `from config import CONFIG` — all env vars via subclass attributes
 - **Testing**: pytest with unittest.TestCase, mock.patch, setUp pattern
 - **Dead code**: Vulture at 100% min-confidence — no false positives tolerated
 - **Lint tools**: `ruff`, `codespell`, `vulture` installed as dev deps
+- **Commit**: `scripts/format-commit.sh` auto-formats with ruff before committing
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -73,7 +74,7 @@ mediakit/
 ## UNIQUE STYLES
 
 - **MiddlewareScheduler**: Pre-configured middleware chains instead of argparse subcommands. Each action (compress, scale, etc.) is a `MiddlewareScheduler` instance in `src/schedulers/folder.py`
-- **Dual model pattern**: `_media.py` (SQLModel) and `media.py` (SQLAlchemy) coexist — migration in progress
+- **Single SQLAlchemy model**: `src/models/media.py` is the only ORM model (`utils/db/_sqlalchemy.py` engine); the old SQLModel `_media.py` was removed
 - **Class-level thread lock**: `BaseMedia._LOCK = threading.Lock()` — shared across all instances
 - **Static method triples**: `run_()` / `run__()` / `run___()` for batch dispatch
 - **Lazy config validation**: `utils/translator.py` defers Baidu Translate credential checks to `_require_config()` called inside `translate()` — avoids import-time crashes when env vars are missing
@@ -85,20 +86,36 @@ mediakit/
 ## COMMANDS
 
 ```bash
-# Test (pytest 8.0.0+)
+# Fix lint issues
+uv run ruff check --fix . tests
+
+# Install pre-commit hook (one-time setup)
+pre-commit install
+
+# Run full lint pipeline (manual)
+pre-commit run --all-files
+
+# Test
 pytest -vv --rootdir . --color=yes --capture=tee-sys
 
 # Lint
-pdm run lint
+uv run ruff check . tests
 
 # Format
-pdm run format
+uv run ruff format .
+
+# Print version (single source: pyproject.toml [project].version)
+mediakit -v
 
 # Run CLI (compress)
 mediakit compress -t video -w 1 -f /path/to/folder
 
 # Run CLI with CPU throttling (-c = CPU limit %)
 mediakit compress -t video -w 1 -c 50 -f /path/to/folder
+
+# Compress output resolution / fps (default fallback: COMPRESS_RESOLUTION=HD, COMPRESS_FPS=24)
+# --resolution takes an enum name (HD/FHD/WQHD/UHD...) or WxH, case-insensitive; downscale only
+mediakit compress -t video -f /path/to/folder --resolution FHD --fps 30
 
 # Watch mode (auto-process new files)
 mediakit compress -t video --watch -f /path/to/folder
@@ -112,6 +129,10 @@ mediakit stop
 # Force stop watch daemon (SIGKILL to process group)
 mediakit stop --force
 
+# Dedupe: find media files with identical md5, move duplicates to Trash
+# (dry-run by default; --apply performs the actual removal)
+mediakit dedupe [--apply]
+
 # Watcher (macOS LaunchAgent)
 launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 ```
@@ -121,9 +142,30 @@ launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 - **Do NOT commit `docs/`** — All files under `docs/` are excluded from commits
 - **Archive openspec before committing** — `openspec/changes/<name>` must be archived to `openspec/changes/archive/` before any openspec files can be committed
 
+## RELEASING
+
+`.github/workflows/ci.yml` runs the pre-commit hooks plus the pytest suite on
+ubuntu-latest and macos-latest for pushes/PRs to `main` and `dev`.
+`.github/workflows/release.yml` fires on any `v*` tag, re-runs the suite, refuses
+to publish unless the tag equals `[project].version` in `pyproject.toml`, then
+builds sdist+wheel and attaches them to a GitHub release
+(`alpha`/`beta`/`rc` in the tag marks it prerelease).
+
+```bash
+# cut a release
+# 1. bump [project].version in pyproject.toml (the only version source; `mediakit -v` reads it)
+# 2. commit, then tag the exact commit
+git tag v0.1.1 && git push origin v0.1.1
+```
+
+No secrets required: the release uses the default `GITHUB_TOKEN` with
+`contents: write`.
+
 ## NOTES
 
 - `.venv/` has 22k+ files from dependencies — excluded from AGENTS.md analysis
+- **`requires-python` is `>=3.14,<3.15` on purpose** — pyobjc 11.1 has no cp315 wheel, so building `pyobjc-framework-quartz` from source fails on 3.15 and takes the whole `uv sync` down with it. Without the upper bound uv auto-selects the newest homebrew `python3` (3.15) whenever `.venv` is missing or deemed stale. Remove the bound only after confirming pyobjc ships cp315 wheels
+- **Do not run bare `uv lock`** — local uv (0.13.7) rewrites lock revision 3→5 and churns ~258 lines of `platform_release` markers for no resolution change. For a `requires-python` tweak, hand-edit that single line in `uv.lock` and confirm with `uv lock --check`
 - Config loads logger at module end via `import_module("utils.logger.init")` — import order matters
 - `build/` directory contains stale frozen distribution (bdist.macosx-15.0-arm64)
 - Largest complexity hotspot: `base/video.py:combine()` — 167 lines, 4+ nesting levels

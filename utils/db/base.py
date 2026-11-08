@@ -10,23 +10,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
 
-
 logger = logging.getLogger()
 
 
 class BaseEngine(abc.ABC):
-
     engine: Engine
     metadata: MetaData
     conn: Connection
     session: Type[Session]
 
     @abc.abstractmethod
-    def query__(
-        self,
-        statement: Select[Any] | Update | str | TextClause,
-        params: Dict[str, Any] = {},
-    ):
+    def query__(self, statement: Select[Any] | Update | str | TextClause, params: Dict[str, Any] = {}):
         pass
 
     def __init__(self, database: str):
@@ -36,11 +30,11 @@ class BaseEngine(abc.ABC):
     def get_session(self) -> Generator[Session, None, None]:
         session = self.session()
         if not isinstance(session, Session):
-            raise TypeError(f"Expected Session, got {type(session)}")
+            raise TypeError(f'Expected Session, got {type(session)}')
         try:
             yield session
         except Exception as err:
-            logger.warning("session.rollback()")
+            logger.warning('session.rollback()')
             session.rollback()
             logger.error(err)
             # return response.Result(code=400, msg=err)
@@ -48,9 +42,5 @@ class BaseEngine(abc.ABC):
         finally:
             session.close()
 
-    def query(
-        self,
-        statement: Select[Any] | Update | str | TextClause,
-        params: Dict[str, Any] = {},
-    ):
+    def query(self, statement: Select[Any] | Update | str | TextClause, params: Dict[str, Any] = {}):
         return self.query__(statement, params)

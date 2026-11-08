@@ -4,9 +4,9 @@ import json
 import logging
 from typing import Union
 
-from config import CONFIG
 import requests
 
+from config import CONFIG
 
 logger = logging.getLogger()
 
@@ -31,8 +31,8 @@ class Translator:
             ]
         ):
             raise ValueError(
-                "Please set BAIDU_TRANSLATE_API, BAIDU_TRANSLATE_APP_ID, "
-                "BAIDU_TRANSLATE_SECRET_KEY, BAIDU_TRANSLATE_SALT in config.py"
+                'Please set BAIDU_TRANSLATE_API, BAIDU_TRANSLATE_APP_ID, '
+                'BAIDU_TRANSLATE_SECRET_KEY, BAIDU_TRANSLATE_SALT in config.py'
             )
 
     @classmethod
@@ -53,24 +53,24 @@ class Translator:
         """Translate text to target language."""
         cls._require_config()
         if isinstance(text, (list, tuple, set)):
-            text = ",".join(text)
+            text = ','.join(text)
 
         if not isinstance(text, str):
-            raise TypeError("text must be str, list, set or tuple.")
+            raise TypeError('text must be str, list, set or tuple.')
 
         data = {
-            "q": text,
-            "from": "auto",
-            "to": "en",
-            "appid": CONFIG.BAIDU_TRANSLATE_APP_ID,
-            "salt": CONFIG.BAIDU_TRANSLATE_SALT,
-            "sign": cls.sign(text),
+            'q': text,
+            'from': 'auto',
+            'to': 'en',
+            'appid': CONFIG.BAIDU_TRANSLATE_APP_ID,
+            'salt': CONFIG.BAIDU_TRANSLATE_SALT,
+            'sign': cls.sign(text),
         }
 
         repose = requests.post(CONFIG.BAIDU_TRANSLATE_API, data=data, timeout=10)
         content = repose.json()
-        trans_result = content.get("trans_result", [])
-        _ = [val.get("dst", "").split(", ") for val in trans_result]
+        trans_result = content.get('trans_result', [])
+        _ = [val.get('dst', '').split(', ') for val in trans_result]
 
         result = None
         try:

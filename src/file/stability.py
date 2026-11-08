@@ -1,8 +1,7 @@
+import logging
 import os
 import time
-import logging
 from typing import Protocol
-
 
 logger = logging.getLogger()
 

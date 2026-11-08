@@ -7,18 +7,13 @@ from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base
 
-from config import CONFIG
 from src import db, schemas
 from src.models._type import MediaParams
 from utils import response
 
-
 logger = logging.getLogger()
 
-__all__ = [
-    "Base",
-    "Media",
-]
+__all__ = ['Base', 'Media']
 
 Base = declarative_base()
 
@@ -26,9 +21,10 @@ Base = declarative_base()
 class Media(Base):
     md5 = Column(String, primary_key=True, nullable=False)
     title = Column(String, nullable=False)
+    ext = Column(String, nullable=False, default='')
     dirname = Column(String, nullable=False)
     # created_at = Column(DateTime, default=datetime.utcnow, read_only=True)
-    _created_at = Column("created_at", DateTime, default=datetime.utcnow)
+    _created_at = Column('created_at', DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=None, nullable=True)
     state = Column(JSON, default=schemas.State().model_dump(), nullable=False)
 
@@ -41,7 +37,7 @@ class Media(Base):
     # def created_at(self, value):
     #     self._created_at = value
 
-    __tablename__ = "media"
+    __tablename__ = 'media'
     # @classmethod
     # def __tablename__(cls):
     #     return 'media'
@@ -55,7 +51,7 @@ class Media(Base):
     #     return f"<Media(md5={self.md5}, title={self.title}, dirname={self.dirname}, created_at={self.created_at}, updated_at={self.updated_at}, state={self.state})>"
 
     def __str__(self) -> str:
-        return f"<{self.__class__.__name__}({self.__dict__})>"
+        return f'<{self.__class__.__name__}({self.__dict__})>'
 
     # def model_dump(self):
     #     return {
@@ -76,7 +72,9 @@ class Media(Base):
 
     @property
     def path(self):
-        return f"{self.dirname}/{self.title}"
+        if self.ext:
+            return f'{self.dirname}/{self.title}.{self.ext}'
+        return f'{self.dirname}/{self.title}'
 
     # @hybrid_property
     # def compress(self) -> Any:
@@ -114,60 +112,53 @@ class Media(Base):
 
     @classmethod
     def get_or_create(cls, **kwargs: Unpack[MediaParams]):
+        md5 = kwargs.get('md5')
+        if not md5:
+            raise ValueError('md5 is required for get_or_create')
         with db.DatabaseEngine.engine().get_session() as session:
-            instance = session.query(cls).filter_by(**kwargs).first()
-            if not instance:
+            instance = session.query(cls).filter_by(md5=md5).first()
+            if instance:
+                # If already successfully processed, keep it untouched: no title/dirname
+                # sync and no updated_at bump. Files with identical md5 (duplicate
+                # downloads) would otherwise flip title/updated_at on every scan.
+                if instance.state.get('compress') == schemas.StateChoices.finished:
+                    return instance
+                changed = False
+                for key in ('title', 'dirname', 'ext'):
+                    if key in kwargs and getattr(instance, key) != kwargs[key]:
+                        setattr(instance, key, kwargs[key])
+                        changed = True
+                if changed:
+                    instance.updated_at = datetime.utcnow()
+                    session.add(instance)
+                    session.commit()
+            else:
                 instance = cls(**kwargs)
                 session.add(instance)
                 try:
                     session.commit()
                 except Exception as exc:
-                    logger.error(f"{exc}, MD5: {kwargs.get('md5')}")
+                    logger.error(f'{exc}, MD5: {md5}')
                     session.rollback()
             return instance
 
     def update_state(self, key: str, val: Union[int, float]):
-        logger.debug("update_state: key=%s, val=%s (type=%s), current self.state=%s",
-                     key, val, type(val).__name__, self.state)
+        logger.debug(
+            'update_state: key=%s, val=%s (type=%s), current self.state=%s', key, val, type(val).__name__, self.state
+        )
         with db.DatabaseEngine.engine().get_session() as session:
             state: dict = self.state.copy()  # type: ignore
             state[key] = val
             new_state = schemas.State(**state).model_dump()
-            logger.debug("update_state: new_state=%s, before session.add", new_state)
+            logger.debug('update_state: new_state=%s, before session.add', new_state)
             self.state = new_state
             session.add(self)
             session.commit()
-            logger.debug("update_state: committed, md5=%s, state=%s", self.md5, self.state)
-            return response.Result(code=0, data={"media": self})
+            logger.debug('update_state: committed, md5=%s, state=%s', self.md5, self.state)
+            return response.Result(code=0, data={'media': self})
 
     def delete(self):
         with db.DatabaseEngine.engine().get_session() as session:
             session.delete(self)
             session.commit()
-            return response.Result(code=0, data={"media": self})
-
-
-if __name__ == "__main__":
-    from utils.db import _sqlmodel
-
-    engine = _sqlmodel.Engine(CONFIG.SQLITE_DATABASE)
-    # engine.create_db_and_tables()
-    company: Media = Media(
-        md5="md5",
-        title="title",
-        dirname="dirname",
-        # state={'compress': 'compress', 'trim': 'trim'},
-        state=schemas.State(
-            compress=schemas.StateChoices.unprocessed,
-            trim=schemas.StateChoices.unprocessed,
-        ),
-    )
-    logger.info(company)
-    logger.info(company.__dict__)
-    logger.info(company.state)
-    instance = Media.get(md5="md5")
-    instance2 = Media.get(md5="md5")
-    logger.info((id(instance), instance))
-    logger.info((id(instance2), instance2))
-    logger.info(instance == instance2)
-    logger.info(instance is instance2)
+            return response.Result(code=0, data={'media': self})

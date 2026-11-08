@@ -1,4 +1,5 @@
 from enum import Enum
+import re
 
 
 class VideoResolution(Enum):
@@ -66,6 +67,29 @@ class VideoResolution(Enum):
         return None
 
     @classmethod
+    def parse(cls, value):
+        """
+        把用户输入（CLI 参数 / 环境变量）解析为 VideoResolution 成员
+        :param value: 枚举成员、枚举名（大小写不敏感）或 '1920x1080' 尺寸字符串
+        :return: VideoResolution 成员
+        :raises ValueError: 无法识别时直接报错, 不静默回退兜底值
+        """
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            text = value.strip()
+            # 尺寸写法: 1920x1080 / 1920*1080 / 1920X1080
+            if re.fullmatch(r'\d+\s*[xX*]\s*\d+', text):
+                width, height = (int(n) for n in re.split(r'[xX*]', text))
+                matched = cls.get_resolution(width, height)
+                if matched is not None:
+                    return matched
+            elif text.upper() in cls.__members__:
+                return cls[text.upper()]
+        supported = ', '.join(cls.__members__)
+        raise ValueError(f'Unknown resolution {value!r}. Supported: {supported} or WxH (e.g. 1920x1080)')
+
+    @classmethod
     def find_closest_resolutions(cls, width, height, by_pixels=True):
         """
         查找所有大于等于当前尺寸的分辨率
@@ -78,7 +102,7 @@ class VideoResolution(Enum):
         return [res for res in cls if res.width >= width and res.height >= height]
 
     def __str__(self):
-        return f"{self.name} ({self.width}x{self.height})"
+        return f'{self.name} ({self.width}x{self.height})'
 
     def __eq__(self, obj):
         return self.pixels == obj.pixels
@@ -90,30 +114,30 @@ class VideoResolution(Enum):
         return self.pixels > obj.pixels
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # 获取VGA分辨率信息
     vga = VideoResolution.VGA
-    print(f"标准分辨率: {vga}")
-    print(f"尺寸验证: {vga.width}x{vga.height}")
-    print(f"像素总数: {vga.pixels}\n")
+    print(f'标准分辨率: {vga}')
+    print(f'尺寸验证: {vga.width}x{vga.height}')
+    print(f'像素总数: {vga.pixels}\n')
 
     # 尺寸比较示例
     test_width, test_height = 800, 600
-    print(f"测试尺寸: {test_width}x{test_height}")
+    print(f'测试尺寸: {test_width}x{test_height}')
 
     # 双维度比较
-    print("\n能够包含该尺寸的分辨率:")
+    print('\n能够包含该尺寸的分辨率:')
     for res in VideoResolution.find_closest_resolutions(test_width, test_height, False):
-        print(f"- {res}")
+        print(f'- {res}')
 
     # 像素比较
-    print("\n像素数更大的分辨率:")
+    print('\n像素数更大的分辨率:')
     for res in VideoResolution.find_closest_resolutions(test_width, test_height):
         if res.compare_pixels(test_width, test_height) == 1:
-            print(f"- {res}")
+            print(f'- {res}')
 
     # 精确匹配查找
     matched = VideoResolution.get_resolution(1920, 1080)
-    print(f"\n全高清匹配结果: {matched if matched else '无匹配'}")
+    print(f'\n全高清匹配结果: {matched if matched else "无匹配"}')
 
     not_valid_resolution = VideoResolution(100, 100)

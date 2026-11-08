@@ -7,7 +7,6 @@ from unittest import TestCase, main
 # from config import CONFIG
 from utils.executor import TaskManager
 
-
 logger = logging.getLogger()
 
 
@@ -15,11 +14,10 @@ logger = logging.getLogger()
 #     CONFIG, "MEDIA_FILE_PATH", "./sample/input.mp4"
 # )
 class TestExecutor(TestCase):
-
     def test_subprocess_run(self):
         result = subprocess.run(
-            ["ls"],
-            input="-l",
+            ['ls'],
+            input='-l',
             text=True,
             # capture_output=True,
             check=True,
@@ -100,23 +98,23 @@ class TestExecutor(TestCase):
 
 
 def task1():
-    print("-->: task1")
+    print('-->: task1')
     time.sleep(1)
-    print("<--: task1")
-    return "task1"
+    print('<--: task1')
+    return 'task1'
 
 
 def task2():
-    print("-->: task2")
+    print('-->: task2')
     time.sleep(2)
-    print("<--: task2")
-    return "task2"
+    print('<--: task2')
+    return 'task2'
 
 
 def task():
-    print("-->: task")
+    print('-->: task')
     time.sleep(3)
-    print("<--: task")
+    print('<--: task')
     return [task1, task2]
 
 
@@ -129,15 +127,14 @@ tasks = [task1, task2, task]
 
 def callback(future):
     # time.sleep(1)
-    print("-->: callback", id(future), future.result())
+    print('-->: callback', id(future), future.result())
 
 
 def callback2(future):
-    print("-->: callback2", id(future), future.result())
+    print('-->: callback2', id(future), future.result())
 
 
 class TestTaskManager(TestCase):
-
     def test_task_manager(self):
         task_manager = TaskManager()
         results = []
@@ -145,7 +142,7 @@ class TestTaskManager(TestCase):
         with task_manager.executor:
             for _task in tasks:
                 task_manager.submit(_task)
-            logger.info("task_manager.futures: %s", task_manager.futures)
+            logger.info('task_manager.futures: %s', task_manager.futures)
             self.assertEqual(len(task_manager.futures), 3)
             while task_manager.futures:
                 for future in concurrent.futures.as_completed(task_manager.futures):
@@ -153,12 +150,12 @@ class TestTaskManager(TestCase):
                     logger.debug(result)
                     results.append(result)
                     task_manager.futures.remove(future)
-        logger.info("Waiting for all subprocesses done...")
+        logger.info('Waiting for all subprocesses done...')
         self.assertEqual(len(results), 3)
-        self.assertIn("task1", results)
-        self.assertIn("task2", results)
+        self.assertIn('task1', results)
+        self.assertIn('task2', results)
         self.assertIsInstance(results[2], list)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main(verbosity=2)
