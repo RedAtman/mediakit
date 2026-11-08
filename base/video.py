@@ -416,38 +416,14 @@ class Video(BaseMedia, MixinMediaTranscriber):
         Returns:
             bool -- [description]
         """
-        if not isinstance(trim_time, (tuple, list)) and len(trim_time) != 2:
+        if not isinstance(trim_time, (tuple, list)) or len(trim_time) != 2:
             raise ValueError('参数[time]必须为长度为2的tuple或list')
         ss, to = trim_time
         new_file_path = self.create_file_path(self.path, suffix='trim', suffix_number=suffix_number)
-        command = self._FFMPEG_PREFIX + [
-            # 截取时间
-            '-ss',
-            ss,
-            '-to',
-            to,
-            # 使用copy后 避免太过于精确切割而丢失帧
-            '-accurate_seek',
-            '-i',
-            self.path,
-            # 线程(设置为4效率最高, 但通用性待验证)
-            # '-threads', '4',
-            # 对video类型文件设置编码类型
-            # 注意：copy会带来前面一段时间丢帧问题并且无预览图
-            # '-c', 'copy',
-            # '-c:a', 'copy',
-            # '-c:v', 'copy',
-            # 若voice copy失败
-            '-c:v',
-            'copy',
-            '-c:a',
-            'copy',
-            # '-acodec', 'aac',
-            # '-avoid_negative_ts', '1',
-            new_file_path,
-        ]
-        command = f'{" ".join(self._FFMPEG_PREFIX)} -ss {ss} -to {to} -accurate_seek \
-            -i {self.path} -c:v copy -c:a copy {new_file_path}'
+        command = (
+            f'{" ".join(self._FFMPEG_PREFIX)} -ss {ss} -to {to} -accurate_seek '
+            f'-i {self.path} -c:v copy -c:a copy {new_file_path}'
+        )
         return self, command, new_file_path
 
     @decorator.timer

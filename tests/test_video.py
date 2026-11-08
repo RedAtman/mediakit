@@ -72,7 +72,9 @@ class TestVideo(TestCase):
         assert '-to 00:00:03' in command
         assert '-accurate_seek' in command
 
-    def test_trim_rejects_non_sequence_trim_time(self):
+    def test_trim_rejects_bad_trim_time(self):
         video = self._make_video()
-        with self.assertRaises(ValueError):
-            video.trim(trim_time='00:00:01')
+        # 非序列 / 长度不为2 都必须报 ValueError, 而不是等到解包时才炸或爆 TypeError
+        for bad in ('00:00:01', None, ('00:00:01',), ('a', 'b', 'c')):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                video.trim(trim_time=bad)
