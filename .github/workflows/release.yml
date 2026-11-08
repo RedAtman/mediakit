@@ -13,7 +13,18 @@ jobs:
     name: Build and publish GitHub release
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 so the tag's ancestry is available for the main check below
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify the tagged commit is on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::tag $GITHUB_REF_NAME is not reachable from main - release from main, not from a side branch"
+            exit 1
+          fi
+          echo "tag $GITHUB_REF_NAME is on main"
       - uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
