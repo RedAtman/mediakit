@@ -163,6 +163,29 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
 
 ## NOTES
 
+- **Frozen binary** — `mediakit.spec` is the single source of truth for packaging:
+  `uv run --with pyinstaller==6.22.3 pyinstaller mediakit.spec --distpath dist --workpath build`. CI runs
+  exactly that in the `binary` job of `.github/workflows/release.yml` for macOS arm64/x86_64, Linux
+  x86_64 and Windows, and attaches `mediakit-<os>-<arch>` to the GitHub release. ffmpeg is **not**
+  bundled: the binary shells out to a system ffmpeg on PATH, same as the pip/uv install
+- **Frozen paths** — onefile puts `__file__` in a temp dir that is deleted on exit, so `config.py`
+  anchors `BASE_DIR` to `sys.executable` when `sys.frozen` is set. That is why the state DB
+  (`db.db`) and `logs/` land **next to the binary**; without it every run would start from an empty
+  database and `compress` could never resume. A `.env` (or `~/.env`) that sets `SQLITE_DATABASE`
+  still overrides this
+- **Frozen bundle needs explicit hidden imports for every dynamic import** — `src/__init__.py`
+  (`src.signals`), `config.py` (`utils.logger.init`, plus the `dictConfig` `()` entries that
+  reflect `utils.logger.filters/formatters`), and `folder.py` (`base.{video,audio}` chosen from the
+  `--type` flag). Static analysis cannot see any of them
+- **`multiprocessing` is excluded from the bundle on purpose** — `ffmpeg-python` depends on the
+  abandoned `future` package, whose `future.moves.multiprocessing` shim drags the module in and
+  makes PyInstaller's onefile runtime hook die with `No module named 'array'`. Nothing here uses
+  processes: `utils/executor.py` is ThreadPoolExecutor-only (it borrows `os.cpu_count()`, not
+  `multiprocessing.cpu_count()`)
+- **CPU throttling degrades instead of crashing off Linux/macOS** — `utils/throttle/sampling.py`
+  only implements those two, so `CPULimiterCoordinator` checks the platform up front and runs
+  unthrottled with one warning. This is what keeps the Windows binary usable
+
 - `.venv/` has 22k+ files from dependencies — excluded from AGENTS.md analysis
 - **`requires-python` is `>=3.14,<3.15` on purpose** — pyobjc 11.1 has no cp315 wheel, so building `pyobjc-framework-quartz` from source fails on 3.15 and takes the whole `uv sync` down with it. Without the upper bound uv auto-selects the newest homebrew `python3` (3.15) whenever `.venv` is missing or deemed stale. Remove the bound only after confirming pyobjc ships cp315 wheels
 - **Do not run bare `uv lock`** — local uv (0.13.7) rewrites lock revision 3→5 and churns ~258 lines of `platform_release` markers for no resolution change. For a `requires-python` tweak, hand-edit that single line in `uv.lock` and confirm with `uv lock --check`
