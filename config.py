@@ -25,6 +25,20 @@ except ImportError:
 __all__ = ['CONFIG']
 
 
+def frozen_state_dir(system: str, home: str, localappdata: str = '') -> str:
+    """冻结构建 (brew / 单文件二进制) 的状态目录.
+
+    不能落在可执行文件旁边: brew 装进 Cellar, `brew upgrade` 会整个替换版本目录,
+    logs/ 和 db.db 会随之消失; 而且 Cellar 本不应被程序写入.
+    """
+    if system == 'darwin':
+        return os.path.join(home, 'Library', 'Application Support', 'mediakit')
+    if system == 'win32':
+        local = localappdata or os.path.join(home, 'AppData', 'Local')
+        return os.path.join(local, 'mediakit')
+    return os.path.join(home, '.local', 'state', 'mediakit')
+
+
 class _BaseConfig:
     # All subclasses of BaseConfig will be added to this mapping.
     mapping: dict[str, type] = {}
@@ -35,14 +49,17 @@ class _BaseConfig:
 
     DEBUG = False
     TESTING = False
-    # PyInstaller onefile 下 __file__ 指向临时解包目录 (_MEIPASS), 退出即删;
-    # 那样 db.db / logs 会随每次运行丢失, 所以冻结时改用可执行文件所在目录.
+    # PyInstaller onefile 下 __file__ 指向临时解包目录 (_MEIPASS), 退出即删,
+    # 所以冻结时 BASE_DIR 随可执行文件走; 但运行期状态 (db.db / logs) 放到
+    # 平台状态目录, 否则 brew upgrade 换版本目录时会丢.
     if getattr(sys, 'frozen', False):
         BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+        STATE_DIR = frozen_state_dir(sys.platform, os.path.expanduser('~'), os.getenv('LOCALAPPDATA') or '')
     else:
         BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+        STATE_DIR = BASE_DIR
     sys.path.insert(0, BASE_DIR)
-    LOG_DIR = os.path.join(BASE_DIR, 'logs')
+    LOG_DIR = os.path.join(STATE_DIR, 'logs')
     os.makedirs(LOG_DIR, exist_ok=True)
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
 
@@ -54,7 +71,7 @@ class _BaseConfig:
     CPU_LIMIT: int = int(os.getenv('CPU_LIMIT', '100'))
 
     # SQLITE
-    SQLITE_DATABASE = os.path.abspath(os.path.join(BASE_DIR, os.getenv('SQLITE_DATABASE') or 'db.db'))
+    SQLITE_DATABASE = os.path.abspath(os.path.join(STATE_DIR, os.getenv('SQLITE_DATABASE') or 'db.db'))
     SQLITE_CONNECTION_POOL_SIZE = int(os.getenv('SQLITE_CONNECTION_POOL_SIZE', 10))
 
     # FFMPEG
@@ -118,7 +135,7 @@ class Production(_BaseConfig):
 env: str = os.getenv('ENV', 'development')
 CONFIG: type[_BaseConfig] = _BaseConfig.mapping.get(env, Development)
 
-# utils.logger.init 优先读 env BASE_DIR, 这样冻结版不会把日志写进临时解包目录
-os.environ.setdefault('BASE_DIR', _BaseConfig.BASE_DIR)
+# utils.logger.init 优先读 env BASE_DIR; 指向 STATE_DIR 以便日志与 db.db 同处
+os.environ.setdefault('BASE_DIR', _BaseConfig.STATE_DIR)
 
 import_module('utils.logger.init')

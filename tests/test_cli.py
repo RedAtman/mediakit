@@ -2,6 +2,7 @@ from contextlib import redirect_stdout
 from importlib.metadata import version as distribution_version
 import io
 import logging
+import os
 from unittest import TestCase
 
 logger = logging.getLogger()
@@ -131,3 +132,32 @@ if __name__ == '__main__':
     import unittest
 
     unittest.main()
+
+
+class TestFrozenStateDir(TestCase):
+    """冻结构建不能把状态写进安装目录 (brew 的 Cellar 升级即丢失)."""
+
+    def test_darwin(self):
+        from config import frozen_state_dir
+
+        self.assertEqual(frozen_state_dir('darwin', '/Users/nut'), '/Users/nut/Library/Application Support/mediakit')
+
+    def test_linux(self):
+        from config import frozen_state_dir
+
+        self.assertEqual(frozen_state_dir('linux', '/home/x'), '/home/x/.local/state/mediakit')
+
+    def test_windows_uses_localappdata(self):
+        from config import frozen_state_dir
+
+        self.assertEqual(
+            frozen_state_dir('win32', r'C:\Users\x', r'C:\Users\x\AppData\Local'),
+            os.path.join(r'C:\Users\x\AppData\Local', 'mediakit'),
+        )
+
+    def test_windows_falls_back_to_home(self):
+        from config import frozen_state_dir
+
+        self.assertEqual(
+            frozen_state_dir('win32', r'C:\Users\x'), os.path.join(r'C:\Users\x', 'AppData', 'Local', 'mediakit')
+        )
