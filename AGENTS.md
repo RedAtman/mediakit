@@ -143,6 +143,8 @@ launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 ## NOTES
 
 - `.venv/` has 22k+ files from dependencies — excluded from AGENTS.md analysis
+- **`requires-python` is `>=3.14,<3.15` on purpose** — pyobjc 11.1 has no cp315 wheel, so building `pyobjc-framework-quartz` from source fails on 3.15 and takes the whole `uv sync` down with it. Without the upper bound uv auto-selects the newest homebrew `python3` (3.15) whenever `.venv` is missing or deemed stale. Remove the bound only after confirming pyobjc ships cp315 wheels
+- **Do not run bare `uv lock`** — local uv (0.13.7) rewrites lock revision 3→5 and churns ~258 lines of `platform_release` markers for no resolution change. For a `requires-python` tweak, hand-edit that single line in `uv.lock` and confirm with `uv lock --check`
 - Config loads logger at module end via `import_module("utils.logger.init")` — import order matters
 - `build/` directory contains stale frozen distribution (bdist.macosx-15.0-arm64)
 - Largest complexity hotspot: `base/video.py:combine()` — 167 lines, 4+ nesting levels

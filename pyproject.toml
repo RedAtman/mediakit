@@ -40,7 +40,9 @@ name = "mediakit"
 version = "0.1.0"
 description = "Python CLI tool for batch media operations"
 authors = [{ name = "redatman", email = "evicwork@gmail.com" }]
-requires-python = ">=3.14"
+# 3.15 有不兼容：pyobjc 11.1 尚无 cp315 wheel, 源码编译 _coregraphics.m 失败,
+# 而 uv 在无上界时会自动选最新的 homebrew python3(3.15), 让整个 sync 挂掉
+requires-python = ">=3.14,<3.15"
 readme = "README.md"
 license = { text = "MIT" }
 dependencies = [
