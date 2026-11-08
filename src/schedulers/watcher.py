@@ -25,14 +25,40 @@ logger = logging.getLogger()
 
 
 def _parse_folder_file(filepath: str) -> list[str]:
+    """One path per line, '#' comments and blank lines skipped.
+
+    路径会规范化 (~ 展开、去掉 tailing slash、折叠 ./ 和 //) 并去重:
+    watch 模式下每个条目在 watchdog 里都是一个独立的 FSEvents emitter 线程,
+    重复条目等于白烧一个线程和一条流.
+    """
     text = Path(filepath).read_text(encoding='utf-8')
-    paths = []
+    paths: list[str] = []
+    seen: set[str] = set()
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith('#'):
             continue
-        paths.append(stripped)
+        normalized = os.path.normpath(os.path.expanduser(stripped))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        paths.append(normalized)
     return paths
+
+
+def _collapse_nested(paths: list[str]) -> list[str]:
+    """丢掉已被其他条目覆盖的子目录.
+
+    仅在 recursive=True 时可用: 非递归 watch 里父目录并不覆盖子目录.
+    保持原有顺序, 便于日志与 _watched_paths 对比.
+    """
+    kept: list[str] = []
+    for path in paths:
+        prefix = path.rstrip(os.sep) + os.sep
+        if any(other != path and prefix.startswith(other.rstrip(os.sep) + os.sep) for other in paths):
+            continue
+        kept.append(path)
+    return kept
 
 
 def _find_watch_folder_file() -> str | None:
@@ -494,6 +520,13 @@ class WatcherScheduler:
         for p in raw_paths:
             if p not in valid_paths:
                 logger.warning('Folder path does not exist, skipping: %s', p)
+
+        # 递归 watch 下子目录已被父目录覆盖, 多一条就多一个 emitter 线程与 FSEvents 流
+        if recursive:
+            collapsed = _collapse_nested(valid_paths)
+            if len(collapsed) != len(valid_paths):
+                logger.info('Recursive watch: collapsed %d nested path(s)', len(valid_paths) - len(collapsed))
+            valid_paths = collapsed
 
         # --- State initialization for dynamic config monitoring ---
         self._watched_paths = set(valid_paths)
