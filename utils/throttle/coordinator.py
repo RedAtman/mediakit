@@ -31,9 +31,14 @@ class CPULimiterCoordinator:
     workers, and handles manual overrides via SIGUSR1 and files.
     """
 
-    def __init__(self, default_limit: int = 100, auto_mode: bool = True):
+    def __init__(
+        self, default_limit: int = 100, auto_mode: bool = True, file_override_pattern: str = FILE_OVERRIDE_PATTERN
+    ):
         self.default_limit = default_limit
         self.auto_mode = auto_mode
+        # 可注入: 测试用私有目录, 否则 /tmp 上其他 coordinator 实例的监视线程
+        # 会每 2s 扫描并删掉测试刚创建的 override 文件
+        self._file_override_pattern = file_override_pattern
         self._lock = threading.RLock()
         self._throttlers: dict[int, dict] = {}
         self._manual_override_active = False
@@ -174,7 +179,7 @@ class CPULimiterCoordinator:
 
     def _scan_file_override(self):
         """Check for file-based override commands."""
-        files = glob.glob(FILE_OVERRIDE_PATTERN)
+        files = glob.glob(self._file_override_pattern)
         if not files:
             return
 

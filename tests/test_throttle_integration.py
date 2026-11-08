@@ -1,22 +1,31 @@
 import logging
 import os
 import signal
+import tempfile
 from unittest import TestCase, mock
 
 logger = logging.getLogger()
 
 
 class TestFileOverrideIntegration(TestCase):
-    """Integration tests for file-based CPU override."""
+    """Integration tests for file-based CPU override.
+
+    override 文件路径可注入, 因为默认的 /tmp/mediakit_cpu_* 是进程间共享的:
+    其他 CPULimiterCoordinator 实例的监视线程每 2s 会扫描并删除匹配文件,
+    测试刚创建的文件可能在断言前就被别人删掉 (CI 上偶发)。
+    """
 
     def test_file_override_detected_and_target_updated(self):
         """File override changes _manual_target and propagates to throttlers."""
         from utils.throttle.coordinator import CPULimiterCoordinator
 
-        coord = CPULimiterCoordinator(default_limit=100, auto_mode=True)
+        override_dir = tempfile.mkdtemp()
+        coord = CPULimiterCoordinator(
+            default_limit=100, auto_mode=True, file_override_pattern=os.path.join(override_dir, 'mediakit_cpu_*')
+        )
         coord._stop_monitor()
 
-        filepath = '/tmp/mediakit_cpu_7'
+        filepath = os.path.join(override_dir, 'mediakit_cpu_7')
         try:
             # Create the file
             open(filepath, 'w').close()
@@ -39,15 +48,18 @@ class TestFileOverrideIntegration(TestCase):
         """File override updates the target of already-running throttlers."""
         from utils.throttle.coordinator import CPULimiterCoordinator
 
-        coord = CPULimiterCoordinator(default_limit=100, auto_mode=False)
+        override_dir = tempfile.mkdtemp()
+        coord = CPULimiterCoordinator(
+            default_limit=100, auto_mode=False, file_override_pattern=os.path.join(override_dir, 'mediakit_cpu_*')
+        )
         coord._stop_monitor()
 
         # Attach throttlers (simulating ffmpeg start)
         coord.attach(9998)
         coord.attach(9997)
 
-        # Now simulate file override: touch /tmp/mediakit_cpu_3
-        filepath = '/tmp/mediakit_cpu_3'
+        # Now simulate file override: touch mediakit_cpu_3 in the private dir
+        filepath = os.path.join(override_dir, 'mediakit_cpu_3')
         try:
             open(filepath, 'w').close()
             coord._scan_file_override()
