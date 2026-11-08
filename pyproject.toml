@@ -6,7 +6,9 @@ build-backend = "setuptools.build_meta"
 py-modules = ["cli", "config", "folder"]
 
 [tool.setuptools.packages.find]
-include = ["base*", "src*", "utils*", "tests*"]
+# tests are run from the source tree (pytest pythonpath = ["."]) and must not
+# ship inside the wheel/sdist users install
+include = ["base*", "src*", "utils*"]
 
 [tool.pyright]
 typeCheckingMode = "basic"

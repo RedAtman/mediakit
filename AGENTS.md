@@ -142,6 +142,25 @@ launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 - **Do NOT commit `docs/`** — All files under `docs/` are excluded from commits
 - **Archive openspec before committing** — `openspec/changes/<name>` must be archived to `openspec/changes/archive/` before any openspec files can be committed
 
+## RELEASING
+
+`.github/workflows/ci.yml` runs the pre-commit hooks plus the pytest suite on
+ubuntu-latest and macos-latest for pushes/PRs to `main` and `dev`.
+`.github/workflows/release.yml` fires on any `v*` tag, re-runs the suite, refuses
+to publish unless the tag equals `[project].version` in `pyproject.toml`, then
+builds sdist+wheel and attaches them to a GitHub release
+(`alpha`/`beta`/`rc` in the tag marks it prerelease).
+
+```bash
+# cut a release
+# 1. bump [project].version in pyproject.toml (the only version source; `mediakit -v` reads it)
+# 2. commit, then tag the exact commit
+git tag v0.1.1 && git push origin v0.1.1
+```
+
+No secrets required: the release uses the default `GITHUB_TOKEN` with
+`contents: write`.
+
 ## NOTES
 
 - `.venv/` has 22k+ files from dependencies — excluded from AGENTS.md analysis
