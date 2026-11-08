@@ -67,12 +67,13 @@ class Engine(BaseEngine):
                     #     synchronize_session='fetch'
                     # )
                     _result = session.execute(statement, params)
-                    result = _result.__dict__
                     # CursorResult.rowcount 是惰性属性, 不看属性只看 __dict__ 永远拿到 None,
                     # 导致所有 UPDATE 都误判为 0 行命中 (而 404 也不是合法的 ResultStatus)
                     rowcount = getattr(_result, 'rowcount', None)
                     if rowcount == 0:
                         return response.Result(code=response.ResultStatus.FAILED, msg=f'No rows matched: {statement}')
+                    # 不把 CursorResult 内部结构当 data 泄出去, 只回报命中行数
+                    result = {'rowcount': rowcount}
                 elif isinstance(statement, TextClause):
                     result = session.execute(statement, params)
                 else:

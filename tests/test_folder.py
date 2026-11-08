@@ -124,8 +124,16 @@ class TestFolder(unittest.TestCase):
             assert isinstance(result, dict)
             assert isinstance(result, response.Result)
             assert result.code == response.ResultStatus.SUCCESS
+            # data 只回报命中行数, 不再泄露 CursorResult 内部结构
+            assert result.data == {'rowcount': 1}
         finally:
             model.delete()
+
+    def test_query_update_matching_nothing_reports_failed(self):
+        query = update(models.Media).where(models.Media.md5 == 'no-such-md5').values(title='x')
+        result = self.folder.query(query)
+        self.assertIsInstance(result, response.Result)
+        self.assertEqual(result.code, response.ResultStatus.FAILED)
 
     @mock.patch('folder.Folder.scan_media')
     def test_run(self, mock_scan_media):
