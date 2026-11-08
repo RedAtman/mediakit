@@ -55,9 +55,7 @@ dependencies = [
     "pydantic>=2.11,<3",
     "psutil==7.0.0",
     "ffmpeg-python==0.2.0",
-    # voice recognition
-    "SpeechRecognition==3.10.1",
-    "PyAudio==0.2.14",
+    # pyttsx3 pulls pyobjc on darwin; still referenced nowhere, see AGENTS.md NOTES
     "pyttsx3==2.90",
     # MacOS seems to need this for pyttsx3
     # "pyobjc==9.0.1",
