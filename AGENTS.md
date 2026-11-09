@@ -97,7 +97,7 @@ live only in a 975-line implementation plan; keep them here instead.
 | `FileStabilityTracker(sample_interval=, stable_samples=, timeout=)` | 1.0 s / 3 / 30 s | a file is processed only after size+mtime stop changing for 3 samples; it is given up on after 30 s |
 | config mtime poll | 5.0 s | editing the folder file adds/removes watched dirs without a restart |
 | pid file | `~/.mediakit/daemon.pid` | written on start, removed on graceful exit, read by `mediakit stop` |
-| FSEvents emitter | one per watched path, ~3.7 MB RSS each | 224 paths ≈ 71–98 MB baseline. Collapse/de-dupe the list (`src/file/paths.py`) before adding paths, and treat a 4-digit path count as a bug |
+| FSEvents emitter | one per watched path: ~33 KB (thread stack) plus one kernel stream | 224 paths ≈ 8 MB, 227 threads, ~2100 fds — measured, not estimated. Scheduling costs ~95 ms per stream and cannot be parallelised (macOS serialises stream creation): 224 paths ≈ 23 s before the daemon is fully watching. Collapse/de-dupe the list (`src/file/paths.py`) before adding paths; treat a 4-digit path count as a bug |
 
 ## COMMANDS
 
