@@ -76,7 +76,7 @@ class TestWatcherScheduler(TestCase):
         with (
             mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=1000.0),
             mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True),
-            mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/tmp/media']),
+            mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/tmp/media']),
         ):
             scheduler.core(
                 folder_file='/tmp/config', type='video', max_workers=2, cpu_limit=None, no_scan_existing=True
@@ -488,7 +488,7 @@ class TestWatcherScheduler(TestCase):
 
         with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
             with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
-                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/existing', '/newdir']):
+                with mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/existing', '/newdir']):
                     with mock.patch('src.schedulers.watcher.os.path.isdir', side_effect=lambda p: True):
                         scheduler._check_config_file_changes()
 
@@ -508,7 +508,7 @@ class TestWatcherScheduler(TestCase):
 
         with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
             with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
-                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/keepdir']):
+                with mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/keepdir']):
                     with mock.patch('src.schedulers.watcher.os.path.isdir', side_effect=lambda p: True):
                         scheduler._check_config_file_changes()
 
@@ -527,7 +527,7 @@ class TestWatcherScheduler(TestCase):
 
         with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
             with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
-                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/keep', '/newdir']):
+                with mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/keep', '/newdir']):
                     with mock.patch('src.schedulers.watcher.os.path.isdir', side_effect=lambda p: True):
                         scheduler._check_config_file_changes()
 
@@ -577,7 +577,7 @@ class TestWatcherScheduler(TestCase):
         with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
             with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
                 with mock.patch(
-                    'src.schedulers.watcher._parse_folder_file',
+                    'src.schedulers.watcher.parse_folder_file',
                     side_effect=UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'invalid'),
                 ):
                     with mock.patch('src.schedulers.watcher.logger.warning') as mock_warn:
@@ -598,7 +598,7 @@ class TestWatcherScheduler(TestCase):
 
         with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
             with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
-                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/nonexistent']):
+                with mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/nonexistent']):
                     with mock.patch('src.schedulers.watcher.os.path.isdir', return_value=False):
                         with mock.patch('src.schedulers.watcher.logger.warning') as mock_warn:
                             scheduler._check_config_file_changes()
@@ -628,7 +628,7 @@ class TestWatcherScheduler(TestCase):
 
         with mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=200.0):
             with mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True):
-                with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/now_valid']):
+                with mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/now_valid']):
                     with mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True):
                         with mock.patch.object(scheduler, '_setup_multi_observer') as mock_setup:
                             with mock.patch.object(scheduler, '_feed_existing') as mock_feed:
@@ -671,7 +671,7 @@ class TestWatcherMultiFolder(TestCase):
         s = self.scheduler
         s._feed_existing = mock.Mock()
         s._run_event_loop = mock.Mock()
-        with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/a', '/b']):
+        with mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/a', '/b']):
             s.core(
                 folder_file='/p.txt', type='video', max_workers=2, cpu_limit=None, no_scan_existing=True, recursive=True
             )
@@ -684,7 +684,7 @@ class TestWatcherMultiFolder(TestCase):
     def test_nonexistent_paths_skipped_with_warning(self, mock_isdir):
         s = self.scheduler
         s._run_event_loop = mock.Mock()
-        with mock.patch('src.schedulers.watcher._parse_folder_file', return_value=['/a', '/nonexistent']):
+        with mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/a', '/nonexistent']):
             with mock.patch('src.schedulers.watcher.logger.warning') as mock_warn:
                 s.core(
                     folder_file='/p.txt',
@@ -718,66 +718,66 @@ class TestParseFolderFile(TestCase):
         return f.name
 
     def test_skips_comments_and_blanks(self):
-        from src.schedulers.watcher import _parse_folder_file
+        from src.file.paths import parse_folder_file
 
         path = self._write_tmp('# comment\n/media/videos\n\n/photos\n  \n')
         try:
-            self.assertEqual(_parse_folder_file(path), ['/media/videos', '/photos'])
+            self.assertEqual(parse_folder_file(path), ['/media/videos', '/photos'])
         finally:
             os.unlink(path)
 
     def test_strips_whitespace(self):
-        from src.schedulers.watcher import _parse_folder_file
+        from src.file.paths import parse_folder_file
 
         path = self._write_tmp('  /media/videos  \n\t/photos\n')
         try:
-            self.assertEqual(_parse_folder_file(path), ['/media/videos', '/photos'])
+            self.assertEqual(parse_folder_file(path), ['/media/videos', '/photos'])
         finally:
             os.unlink(path)
 
     def test_normalizes_and_dedupes(self):
         """每个重复条目在 watch 模式下都是一个多余的 emitter 线程."""
-        from src.schedulers.watcher import _parse_folder_file
+        from src.file.paths import parse_folder_file
 
         path = self._write_tmp('/media/videos/\n/media//videos\n/media/videos\n/media/videos/../videos\n')
         try:
-            self.assertEqual(_parse_folder_file(path), ['/media/videos'])
+            self.assertEqual(parse_folder_file(path), ['/media/videos'])
         finally:
             os.unlink(path)
 
     def test_expands_home(self):
-        from src.schedulers.watcher import _parse_folder_file
+        from src.file.paths import parse_folder_file
 
         path = self._write_tmp('~/Movies\n')
         try:
-            self.assertEqual(_parse_folder_file(path), [os.path.expanduser('~/Movies')])
+            self.assertEqual(parse_folder_file(path), [os.path.expanduser('~/Movies')])
         finally:
             os.unlink(path)
 
     def test_collapse_nested_only_when_recursive_is_safe_to_apply(self):
-        from src.schedulers.watcher import _collapse_nested
+        from src.file.paths import collapse_nested
 
         paths = ['/a', '/a/b', '/a/b/c', '/a2', '/a2/b']
         # 子目录被父目录覆盖, 递归 watch 下是冗余条目
-        self.assertEqual(_collapse_nested(paths), ['/a', '/a2'])
+        self.assertEqual(collapse_nested(paths), ['/a', '/a2'])
         # 前缀相似但不是目录包含关系, 不能误伤
-        self.assertEqual(_collapse_nested(['/a', '/ab']), ['/a', '/ab'])
+        self.assertEqual(collapse_nested(['/a', '/ab']), ['/a', '/ab'])
 
     def test_all_comments_returns_empty(self):
-        from src.schedulers.watcher import _parse_folder_file
+        from src.file.paths import parse_folder_file
 
         path = self._write_tmp('# a\n# b\n')
         try:
-            self.assertEqual(_parse_folder_file(path), [])
+            self.assertEqual(parse_folder_file(path), [])
         finally:
             os.unlink(path)
 
     def test_empty_file_returns_empty(self):
-        from src.schedulers.watcher import _parse_folder_file
+        from src.file.paths import parse_folder_file
 
         path = self._write_tmp('')
         try:
-            self.assertEqual(_parse_folder_file(path), [])
+            self.assertEqual(parse_folder_file(path), [])
         finally:
             os.unlink(path)
 

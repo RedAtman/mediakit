@@ -14,6 +14,7 @@ from watchdog.observers import Observer
 from config import CONFIG
 from folder import Folder, make_media
 from src.file.debounce import DebounceBuffer
+from src.file.paths import collapse_nested, find_folder_file, parse_folder_file
 from src.file.stability import FileStabilityTracker
 from src.schemas import StateChoices
 from utils import exceptions, file, response
@@ -22,77 +23,6 @@ from .media import COMPRESS_OPTS
 from .media import compress as media_compress
 
 logger = logging.getLogger()
-
-
-def _parse_folder_file(filepath: str) -> list[str]:
-    """One path per line, '#' comments and blank lines skipped.
-
-    路径会规范化 (~ 展开、去掉 tailing slash、折叠 ./ 和 //) 并去重:
-    watch 模式下每个条目在 watchdog 里都是一个独立的 FSEvents emitter 线程,
-    重复条目等于白烧一个线程和一条流.
-    """
-    text = Path(filepath).read_text(encoding='utf-8')
-    paths: list[str] = []
-    seen: set[str] = set()
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#'):
-            continue
-        normalized = os.path.normpath(os.path.expanduser(stripped))
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        paths.append(normalized)
-    return paths
-
-
-def _collapse_nested(paths: list[str]) -> list[str]:
-    """丢掉已被其他条目覆盖的子目录.
-
-    仅在 recursive=True 时可用: 非递归 watch 里父目录并不覆盖子目录.
-    保持原有顺序, 便于日志与 _watched_paths 对比.
-    """
-    kept: list[str] = []
-    for path in paths:
-        prefix = path.rstrip(os.sep) + os.sep
-        if any(other != path and prefix.startswith(other.rstrip(os.sep) + os.sep) for other in paths):
-            continue
-        kept.append(path)
-    return kept
-
-
-def _find_watch_folder_file() -> str | None:
-    """Search for var/folder.sh: env var → cwd & parent dirs → tool source parent."""
-    # 1. Env var override
-    env_path = os.getenv('WATCH_FOLDER_FILE')
-    if env_path:
-        env_path = env_path.strip().strip('\'"')
-        if os.path.isfile(env_path):
-            return env_path
-    # 2. Walk up from cwd
-    start = os.path.abspath(os.getcwd())
-    current = start
-    while True:
-        candidate = os.path.join(current, 'var', 'folder.sh')
-        if os.path.isfile(candidate):
-            return candidate
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-    # 3. Walk up from tool's config.py location (covers uv tool install from project root)
-    import config as _cfg_mod
-
-    current = os.path.dirname(os.path.abspath(_cfg_mod.__file__))
-    while True:
-        candidate = os.path.join(current, 'var', 'folder.sh')
-        if os.path.isfile(candidate):
-            return candidate
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-    return None
 
 
 class _WatchEventHandler(FileSystemEventHandler):
@@ -380,7 +310,7 @@ class WatcherScheduler:
         logger.info('Config monitoring: mtime changed %s -> %s', self._config_mtime, current_mtime)
 
         try:
-            raw_paths = _parse_folder_file(self._config_filepath)
+            raw_paths = parse_folder_file(self._config_filepath)
         except Exception as exc:
             logger.warning('Failed to parse config file %s: %s. Keeping current watches.', self._config_filepath, exc)
             return
@@ -498,12 +428,12 @@ class WatcherScheduler:
         self._setup_cpu_throttling(cpu_limit)
 
         if folder_file is not None:
-            raw_paths = _parse_folder_file(folder_file)
+            raw_paths = parse_folder_file(folder_file)
         elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
-            watch_file = _find_watch_folder_file()
+            watch_file = find_folder_file()
             if watch_file:
                 logger.debug('Using watch folder file: %s', watch_file)
-                raw_paths = _parse_folder_file(watch_file)
+                raw_paths = parse_folder_file(watch_file)
             else:
                 logger.warning(
                     'No var/folder.sh found from cwd (%s). '
@@ -523,7 +453,7 @@ class WatcherScheduler:
 
         # 递归 watch 下子目录已被父目录覆盖, 多一条就多一个 emitter 线程与 FSEvents 流
         if recursive:
-            collapsed = _collapse_nested(valid_paths)
+            collapsed = collapse_nested(valid_paths)
             if len(collapsed) != len(valid_paths):
                 logger.info('Recursive watch: collapsed %d nested path(s)', len(valid_paths) - len(collapsed))
             valid_paths = collapsed
@@ -540,7 +470,7 @@ class WatcherScheduler:
         if folder_file is not None:
             self._config_filepath = folder_file
         elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
-            watch_file = _find_watch_folder_file()
+            watch_file = find_folder_file()
             if watch_file:
                 self._config_filepath = watch_file
         else:
