@@ -17,9 +17,19 @@ from utils.throttle import CPULimiterCoordinator
 from .callbacks import mark_compress_outcome
 from .media import compress as media_compress
 
-# Global CPU throttling coordinator
-_coordinator = CPULimiterCoordinator(default_limit=CONFIG.CPU_LIMIT, auto_mode=True)
-CommandExecutor.coordinator = _coordinator
+# CPU 节流协调器是懒建的: import 这个模块不该起监控线程 (真跑任务链时 _config 会先调
+# coordinator()). 之前 import 即创建 + 直接改 CommandExecutor 的类属性, 等于让导入
+# 时机决定一个后台线程和一个跨层全局状态的生命周期.
+_coordinator: CPULimiterCoordinator | None = None
+
+
+def coordinator() -> CPULimiterCoordinator:
+    """Return the process-wide CPU throttling coordinator, creating it on first use."""
+    global _coordinator
+    if _coordinator is None:
+        _coordinator = CPULimiterCoordinator(default_limit=CONFIG.CPU_LIMIT, auto_mode=True)
+        CommandExecutor.coordinator = _coordinator
+    return _coordinator
 
 
 __all__ = [
@@ -56,7 +66,7 @@ def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
     if isinstance(cpu_limit, str) and cpu_limit.isdigit():
         cpu_limit = int(cpu_limit)
     if isinstance(cpu_limit, int) and cpu_limit > 0:
-        _coordinator.set_manual_override(cpu_limit)
+        coordinator().set_manual_override(cpu_limit)
     logger.debug(CONFIG.CPU_LIMIT)
     return ctx.next(*args, **kwargs)
 

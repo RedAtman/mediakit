@@ -170,12 +170,12 @@ class WatcherScheduler:
             logger.info('PID file cleaned up: %s', pid_path)
 
     def _setup_cpu_throttling(self, cpu_limit: int | None):
-        from src.schedulers.folder import _coordinator
+        from src.schedulers.folder import coordinator
 
         if isinstance(cpu_limit, str) and cpu_limit.isdigit():
             cpu_limit = int(cpu_limit)
         if isinstance(cpu_limit, int) and cpu_limit > 0:
-            _coordinator.set_manual_override(cpu_limit)
+            coordinator().set_manual_override(cpu_limit)
 
     def _flush_callback(self, paths: list[str], media_type: str, max_workers: int):
         with self._flush_lock:

@@ -16,6 +16,19 @@ def _imports_of(package: str) -> list[tuple[str, int, str]]:
     return hits
 
 
+class TestImportSideEffects(unittest.TestCase):
+    def test_importing_schedulers_does_not_start_the_throttler(self):
+        """import 不该起后台线程: coordinator 必须等到真正跑任务时才创建."""
+        import importlib
+        import sys
+
+        for name in [m for m in sys.modules if m.startswith('src.schedulers')]:
+            del sys.modules[name]
+        module = importlib.import_module('src.schedulers.folder')
+
+        self.assertIsNone(module._coordinator, 'import 阶段不该创建 CPU 节流协调器')
+
+
 class TestLayering(unittest.TestCase):
     def test_utils_does_not_import_src_or_base(self):
         self.assertEqual(_imports_of('utils'), [], 'utils/ 不能反向依赖 src/ 或 base/')
