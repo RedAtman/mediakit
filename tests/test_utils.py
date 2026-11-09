@@ -53,3 +53,32 @@ class TestMediaCategories(TestCase):
         from src.schedulers.dedupe import MEDIA_CATEGORIES
 
         self.assertEqual(set(BaseMedia._INCLUDE_TYPE), set(MEDIA_CATEGORIES))
+
+
+class TestLogLevelNormalization(TestCase):
+    """LOG_LEVEL=info 这种小写写法不能让程序在 import 期崩掉."""
+
+    def _resolve(self, value):
+        import os
+        import subprocess
+        import sys
+
+        env = dict(os.environ, LOG_LEVEL=value)
+        # 子进程: 级别在 import 期就被 dictConfig 消费掉了
+        out = subprocess.run(
+            [sys.executable, '-c', 'from utils.logger.init import LOG_LEVEL; print(LOG_LEVEL)'],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout.strip()
+
+    def test_lowercase_is_accepted(self):
+        self.assertEqual(self._resolve('info'), 'INFO')
+
+    def test_numeric_is_accepted(self):
+        self.assertEqual(self._resolve('20'), 'INFO')
+
+    def test_unknown_falls_back_to_warning(self):
+        self.assertEqual(self._resolve('chatty'), 'WARNING')
