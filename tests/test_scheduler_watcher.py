@@ -241,7 +241,7 @@ class TestWatcherScheduler(TestCase):
         future = Future()
         result_data = {'media': mock.Mock(path='/tmp/file.mp4')}
         future.set_result(response.Result(0, data=result_data))
-        with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
+        with mock.patch('src.schedulers.callbacks.file.soft_remove') as mock_remove:
             self.scheduler._batch_callback(future)
             mock_remove.assert_called_once_with('/tmp/file.mp4')
 
@@ -255,7 +255,7 @@ class TestWatcherScheduler(TestCase):
         future = Future()
         result_data = {'media': mock.Mock(path=os.path.realpath('/tmp/file.mp4'))}
         future.set_result(response.Result(1, data=result_data))
-        with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
+        with mock.patch('src.schedulers.callbacks.file.soft_remove') as mock_remove:
             scheduler._batch_callback(future)
             mock_remove.assert_not_called()
         self.assertNotIn(os.path.realpath('/tmp/file.mp4'), scheduler._processing_files)
@@ -307,7 +307,7 @@ class TestWatcherScheduler(TestCase):
 
         future = Future()
         future.set_result(response.Result(0, data=None))
-        with mock.patch('src.schedulers.watcher.file.soft_remove') as mock_remove:
+        with mock.patch('src.schedulers.callbacks.file.soft_remove') as mock_remove:
             self.scheduler._batch_callback(future)
             mock_remove.assert_not_called()
 
@@ -345,7 +345,7 @@ class TestWatcherScheduler(TestCase):
         future = Future()
         result_data = {'media': mock.Mock(path=os.path.realpath('/tmp/file.mp4'))}
         future.set_result(response.Result(0, data=result_data))
-        with mock.patch('src.schedulers.watcher.file.soft_remove'):
+        with mock.patch('src.schedulers.callbacks.file.soft_remove'):
             scheduler._batch_callback(future)
         self.assertNotIn(os.path.realpath('/tmp/file.mp4'), scheduler._processing_files)
 
@@ -428,7 +428,7 @@ class TestWatcherScheduler(TestCase):
         watcher_module._thread_context.current_path = '/tmp/file.mp4'
         try:
             with mock.patch('src.schedulers.watcher.logger'):
-                with mock.patch('src.schedulers.watcher.file.soft_remove'):
+                with mock.patch('src.schedulers.callbacks.file.soft_remove'):
                     scheduler._batch_callback(future)
             self.assertIsNone(getattr(watcher_module._thread_context, 'current_path', None))
         finally:

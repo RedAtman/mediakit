@@ -16,9 +16,9 @@ from folder import Folder, make_media
 from src.file.debounce import DebounceBuffer
 from src.file.paths import collapse_nested, find_folder_file, parse_folder_file
 from src.file.stability import FileStabilityTracker
-from src.schemas import StateChoices
-from utils import exceptions, file, response
+from utils import exceptions, response
 
+from .callbacks import mark_compress_outcome
 from .media import COMPRESS_OPTS
 from .media import compress as media_compress
 
@@ -145,23 +145,7 @@ class WatcherScheduler:
                 normalized_media_path = self._normalize_path(media.path)
                 if normalized_media_path != current_path:
                     self._processing_files.discard(normalized_media_path)
-        if result == 0:
-            logger.debug('_batch_callback: SUCCESS, setting state to finished=2')
-            try:
-                media.model.update_state('compress', StateChoices.finished)
-            except Exception as exc:
-                logger.error('_batch_callback: update_state(finished) raised %s: %s', type(exc).__name__, exc)
-            try:
-                file.soft_remove(media.path)
-                logger.debug('_batch_callback: soft_remove completed for %s', media.path)
-            except Exception as exc:
-                logger.error('_batch_callback: soft_remove(%s) raised %s: %s', media.path, type(exc).__name__, exc)
-        else:
-            logger.debug('_batch_callback: FAILURE path (result=%s), setting state to failed=-2', result)
-            try:
-                media.model.update_state('compress', StateChoices.failed)
-            except Exception as exc:
-                logger.error('_batch_callback: update_state(failed) raised %s: %s', type(exc).__name__, exc)
+        mark_compress_outcome(result)
 
     @staticmethod
     def _ensure_pid_dir() -> str:

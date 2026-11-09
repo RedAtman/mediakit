@@ -9,11 +9,11 @@ from typing import Any
 from config import CONFIG
 from folder import Folder, make_media
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
-from src.schemas import StateChoices
 from utils import file, response
 from utils.command import CommandExecutor
 from utils.throttle import CPULimiterCoordinator
 
+from .callbacks import mark_compress_outcome
 from .media import compress as media_compress
 
 # Global CPU throttling coordinator
@@ -114,25 +114,7 @@ def _callback(future: Future, *args, **kwargs):
     if media is None:
         logger.error("_callback: result.data.get('media') returned None, data=%s", result.data)
         return
-    if result == 0:
-        logger.debug('_callback: SUCCESS path, setting state to finished=2, media.model=%s', media.model)
-        try:
-            update_result = media.model.update_state('compress', StateChoices.finished)
-            logger.debug('_callback: update_state(finished) returned %s', update_result)
-        except Exception as exc:
-            logger.error('_callback: update_state(finished) raised %s: %s', type(exc).__name__, exc)
-        try:
-            file.soft_remove(media.path)
-            logger.debug('_callback: soft_remove completed for %s', media.path)
-        except Exception as exc:
-            logger.error('_callback: soft_remove(%s) raised %s: %s', media.path, type(exc).__name__, exc)
-    else:
-        logger.debug('_callback: FAILURE path (result=%s), setting state to failed=-2', result)
-        try:
-            update_result = media.model.update_state('compress', StateChoices.failed)
-            logger.debug('_callback: update_state(failed) returned %s', update_result)
-        except Exception as exc:
-            logger.error('_callback: update_state(failed) raised %s: %s', type(exc).__name__, exc)
+    mark_compress_outcome(result)
 
 
 def _compress(*args, ctx: Context, medias: list = [], **kwargs):
