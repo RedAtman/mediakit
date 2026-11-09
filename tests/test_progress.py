@@ -1,7 +1,7 @@
 import logging
 from unittest import TestCase, mock
 
-from utils.progress import MediaStateProgress
+from src.progress import MediaStateProgress
 
 logger = logging.getLogger()
 

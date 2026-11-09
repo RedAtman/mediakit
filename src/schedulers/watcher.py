@@ -14,85 +14,15 @@ from watchdog.observers import Observer
 from config import CONFIG
 from folder import Folder, make_media
 from src.file.debounce import DebounceBuffer
+from src.file.paths import collapse_nested, find_folder_file, parse_folder_file
 from src.file.stability import FileStabilityTracker
-from src.schemas import StateChoices
-from utils import exceptions, file, response
+from utils import exceptions, response
 
+from .callbacks import mark_compress_outcome
 from .media import COMPRESS_OPTS
 from .media import compress as media_compress
 
 logger = logging.getLogger()
-
-
-def _parse_folder_file(filepath: str) -> list[str]:
-    """One path per line, '#' comments and blank lines skipped.
-
-    路径会规范化 (~ 展开、去掉 tailing slash、折叠 ./ 和 //) 并去重:
-    watch 模式下每个条目在 watchdog 里都是一个独立的 FSEvents emitter 线程,
-    重复条目等于白烧一个线程和一条流.
-    """
-    text = Path(filepath).read_text(encoding='utf-8')
-    paths: list[str] = []
-    seen: set[str] = set()
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#'):
-            continue
-        normalized = os.path.normpath(os.path.expanduser(stripped))
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        paths.append(normalized)
-    return paths
-
-
-def _collapse_nested(paths: list[str]) -> list[str]:
-    """丢掉已被其他条目覆盖的子目录.
-
-    仅在 recursive=True 时可用: 非递归 watch 里父目录并不覆盖子目录.
-    保持原有顺序, 便于日志与 _watched_paths 对比.
-    """
-    kept: list[str] = []
-    for path in paths:
-        prefix = path.rstrip(os.sep) + os.sep
-        if any(other != path and prefix.startswith(other.rstrip(os.sep) + os.sep) for other in paths):
-            continue
-        kept.append(path)
-    return kept
-
-
-def _find_watch_folder_file() -> str | None:
-    """Search for var/folder.sh: env var → cwd & parent dirs → tool source parent."""
-    # 1. Env var override
-    env_path = os.getenv('WATCH_FOLDER_FILE')
-    if env_path:
-        env_path = env_path.strip().strip('\'"')
-        if os.path.isfile(env_path):
-            return env_path
-    # 2. Walk up from cwd
-    start = os.path.abspath(os.getcwd())
-    current = start
-    while True:
-        candidate = os.path.join(current, 'var', 'folder.sh')
-        if os.path.isfile(candidate):
-            return candidate
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-    # 3. Walk up from tool's config.py location (covers uv tool install from project root)
-    import config as _cfg_mod
-
-    current = os.path.dirname(os.path.abspath(_cfg_mod.__file__))
-    while True:
-        candidate = os.path.join(current, 'var', 'folder.sh')
-        if os.path.isfile(candidate):
-            return candidate
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-    return None
 
 
 class _WatchEventHandler(FileSystemEventHandler):
@@ -215,23 +145,7 @@ class WatcherScheduler:
                 normalized_media_path = self._normalize_path(media.path)
                 if normalized_media_path != current_path:
                     self._processing_files.discard(normalized_media_path)
-        if result == 0:
-            logger.debug('_batch_callback: SUCCESS, setting state to finished=2')
-            try:
-                media.model.update_state('compress', StateChoices.finished)
-            except Exception as exc:
-                logger.error('_batch_callback: update_state(finished) raised %s: %s', type(exc).__name__, exc)
-            try:
-                file.soft_remove(media.path)
-                logger.debug('_batch_callback: soft_remove completed for %s', media.path)
-            except Exception as exc:
-                logger.error('_batch_callback: soft_remove(%s) raised %s: %s', media.path, type(exc).__name__, exc)
-        else:
-            logger.debug('_batch_callback: FAILURE path (result=%s), setting state to failed=-2', result)
-            try:
-                media.model.update_state('compress', StateChoices.failed)
-            except Exception as exc:
-                logger.error('_batch_callback: update_state(failed) raised %s: %s', type(exc).__name__, exc)
+        mark_compress_outcome(result)
 
     @staticmethod
     def _ensure_pid_dir() -> str:
@@ -256,12 +170,12 @@ class WatcherScheduler:
             logger.info('PID file cleaned up: %s', pid_path)
 
     def _setup_cpu_throttling(self, cpu_limit: int | None):
-        from src.schedulers.folder import _coordinator
+        from src.schedulers.folder import coordinator
 
         if isinstance(cpu_limit, str) and cpu_limit.isdigit():
             cpu_limit = int(cpu_limit)
         if isinstance(cpu_limit, int) and cpu_limit > 0:
-            _coordinator.set_manual_override(cpu_limit)
+            coordinator().set_manual_override(cpu_limit)
 
     def _flush_callback(self, paths: list[str], media_type: str, max_workers: int):
         with self._flush_lock:
@@ -380,7 +294,7 @@ class WatcherScheduler:
         logger.info('Config monitoring: mtime changed %s -> %s', self._config_mtime, current_mtime)
 
         try:
-            raw_paths = _parse_folder_file(self._config_filepath)
+            raw_paths = parse_folder_file(self._config_filepath)
         except Exception as exc:
             logger.warning('Failed to parse config file %s: %s. Keeping current watches.', self._config_filepath, exc)
             return
@@ -485,6 +399,51 @@ class WatcherScheduler:
         self.observer.start()
         logger.info('Watching %d folders (recursive=%s)', len(paths), recursive)
 
+    @staticmethod
+    def _resolve_watch_paths(folder_path: str, folder_file: str | None, recursive: bool):
+        """Resolve --folder-file / -f DIR / default var/folder.sh into watch paths.
+
+        Returns (raw_paths as configured, existing paths to watch, the config file
+        being monitored or None). Kept out of core() because core() is the run loop
+        orchestrator and this is pure input resolution.
+        """
+        config_filepath: str | None = None
+        if folder_file is not None:
+            raw_paths = parse_folder_file(folder_file)
+            config_filepath = folder_file
+        elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
+            watch_file = find_folder_file()
+            if watch_file:
+                logger.debug('Using watch folder file: %s', watch_file)
+                raw_paths = parse_folder_file(watch_file)
+                config_filepath = watch_file
+            else:
+                logger.warning(
+                    'No var/folder.sh found from cwd (%s). '
+                    'Either: (1) cd to project root and re-run, '
+                    '(2) set WATCH_FOLDER_FILE env var, '
+                    '(3) use -f DIR, or (4) use --folder-file FILE.',
+                    os.getcwd(),
+                )
+                raw_paths = [folder_path]
+        else:
+            # 单个 -f DIR 模式, 没有配置文件可监控
+            raw_paths = [folder_path]
+
+        valid_paths = [p for p in raw_paths if os.path.isdir(p)]
+        for p in raw_paths:
+            if p not in valid_paths:
+                logger.warning('Folder path does not exist, skipping: %s', p)
+
+        # 递归 watch 下子目录已被父目录覆盖, 多一条就多一个 emitter 线程与 FSEvents 流
+        if recursive:
+            collapsed = collapse_nested(valid_paths)
+            if len(collapsed) != len(valid_paths):
+                logger.info('Recursive watch: collapsed %d nested path(s)', len(valid_paths) - len(collapsed))
+            valid_paths = collapsed
+
+        return raw_paths, valid_paths, config_filepath
+
     def core(self, **kwargs):
         folder_path = kwargs.get('folder', CONFIG.MEDIA_FILE_FOLDER)
         folder_file = kwargs.get('folder_file', None)
@@ -497,36 +456,7 @@ class WatcherScheduler:
 
         self._setup_cpu_throttling(cpu_limit)
 
-        if folder_file is not None:
-            raw_paths = _parse_folder_file(folder_file)
-        elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
-            watch_file = _find_watch_folder_file()
-            if watch_file:
-                logger.debug('Using watch folder file: %s', watch_file)
-                raw_paths = _parse_folder_file(watch_file)
-            else:
-                logger.warning(
-                    'No var/folder.sh found from cwd (%s). '
-                    'Either: (1) cd to project root and re-run, '
-                    '(2) set WATCH_FOLDER_FILE env var, '
-                    '(3) use -f DIR, or (4) use --folder-file FILE.',
-                    os.getcwd(),
-                )
-                raw_paths = [folder_path]
-        else:
-            raw_paths = [folder_path]
-
-        valid_paths = [p for p in raw_paths if os.path.isdir(p)]
-        for p in raw_paths:
-            if p not in valid_paths:
-                logger.warning('Folder path does not exist, skipping: %s', p)
-
-        # 递归 watch 下子目录已被父目录覆盖, 多一条就多一个 emitter 线程与 FSEvents 流
-        if recursive:
-            collapsed = _collapse_nested(valid_paths)
-            if len(collapsed) != len(valid_paths):
-                logger.info('Recursive watch: collapsed %d nested path(s)', len(valid_paths) - len(collapsed))
-            valid_paths = collapsed
+        raw_paths, valid_paths, config_filepath = self._resolve_watch_paths(folder_path, folder_file, recursive)
 
         # --- State initialization for dynamic config monitoring ---
         self._watched_paths = set(valid_paths)
@@ -536,15 +466,7 @@ class WatcherScheduler:
         self._compress_opts = {key: kwargs[key] for key in COMPRESS_OPTS if kwargs.get(key) is not None}
         # self._action = action  # unused; kept for future extensibility
         self._recursive = recursive
-        # Resolve the config file path being used
-        if folder_file is not None:
-            self._config_filepath = folder_file
-        elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
-            watch_file = _find_watch_folder_file()
-            if watch_file:
-                self._config_filepath = watch_file
-        else:
-            self._config_filepath = None  # single -f DIR mode, no config file to monitor
+        self._config_filepath = config_filepath
         # Initialize mtime if config file exists
         if self._config_filepath and os.path.isfile(self._config_filepath):
             self._config_mtime = os.path.getmtime(self._config_filepath)

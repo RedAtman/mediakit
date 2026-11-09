@@ -8,7 +8,7 @@ import ffmpeg
 from base.media import BaseMedia
 from config import CONFIG
 from src.mixins.transcriber import MixinMediaTranscriber
-from utils import decorator, translator
+from utils import decorator
 from utils.command import CommandExecutor
 from utils.video import VideoResolution
 
@@ -81,6 +81,10 @@ class Video(BaseMedia, MixinMediaTranscriber):
 
                 order_metadata.extend(['-metadata', str(key) + '=' + ','.join(meta_concat)])
                 self.keywords_list.update(meta_concat)
+        # 延迟导入: utils.translator 会拖进 requests (~4MB 边际), 而只有 save_metadata 用到.
+        # watch 守护进程空闲时不该为它付内存; PyInstaller 对函数内 import 同样可见, 不影响打包
+        from utils import translator
+
         keywords_en_list = translator.Translator.translate(self.keywords_list)
         self.keywords_list.update(keywords_en_list)
         self.keywords_list = {i.strip() for i in self.keywords_list}
@@ -238,6 +242,45 @@ class Video(BaseMedia, MixinMediaTranscriber):
         # ])
         return self, command, new_file_path
 
+    # combine() 的滤镜由三段互不相干的关注点组成, 各自返回片段列表; 拼装留在 combine 里.
+    # 之前是边追加边按索引改写 filter_complex[0], 于是"没有 logo 但需要裁剪"会 IndexError,
+    # "没有 logo 但有音频"会把音频滤镜整条覆盖掉, 音频流编号也永远写死成 [2:a].
+
+    def _watermark_filters(self, watermark_transparent: float, video_label: str = 'video') -> list[str]:
+        """logo 缩放/上色/叠加到视频上."""
+        return [
+            # ponytail: 前缀 'atempo=2,' 是历史遗留 (atempo 是音频滤镜), 存在视频链时会被整条替换;
+            # 保留它只为不改动"只加 logo"那一条 ffmpeg 命令
+            f'atempo=2,[1:v][{video_label}]scale2ref=h=ow/mdar:w=iw/9[logo][video]',
+            f'[logo]format=argb,colorchannelmixer=aa={watermark_transparent}[logo]',
+            '[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7',
+        ]
+
+    def _audio_filters(self, fade_duration: float, input_index: int) -> list[str]:
+        """背景音轨淡入/淡出并抬 12dB.
+
+        input_index 由额外输入决定: 源视频固定是 0, logo 占 1, 音频排在它们之后.
+        """
+        duration = float(self.duration)
+        return [
+            f'[{input_index}:a]afade=t=in:st=0:d={fade_duration}'
+            f',afade=t=out:st={duration - 1}:d={fade_duration}'
+            ',volume=12dB'
+        ]
+
+    def _video_filters(self, crop: Optional[str], crop_y: int, reverse: bool) -> list[str]:
+        """裁剪与反转; 顺序敏感, 先缩放并裁到目标尺寸, 再考虑反转."""
+        steps: list[str] = []
+        resolution_mapper = {'1080p': [1920, 1080], '4k': [4096, 2160]}
+        resolution = resolution_mapper.get(crop) if crop else None
+        if resolution:
+            # crop=width:height:x:y, x:y 是裁剪区左上角; 先把宽度归一到 4096 再裁
+            ret = resolution + [0, crop_y]
+            steps.append(f'scale=4096:-1[video_step_zero];[video_step_zero]crop={":".join(map(str, ret))}')
+        if reverse:
+            steps.append('reverse')
+        return steps
+
     @decorator.timer
     @decorator.execute
     def combine(
@@ -258,124 +301,49 @@ class Video(BaseMedia, MixinMediaTranscriber):
             - 反转视频流
 
         Keyword Arguments:
-            watermark_path {str} -- [logo文件路径] (default: {'/Users/nut/Dropbox/pic/logo/aQuantum/aQuantum_white.png'})
+            watermark_path {str} -- [logo文件路径]
             watermark_transparent {float} -- [logo透明度 范围: 0-1] (default: {0.3})
             audio_path {str} -- [背景音频文件路径] (default: {None})
             audio_defer {int/float} -- [背景音频文件截取处 单位:秒] (default: {0})
             fade_duration {int/float} -- [淡入淡出过度时长 单位:秒] (default: {1})
-            crop {str} -- [视频剪切尺寸 可选: 1080p,4k] (default: {'4k'})
+            crop {str} -- [视频剪切尺寸 可选: 1080p,4k] (default: {'1080p'})
             crop_y {int} -- [视频剪切y轴偏移量] (default: {0})
-            reverse {bool} -- [是否反转视频流 备注: reverse=True时真正开始处理视频流需要消耗一段时间] (default: {False})
-
-        Returns:
-            [type] -- [description]
-                e.g.:
+            reverse {bool} -- [是否反转视频流] (default: {False})
         """
-
         command = self._FFMPEG_PREFIX.copy()
-        filter_complex: List[str] = []
+        # 源视频必须是第一个输入: 滤镜里 [0:v] 指的就是它, logo/音频依次是 1、2
+        command.extend(['-i', self.path])
 
+        # 额外输入的顺序决定滤镜里的流编号: 0=源视频, 1=logo, 2=音频
+        watermark_filters: list[str] = []
         if watermark_path:
             command.extend(['-i', watermark_path])
-            filter_complex.extend(
-                [
-                    """atempo=2,[1:v][0:v]scale2ref=h=ow/mdar:w=iw/9[logo][video]""",
-                    """[logo]format=argb,colorchannelmixer=aa=""" + str(watermark_transparent) + '[logo]',
-                    """[video][logo] overlay=(main_w-w)*0.7:(main_h-h)*0.7""",
-                ]
-            )
+            watermark_filters = self._watermark_filters(watermark_transparent)
+
+        audio_filters: list[str] = []
         if audio_path is not None:
             command.extend(['-ss', str(audio_defer), '-t', str(float(self.duration)), '-i', audio_path])
-            filter_complex.extend(
-                [
-                    # '[0:a]aeval=0:c=same[audio]',
-                    '[2:a]afade=t=in:st=0:d='
-                    + str(fade_duration)
-                    + ',afade=t=out:st='
-                    + str(float(self.duration) - 1)
-                    + ':d='
-                    + str(fade_duration)
-                    + ',volume=12dB'
-                    # '[audio][music]amix=inputs=2:duration=shortest:dropout_transition=2',
-                ]
-            )
+            audio_filters = self._audio_filters(fade_duration, input_index=2 if watermark_filters else 1)
 
-        # vf = []
-        video_step_one: List[str] = []
+        video_steps = self._video_filters(crop, crop_y, reverse)
+        filter_complex: list[str] = []
+        if video_steps:
+            # 视频链必须排在 logo 之前, 且 logo 的输入要换成裁剪后的标签
+            filter_complex.append('[0:v]' + ','.join(video_steps) + '[video_step_one]')
+            if watermark_filters:
+                watermark_filters[0] = '[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]'
+        filter_complex.extend(watermark_filters)
+        filter_complex.extend(audio_filters)
 
-        resolution_mapper = {
-            '1080p': [1920, 1080],
-            '4k': [4096, 2160],
-            # '4k': '4096:2304',
-            # '4k': '4096:2736'
-        }
-        resolution = resolution_mapper.get(crop)
-        if resolution:
-            # 画面裁剪 crop=width:height 或 # crop=width:-1
-            # 画面裁剪 crop=width:height:x:y width:height表示裁剪后的尺寸
-            # x:y表示裁剪区域的左上角坐标
-            # '-vf', 'crop=1920:1080:0:0',
-            # '-vf', 'crop=4096:2160:0:288',
-            # vf.extend(['crop=1920:1080:0:200'])
-            xy = [0, crop_y]
-            ret = resolution + xy
-
-            # video_step_one.append(
-            #     'scale=' + '4096:-1' + '[video_step_zero];[video_step_zero]' + 'crop=' + ':'.join(map(lambda x: str(x), ret)))
-            video_step_one.append(f'scale=4096:-1[video_step_zero];[video_step_zero]crop={":".join(map(str, ret))}')
-
-        if reverse:
-            video_step_one.append('reverse')
-
-        if video_step_one:
-            # print('filter_complex', filter_complex)
-            filter_complex[0] = '[1:v][video_step_one]scale2ref=h=ow/mdar:w=iw/9[logo][video]'
-            filter_complex.insert(0, '[0:v]' + ','.join(video_step_one) + '[video_step_one]')
-
-        # if vf:
-        #     # 反转视频流及相关视频压缩控制（为了兼容apple设备）
-        #     order.extend([
-        #         '-vf', ','.join(vf),
-
-        #         # 视频编码
-        #         '-c:v', 'libx265',
-        #     ])
-        # else:
-        #     # 若无需反转 则对video类型文件直接copy 不重新编码
-        #     order.extend([
-        #         '-c:v', 'copy',
-        #         # '-c:v', 'libx265',
-        #         # '-c', 'copy',
-        #     ])
-
-        command.extend(
-            [
-                '-filter_complex',
-                ';'.join(filter_complex),
-                # 时长取最短的media
-                # '-shortest',
-            ]
-        )
+        if filter_complex:
+            command.extend(['-filter_complex', ';'.join(filter_complex)])
 
         new_file_path = self.get_output_path(suffix='combine')
         command.extend(
             [
-                # 长宽比约束
-                # '-aspect', '16:9',
-                # '-pix_fmt', 'yuv420p10le',
-                # '-threads', '0',
-                # '-tag:v', 'hvc1',
+                # 视频质量 1-51, crf=8 接近视觉无损; 之后四项是 BT.2020 色彩标记
                 '-x265-params',
-                # 视频质量范围（1-51） 8为Ultra Hight 22为Low
                 'crf=8',
-                # 禁掉源文件中的音频
-                # '-an',
-                # '-metadata','creation_time="2020-08-11T21:30:32"',
-                # 颜色
-                # 最高参数 似乎一样
-                # '-color_primaries', '22',
-                # '-colorspace', '11',
-                # '-color_trc', '18',
                 '-color_primaries',
                 '9',
                 '-colorspace',
@@ -384,12 +352,6 @@ class Video(BaseMedia, MixinMediaTranscriber):
                 '14',
                 '-color_range',
                 '2',
-                # 视频码率
-                # '-b:v', '4000k',
-                # 视频速度调整
-                # '-vf', "setpts=0.5*PTS",
-                # 对音频速度调整限制在0.5 到 2.0 之间（即半速或倍速）
-                # '-af', "atempo=2.0",
                 new_file_path,
             ]
         )

@@ -2,6 +2,7 @@ import logging
 import unittest
 
 from config import CONFIG
+from src import models
 from utils.db import _sqlalchemy
 
 logger = logging.getLogger()
@@ -10,7 +11,7 @@ logger = logging.getLogger()
 class EngineTest(unittest.TestCase):
     def setUp(self):
         # self.engine = _sqlmodel.Engine(CONFIG.SQLITE_DATABASE)
-        self.engine = _sqlalchemy.Engine(CONFIG.SQLITE_DATABASE)
+        self.engine = _sqlalchemy.Engine(CONFIG.SQLITE_DATABASE, metadata=models.Base.metadata)
 
     def test_create_db_tables(self):
         result = self.engine.create_db_and_tables()

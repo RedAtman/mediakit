@@ -9,16 +9,27 @@ from typing import Any
 from config import CONFIG
 from folder import Folder, make_media
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
-from src.schemas import StateChoices
 from utils import file, response
+from utils.cli import ACTIONS
 from utils.command import CommandExecutor
 from utils.throttle import CPULimiterCoordinator
 
+from .callbacks import mark_compress_outcome
 from .media import compress as media_compress
 
-# Global CPU throttling coordinator
-_coordinator = CPULimiterCoordinator(default_limit=CONFIG.CPU_LIMIT, auto_mode=True)
-CommandExecutor.coordinator = _coordinator
+# CPU 节流协调器是懒建的: import 这个模块不该起监控线程 (真跑任务链时 _config 会先调
+# coordinator()). 之前 import 即创建 + 直接改 CommandExecutor 的类属性, 等于让导入
+# 时机决定一个后台线程和一个跨层全局状态的生命周期.
+_coordinator: CPULimiterCoordinator | None = None
+
+
+def coordinator() -> CPULimiterCoordinator:
+    """Return the process-wide CPU throttling coordinator, creating it on first use."""
+    global _coordinator
+    if _coordinator is None:
+        _coordinator = CPULimiterCoordinator(default_limit=CONFIG.CPU_LIMIT, auto_mode=True)
+        CommandExecutor.coordinator = _coordinator
+    return _coordinator
 
 
 __all__ = [
@@ -55,7 +66,7 @@ def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
     if isinstance(cpu_limit, str) and cpu_limit.isdigit():
         cpu_limit = int(cpu_limit)
     if isinstance(cpu_limit, int) and cpu_limit > 0:
-        _coordinator.set_manual_override(cpu_limit)
+        coordinator().set_manual_override(cpu_limit)
     logger.debug(CONFIG.CPU_LIMIT)
     return ctx.next(*args, **kwargs)
 
@@ -114,25 +125,7 @@ def _callback(future: Future, *args, **kwargs):
     if media is None:
         logger.error("_callback: result.data.get('media') returned None, data=%s", result.data)
         return
-    if result == 0:
-        logger.debug('_callback: SUCCESS path, setting state to finished=2, media.model=%s', media.model)
-        try:
-            update_result = media.model.update_state('compress', StateChoices.finished)
-            logger.debug('_callback: update_state(finished) returned %s', update_result)
-        except Exception as exc:
-            logger.error('_callback: update_state(finished) raised %s: %s', type(exc).__name__, exc)
-        try:
-            file.soft_remove(media.path)
-            logger.debug('_callback: soft_remove completed for %s', media.path)
-        except Exception as exc:
-            logger.error('_callback: soft_remove(%s) raised %s: %s', media.path, type(exc).__name__, exc)
-    else:
-        logger.debug('_callback: FAILURE path (result=%s), setting state to failed=-2', result)
-        try:
-            update_result = media.model.update_state('compress', StateChoices.failed)
-            logger.debug('_callback: update_state(failed) returned %s', update_result)
-        except Exception as exc:
-            logger.error('_callback: update_state(failed) raised %s: %s', type(exc).__name__, exc)
+    mark_compress_outcome(result)
 
 
 def _compress(*args, ctx: Context, medias: list = [], **kwargs):
@@ -271,3 +264,12 @@ dedupe = _scheduler(lambda **kwargs: _dedupe_func(**kwargs))
 if __name__ == '__main__':
     result = getattr(compress, 'core')(folder=CONFIG.MEDIA_FILE_FOLDER, type='video', worker=1)
     logger.info(result)
+
+
+# getattr 派发把 action 名变成了静态分析看不见的裸字符串 (打包时还得手工补
+# hiddenimports). 这里在 import 期就把名字绑成对象, 缺一个立刻 KeyError.
+SCHEDULERS: dict[str, MiddlewareScheduler] = {name: globals()[name] for name in __all__}
+
+_missing = sorted(set(ACTIONS) - set(SCHEDULERS))
+if _missing:
+    raise RuntimeError(f'CLI actions without a scheduler: {_missing}')

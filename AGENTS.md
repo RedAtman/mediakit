@@ -17,7 +17,7 @@ mediakit/
 ├── utils/        # Shared utilities: command, db, logger, process, media
 │   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 │   └── media_types.json  # Extension→category mapping (data-driven)
-├── tests/        # pytest suite (flat, 21 files)
+├── tests/        # pytest suite (flat, 26 files)
 ├── cli.py          # Entry point (shebang + [project.scripts] → mediakit)
 ├── folder.py       # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py       # Environment config with side-effect imports (sys.path, logging init, find_dotenv)
@@ -30,13 +30,13 @@ mediakit/
 | Task                      | Location                                     | Notes                                                                                                            |
 | ------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | CLI entry                 | `cli.py`                                     | Entry point (`mediakit` via `[project.scripts]`), parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
-| Media operations          | `base/video.py` (777L), `base/audio.py`      | FFmpeg wrapper methods                                                                                           |
+| Media operations          | `base/video.py` (558L), `base/audio.py`      | FFmpeg wrapper methods                                                                                           |
 | Folder batch ops          | `folder.py` + `base/folder.py`               | `Folder` class with DB mixin                                                                                     |
 | DB models                 | `src/models/media.py`                        | SQLAlchemy model (single source)                                                                                 |
 | State machine             | `src/schemas.py`                             | Pydantic State model (-2 failed → 2 finished)                                                                    |
 | DB engine                 | `src/db.py`                                  | Injectable engine via `get_engine(engine=None)`                                                                  |
 | Scheduler dispatcher      | `src/schedulers/folder.py`                   | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop)                                        |
-| Watcher scheduler         | `src/schedulers/watcher.py` (360L)           | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + _batch_callback                                   |
+| Watcher scheduler         | `src/schedulers/watcher.py` (514L)           | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + callbacks.mark_compress_outcome                  |
 | Dedupe                    | `src/schedulers/dedupe.py`                   | md5-based dedup: scans watched folders, moves duplicate media copies to macOS Trash (dry-run by default)          |
 | Middleware pattern        | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it                     |
 | Config                    | `config.py`                                  | Environment subclass pattern (Development/Testing/Production)                                                    |
@@ -69,6 +69,7 @@ mediakit/
 - **Do NOT call ctx.next() inside core functions** — causes infinite loop in MiddlewareScheduler
 - **Do NOT import src/ from utils/** — `utils/progress.py` imports `src.models` which creates fragile layer coupling
 - **Do NOT extend config.py import graph** — already has side effects (sys.path insert, logging init)
+- **Do NOT collapse the watch list to ancestor roots** — each configured folder is an independent unit of identity: `_path_to_watch` maps one watch per configured path, config reload diffs `to_add`/`to_remove` per path and `unschedule`s exactly the removed one, and `_feed_existing(path)` builds one `Folder(path)` per configured dir. Watching a common ancestor recursively (e.g. two roots for a 224-entry list) would delete 100+ watches from one config line change and would start processing subdirectories nobody configured. `collapse_nested` is therefore applied only when `recursive=True`, where a parent genuinely covers its children
 - **Do NOT put config validation at class body** — `utils/translator.py` originally raised ValueError at import time; use `@classmethod _require_config()` called at runtime instead
 
 ## UNIQUE STYLES
@@ -80,8 +81,24 @@ mediakit/
 - **Lazy config validation**: `utils/translator.py` defers Baidu Translate credential checks to `_require_config()` called inside `translate()` — avoids import-time crashes when env vars are missing
 - **Progress bar: tqdm with TTY detection**: `TqdmProgress` in `utils/progress.py` auto-detects TTY: uses `sys.stdout` + `dynamic_ncols` for interactive terminals, `sys.stderr` + `ascii=True` for daemon/watch mode (non-TTY, log-friendly)
 - **FFmpeg progress pipe**: `base/video.py` passes `-progress pipe:1 -nostats` to ffmpeg — sends machine-readable progress to stdout (unbuffered), parsed by `FfmpegCurrentFrameStdoutParser` in `utils/process/parser.py`
-- **Callback failure handling**: Both `_callback` (`src/schedulers/folder.py`) and `_batch_callback` (`src/schedulers/watcher.py`) check `result.data.get("media")` and `result == 0` against `response.Result` objects — success sets `StateChoices.finished(2)`, failure sets `StateChoices.failed(-2)`
-- **Watcher folder file fallback**: `_find_watch_folder_file()` in `src/schedulers/watcher.py` resolves `var/folder.sh` via: (1) `WATCH_FOLDER_FILE` env var, (2) parent-dir walk from cwd, (3) parent-dir walk from config.py source location
+- **Callback failure handling**: `src/schedulers/callbacks.py::mark_compress_outcome` is the ONLY place that turns a finished compress task into DB state — `result == 0` sets `StateChoices.finished(2)` + `soft_remove`, otherwise `StateChoices.failed(-2)`. Both `_callback` (folder) and `_batch_callback` (watcher) call it and keep only their own bookkeeping; do not re-implement the state decision in either
+- **Result contract**: the watcher feeds tasks through `media_compress.core` (not `Folder.run__`) precisely so results arrive as `response.Result`; `Folder.run__` returns plain dicts and would silently skip every state update
+- **Watcher folder file fallback**: `src/file/paths.py::find_folder_file()` resolves `var/folder.sh` via: (1) `WATCH_FOLDER_FILE` env var, (2) parent-dir walk from cwd, (3) parent-dir walk from config.py source location. `parse_folder_file()` (expanduser + normpath + de-dup) and `collapse_nested()` live in the same module so watcher and dedupe share one parser
+
+## WATCHER INVARIANTS
+
+Watch mode is the only long-lived process in the project, so these values are observable
+behaviour rather than tuning knobs — changing one changes what a user sees. They used to
+live only in a 975-line implementation plan; keep them here instead.
+
+| Knob | Value | Observable consequence |
+| --- | --- | --- |
+| `DebounceBuffer(calm_period=)` | 5.0 s | a burst of writes is flushed once, 5 s after the last event |
+| `DebounceBuffer(max_flush_interval=)` | 60.0 s | a file that never stops being written is still flushed after 60 s |
+| `FileStabilityTracker(sample_interval=, stable_samples=, timeout=)` | 1.0 s / 3 / 30 s | a file is processed only after size+mtime stop changing for 3 samples; it is given up on after 30 s |
+| config mtime poll | 5.0 s | editing the folder file adds/removes watched dirs without a restart |
+| pid file | `~/.mediakit/daemon.pid` | written on start, removed on graceful exit, read by `mediakit stop` |
+| FSEvents emitter | one per watched path: ~33 KB (thread stack) plus one kernel stream | 224 paths ≈ 8 MB, 227 threads, ~2100 fds — measured, not estimated. Scheduling costs ~95 ms per stream and cannot be parallelised (macOS serialises stream creation): 224 paths ≈ 23 s before the daemon is fully watching. De-dupe/normalize the list (`src/file/paths.py`); treat a 4-digit path count as a bug |
 
 ## COMMANDS
 

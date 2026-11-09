@@ -11,12 +11,13 @@ from typing import List, Optional, Type
 
 from config import CONFIG
 from src import models
+from src.progress import MediaStateProgress
 from utils import exceptions
 from utils.command import CommandExecutor, ProgressMonitor
 from utils.file import calculate_md5
-from utils.media import guess
+from utils.media import MEDIA_CATEGORIES, guess
 from utils.process.parser import FfmpegCurrentFrameStdoutParser
-from utils.progress import BaseProgress, MediaStateProgress, TqdmProgress
+from utils.progress import BaseProgress, TqdmProgress
 
 logger = logging.getLogger()
 
@@ -26,7 +27,7 @@ __all__ = ['BaseMedia']
 class BaseMedia:
     """Base media class."""
 
-    _INCLUDE_TYPE = ['image', 'audio', 'video']
+    _INCLUDE_TYPE = MEDIA_CATEGORIES
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
 

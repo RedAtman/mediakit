@@ -3,7 +3,9 @@ import logging
 import os
 from typing import Any, Callable, Optional
 
-BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Display prefix stripped from record.pathname, NOT the state dir config.py exports as
+# BASE_DIR. Same name, different meaning - kept apart on purpose.
+_PROJECT_ROOT: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # class _ColorfulFormatter(logging.Formatter):
@@ -29,7 +31,7 @@ BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 class RelativePathFormatter(logging.Formatter):
     def format(self, record) -> str:
-        record.relpath = record.pathname.replace(f'{BASE_DIR}/', '', 1)
+        record.relpath = record.pathname.replace(f'{_PROJECT_ROOT}/', '', 1)
         return super().format(record)
 
 

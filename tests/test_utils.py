@@ -33,3 +33,52 @@ class TestUtils(TestCase):
 
 if __name__ == '__main__':
     main(verbosity=2)
+
+
+class TestMediaCategories(TestCase):
+    """媒体类型清单必须只有一份真相 (utils/media.py), 其余模块引用它."""
+
+    def test_every_processable_category_exists_in_the_registry(self):
+        import json
+        import pathlib
+
+        from utils.media import MEDIA_CATEGORIES
+
+        registry = json.loads((pathlib.Path('utils') / 'media_types.json').read_text())
+        for category in MEDIA_CATEGORIES:
+            self.assertIn(category, registry, f'{category} 没有扩展名映射, guess() 永远猜不出来')
+
+    def test_base_and_dedupe_share_the_single_list(self):
+        from base.media import BaseMedia
+        from src.schedulers.dedupe import MEDIA_CATEGORIES
+
+        self.assertEqual(set(BaseMedia._INCLUDE_TYPE), set(MEDIA_CATEGORIES))
+
+
+class TestLogLevelNormalization(TestCase):
+    """LOG_LEVEL=info 这种小写写法不能让程序在 import 期崩掉."""
+
+    def _resolve(self, value):
+        import os
+        import subprocess
+        import sys
+
+        env = dict(os.environ, LOG_LEVEL=value)
+        # 子进程: 级别在 import 期就被 dictConfig 消费掉了
+        out = subprocess.run(
+            [sys.executable, '-c', 'from utils.logger.init import LOG_LEVEL; print(LOG_LEVEL)'],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout.strip()
+
+    def test_lowercase_is_accepted(self):
+        self.assertEqual(self._resolve('info'), 'INFO')
+
+    def test_numeric_is_accepted(self):
+        self.assertEqual(self._resolve('20'), 'INFO')
+
+    def test_unknown_falls_back_to_warning(self):
+        self.assertEqual(self._resolve('chatty'), 'WARNING')

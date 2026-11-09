@@ -79,8 +79,8 @@ jobs:
             asset: mediakit-macos-arm64
           # PyInstaller cannot cross-build a wheel-architecture mismatch, so Intel
           # macOS needs an Intel runner. macos-13 (the old label) was retired, and
-          # a dead label queues forever - which also strands `homebrew`, since it
-          # needs every leg of `binary` to finish.
+          # a dead label queues forever - which would leave a platform's asset
+          # missing, so the tap's daily bump fails on the download.
           - target: macos-x86_64
             runner: macos-15-intel
             asset: mediakit-macos-x86_64
@@ -124,92 +124,15 @@ jobs:
           files: asset/${{ matrix.asset }}
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
 
-  homebrew:
-    name: Update Homebrew tap formula
-    # After the binary legs: this job hashes the assets they uploaded.
+  notify-tap:
+    name: Signal the Homebrew tap to bump
+    # After every binary leg, so the assets the tap hashes already exist.
     needs: [binary]
     runs-on: ubuntu-latest
-    env:
-      GH_REPO: ${{ github.repository }}
-      GH_TAG: ${{ github.ref_name }}
-      TAP_REPO: RedAtman/homebrew-tap
     steps:
-      - name: Download release artifacts
-        run: |
-          mkdir -p artifacts
-          for asset in mediakit-macos-arm64 mediakit-macos-x86_64 mediakit-linux-x86_64; do
-            echo "Downloading $asset..."
-            gh release download "$GH_TAG" \
-              --repo "$GH_REPO" \
-              --pattern "$asset" \
-              --dir artifacts
-          done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Generate formula
-        run: |
-          SHA256_MACOS_ARM64=$(sha256sum artifacts/mediakit-macos-arm64 | cut -d' ' -f1)
-          SHA256_MACOS_X86_64=$(sha256sum artifacts/mediakit-macos-x86_64 | cut -d' ' -f1)
-          SHA256_LINUX_X86_64=$(sha256sum artifacts/mediakit-linux-x86_64 | cut -d' ' -f1)
-          cat > formula.rb << FORMULA
-          class Mediakit < Formula
-            desc "Python CLI tool for batch media operations"
-            homepage "https://github.com/$GH_REPO"
-            license "MIT"
-
-            depends_on "ffmpeg"
-
-            on_macos do
-              on_arm do
-                url "https://github.com/$GH_REPO/releases/download/$GH_TAG/mediakit-macos-arm64"
-                sha256 "$SHA256_MACOS_ARM64"
-
-                def install
-                  bin.install "mediakit-macos-arm64" => "mediakit"
-                end
-              end
-              on_intel do
-                url "https://github.com/$GH_REPO/releases/download/$GH_TAG/mediakit-macos-x86_64"
-                sha256 "$SHA256_MACOS_X86_64"
-
-                def install
-                  bin.install "mediakit-macos-x86_64" => "mediakit"
-                end
-              end
-            end
-
-            on_linux do
-              url "https://github.com/$GH_REPO/releases/download/$GH_TAG/mediakit-linux-x86_64"
-              sha256 "$SHA256_LINUX_X86_64"
-
-              def install
-                bin.install "mediakit-linux-x86_64" => "mediakit"
-              end
-            end
-
-            test do
-              system "#{bin}/mediakit", "-v"
-            end
-          end
-          FORMULA
-          CONTENT=$(base64 -w0 formula.rb)
-          echo "FORMULA_CONTENT=$CONTENT" >> $GITHUB_ENV
-      - name: Get current file SHA
-        id: get_sha
-        run: |
-          SHA=$(gh api repos/$TAP_REPO/contents/Formula/mediakit.rb \
-            --jq '.sha' 2>/dev/null || echo "")
-          echo "CURRENT_SHA=$SHA" >> $GITHUB_ENV
+      # Signal only: the tap owns its formulae and pulls the release itself,
+      # so no asset checksum or formula text is written from here.
+      - name: Dispatch a formula bump
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-      - name: Push formula to tap repo
-        run: |
-          jq -n \
-            --arg msg "chore: update mediakit formula for $GH_TAG" \
-            --arg content "$FORMULA_CONTENT" \
-            --arg sha "$CURRENT_SHA" \
-            '{message: $msg, content: $content, sha: $sha}' > payload.json
-          gh api -X PUT repos/$TAP_REPO/contents/Formula/mediakit.rb \
-            --input payload.json
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: gh api -X POST repos/RedAtman/homebrew-tap/dispatches -f event_type=formula-bump

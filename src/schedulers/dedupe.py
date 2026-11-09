@@ -15,13 +15,11 @@ from pathlib import Path
 import sqlite3
 import subprocess
 
-from src.schedulers.watcher import _parse_folder_file
+from src.file.paths import find_folder_file, parse_folder_file
 from utils.file import calculate_md5
-from utils.media import guess
+from utils.media import MEDIA_CATEGORIES, guess
 
 logger = logging.getLogger()
-
-MEDIA_CATEGORIES = ('video', 'audio', 'image')
 
 __all__ = ['dedupe']
 
@@ -33,7 +31,7 @@ def _send_to_trash(path: str) -> None:
 
 def _collect_duplicates(folder_file: str, db_path: str) -> list[tuple[str, list[str]]]:
     """Return [(kept_path, [duplicate_paths])] for media files sharing an md5."""
-    dirs = [d for d in _parse_folder_file(folder_file) if os.path.isdir(d)]
+    dirs = [d for d in parse_folder_file(folder_file) if os.path.isdir(d)]
     by_md5: dict[str, list[str]] = {}
     for d in dirs:
         try:
@@ -79,7 +77,7 @@ def dedupe(**kwargs) -> None:
         db: Path to the media database (default: ./db.db).
         apply: When truthy, move duplicates to Trash; otherwise dry-run.
     """
-    folder_file = kwargs.get('folder_file') or str(Path('var/folder.sh'))
+    folder_file = kwargs.get('folder_file') or find_folder_file() or str(Path('var/folder.sh'))
     db_path = os.path.abspath(kwargs.get('db') or 'db.db')
     apply = bool(kwargs.get('apply'))
     duplicates = _collect_duplicates(folder_file, db_path)

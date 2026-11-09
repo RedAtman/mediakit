@@ -1,11 +1,12 @@
+from contextlib import contextmanager
 from datetime import datetime
 import logging
-from typing import Union, Unpack
+from typing import Generator, Union, Unpack
 
 from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import Session, declarative_base
 
 from src import db, schemas
 from src.models._type import MediaParams
@@ -16,6 +17,20 @@ logger = logging.getLogger()
 __all__ = ['Base', 'Media']
 
 Base = declarative_base()
+
+
+@contextmanager
+def _session() -> Generator[Session, None, None]:
+    """The engine's session with this model's metadata attached.
+
+    Engine 现在不 import 具体模型, 所以元数据由模型侧补齐; 放在这里是因为
+    Media 的四个读写方法都需要, 重复四遍只会漂移.
+    """
+    engine = db.DatabaseEngine.engine()
+    if engine.metadata is None:
+        engine.metadata = Base.metadata
+    with engine.get_session() as session:
+        yield session
 
 
 class Media(Base):
@@ -33,42 +48,18 @@ class Media(Base):
         """Make created_at read-only"""
         return self._created_at
 
-    # @created_at.setter
-    # def created_at(self, value):
-    #     self._created_at = value
-
     __tablename__ = 'media'
-    # @classmethod
-    # def __tablename__(cls):
-    #     return 'media'
 
     __table_args__ = (
         # UniqueConstraint('id', 'name', name='uix_id_name'),
         # Index('ix_id_name', 'name', 'email'),
     )
 
-    # def __repr__(self):
-    #     return f"<Media(md5={self.md5}, title={self.title}, dirname={self.dirname}, created_at={self.created_at}, updated_at={self.updated_at}, state={self.state})>"
-
     def __str__(self) -> str:
         return f'<{self.__class__.__name__}({self.__dict__})>'
 
-    # def model_dump(self):
-    #     return {
-    #         'md5': self.md5,
-    #         'title': self.title,
-    #         'dirname': self.dirname,
-    #         'created_at': self.created_at,
-    #         'updated_at': self.updated_at,
-    #         'state': self.state,
-    #     }
-
     # def model_dump_json(self):
     #     return schemas.Media(**self.model_dump()).json()
-
-    # TODO: untested
-    # def as_dict(self):
-    #     return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
     @property
     def path(self):
@@ -76,37 +67,9 @@ class Media(Base):
             return f'{self.dirname}/{self.title}.{self.ext}'
         return f'{self.dirname}/{self.title}'
 
-    # @hybrid_property
-    # def compress(self) -> Any:
-    #     return self.state.get('compress')
-
-    # @compress.setter
-    # def compress(self, value):
-    #     self.state['compress'] = value
-
-    # @compress.expression
-    # def compress(cls):
-    #     return func.json_extract(cls.state, '$.compress')
-
-    # @compress.update_expression
-    # def compress(cls, value):
-    #     return [
-    #         (cls.state, func.json_set(cls.state, '$.compress', value))
-    #     ]
-
-    # @validates('state')
-    # def validate_state(cls, key: str, state: dict):
-    #     # logger.info(('key', key, state, set(schemas.State.model_fields.keys())))
-    #     # invalid_keys = set(state.keys()) - set(schemas.State.model_fields.keys())
-    #     # if invalid_keys:
-    #     #     raise TypeError(f"Field state does not allow keys: {invalid_keys}")
-    #     logger.debug(('validate_state', key, state, type(state), schemas.State(**state).model_dump()))
-    #     state = schemas.State(**state).model_dump()
-    #     return state
-
     @classmethod
     def get(cls, **kwargs: Unpack[MediaParams]):
-        with db.DatabaseEngine.engine().get_session() as session:
+        with _session() as session:
             instance = session.query(cls).filter_by(**kwargs).first()
             return instance
 
@@ -115,12 +78,9 @@ class Media(Base):
         md5 = kwargs.get('md5')
         if not md5:
             raise ValueError('md5 is required for get_or_create')
-        with db.DatabaseEngine.engine().get_session() as session:
+        with _session() as session:
             instance = session.query(cls).filter_by(md5=md5).first()
             if instance:
-                # If already successfully processed, keep it untouched: no title/dirname
-                # sync and no updated_at bump. Files with identical md5 (duplicate
-                # downloads) would otherwise flip title/updated_at on every scan.
                 if instance.state.get('compress') == schemas.StateChoices.finished:
                     return instance
                 changed = False
@@ -146,7 +106,7 @@ class Media(Base):
         logger.debug(
             'update_state: key=%s, val=%s (type=%s), current self.state=%s', key, val, type(val).__name__, self.state
         )
-        with db.DatabaseEngine.engine().get_session() as session:
+        with _session() as session:
             state: dict = self.state.copy()  # type: ignore
             state[key] = val
             new_state = schemas.State(**state).model_dump()
@@ -158,7 +118,7 @@ class Media(Base):
             return response.Result(code=0, data={'media': self})
 
     def delete(self):
-        with db.DatabaseEngine.engine().get_session() as session:
+        with _session() as session:
             session.delete(self)
             session.commit()
             return response.Result(code=0, data={'media': self})

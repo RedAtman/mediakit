@@ -1,6 +1,7 @@
 from functools import cache
 
 from config import CONFIG
+from src import models
 from utils.db import _sqlalchemy, base
 
 __all__ = ['DatabaseEngine']
@@ -12,7 +13,7 @@ class DatabaseEngine:
     @classmethod
     @cache
     def engine(cls) -> base.BaseEngine:
-        engine = cls._DB_ENGINE_CLS(CONFIG.SQLITE_DATABASE)
+        engine = cls._DB_ENGINE_CLS(CONFIG.SQLITE_DATABASE, metadata=models.Base.metadata)
         engine.create_db_and_tables()
         return engine
 

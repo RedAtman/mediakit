@@ -1,5 +1,4 @@
 import functools
-from importlib import import_module
 import json
 import logging
 import os
@@ -7,8 +6,10 @@ import time
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, Generator, List, Type
 
+from base.audio import Audio
 from base.folder import BaseFolder
 from base.media import BaseMedia
+from base.video import Video
 from config import CONFIG
 from src.mixins.db import SqlAlchemyFolderMixin
 from utils import decorator, exceptions, executor
@@ -16,6 +17,10 @@ from utils.command import CommandExecutor
 from utils.tools import Dict2Obj
 
 logger = logging.getLogger()
+
+# 唯一能把 --type 字符串映射到实现的地方. 换成静态表是因为 import_module(f'base.{media_type}')
+# 让 PyInstaller 之类的静态分析看不见, 只能靠手工维护 hiddenimports
+MEDIA_CLASSES: Dict[str, Type[BaseMedia]] = {'video': Video, 'audio': Audio}
 
 
 def make_media(folder, path):
@@ -35,14 +40,12 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
 
     @staticmethod
     def media_cls(media_type: str = 'video'):
+        # 静态表而不是 import_module(f'base.{media_type}'): --type 是运行期字符串,
+        # 动态导入静态分析看不见, PyInstaller 得手工补 hiddenimports.
         try:
-            module = import_module(f'base.{media_type}')
-        except ModuleNotFoundError:
+            return MEDIA_CLASSES[media_type]
+        except KeyError:
             raise NotImplementedError(f'{media_type} is not in base.')
-        try:
-            return getattr(module, media_type.capitalize())
-        except AttributeError:
-            raise NotImplementedError(f'{media_type.capitalize()} is not in {module}.')
 
     @functools.cached_property
     def medias(self):
@@ -119,8 +122,9 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
         **kwargs: Dict[str, Any],
     ):
         task_manager = executor.TaskManager(max_workers)
-        _ = list(task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs))
-        return [future.result() for future in task_manager.futures]
+        task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
+        # 结果按完成顺序收集, 每个 Future 消费完即释放 (见 TaskManager.results)
+        return list(task_manager.results())
 
     @property
     def meta(self):

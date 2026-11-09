@@ -1,16 +1,35 @@
 import logging
 import logging.config
 import os
-import sys
 
 from . import lexers
 
 ENV = os.getenv('ENV')
+# config.py owns the sys.path insert and exports BASE_DIR as STATE_DIR; this module
+# only reads it, so a second insert here would be a duplicate writer. The fallback
+# keeps the logger usable standalone (tests) - it is the source-checkout root, not
+# the state dir.
 BASE_DIR: str = os.getenv('BASE_DIR', os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
 LOG_DIR: str = os.path.join(BASE_DIR, 'logs')
-LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'WARNING')
+
+
+def _normalize_level(raw: str) -> str:
+    """把用户写的级别归一化成 logging 认的名字.
+
+    logging 的级别名是大小写敏感的, LOG_LEVEL=info 会让 dictConfig 在 import 期抛
+    ValueError('Unable to configure logger'), 整个程序起不来. 数字写法 (20) 也一并支持.
+    注意 ffmpeg 的 -loglevel 只接受小写, 那边由 base/media.py 自己 .lower(), 互不影响.
+    """
+    candidate = raw.strip().upper()
+    names = logging.getLevelNamesMapping()
+    if candidate in names:
+        return candidate
+    if candidate.isdigit() and 0 <= int(candidate) <= logging.CRITICAL:
+        return logging.getLevelName(int(candidate))
+    return 'WARNING'
+
+
+LOG_LEVEL: str = _normalize_level(os.getenv('LOG_LEVEL', 'WARNING'))
 LOG_BACKUP_COUNT: int = int(os.getenv('LOG_BACKUP_COUNT', 5))
 LOG_FORMATTER = 'standard'
 LOG_FILTERS = []

@@ -3,10 +3,6 @@ import re
 import sys
 from typing import IO, Any, Callable, Union
 
-from tqdm import tqdm
-
-from src.models import Media
-
 
 def wrapper_setter(func: Callable) -> Callable:
     @functools.wraps(func)
@@ -164,7 +160,11 @@ class StdoutProgress(BaseProgress):
 
 
 class TqdmProgress(BaseProgress):
+    # 延迟导入: tqdm 只在真正开始处理媒体时才需要, 而 utils.progress 在启动链里
+    # (base/media.py 为了 BaseProgress). 放在 __init__ 里, 首次构造后走 sys.modules
     def __init__(self, total: int, title: str = ''):
+        from tqdm import tqdm
+
         super().__init__(total)
         is_tty = sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else False
         self.pbar = tqdm(
@@ -185,39 +185,3 @@ class TqdmProgress(BaseProgress):
         self.pbar.n = self.total
         self.pbar.refresh()
         self.pbar.close()
-
-
-class MediaStateProgress(BaseProgress):
-    def __init__(self, total: int, model: Media):
-        super().__init__(total)
-        self.model = model
-
-    def __after_percent_step__(self):
-        self.run()
-
-    def run(self):
-        # percent = 当前帧 / 源帧数; 而 compress 会强制 -r 24, 低帧率源(如 10fps 延时)
-        # 的输出帧数会超过分母, 算出 >1 的比值. 这里夹到 [0,1] 而不是让
-        # State.compress (ge=-2, le=2) 抛 ValidationError 把整次压缩弄挂.
-        self.model.update_state('compress', min(self.percent, 1.0))
-
-
-if __name__ == '__main__':
-    import time
-
-    print(StdoutProgress)
-    length = 1000
-    stdout_progress = StdoutProgress(length, fmt=StdoutProgress.FULL)
-    print(stdout_progress)
-    model = Media.get_or_create(**{'md5': 'test', 'title': 'test', 'dirname': 'test'})
-    # print(model.__dict__)
-    media_progress = MediaStateProgress(length, model)
-    # print(media_progress)
-    for i in range(length + 1):
-        # print(i)
-        stdout_progress.current = i
-        media_progress.current = i
-        # print(i)
-        time.sleep(0.1)
-    result = model.delete()
-    print(result)
