@@ -17,7 +17,7 @@ mediakit/
 ├── utils/        # Shared utilities: command, db, logger, process, media
 │   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 │   └── media_types.json  # Extension→category mapping (data-driven)
-├── tests/        # pytest suite (flat, 26 files)
+├── tests/        # pytest suite (flat, no package __init__)
 ├── cli.py          # Entry point (shebang + [project.scripts] → mediakit)
 ├── folder.py       # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py       # Environment config with side-effect imports (sys.path, logging init, find_dotenv)
@@ -30,19 +30,19 @@ mediakit/
 | Task                      | Location                                     | Notes                                                                                                            |
 | ------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | CLI entry                 | `cli.py`                                     | Entry point (`mediakit` via `[project.scripts]`), parser from `utils.cli`, dispatch to `src.schedulers.folder.*` |
-| Media operations          | `base/video.py` (558L), `base/audio.py`      | FFmpeg wrapper methods                                                                                           |
+| Media operations          | `base/video.py`, `base/audio.py`             | FFmpeg wrapper methods                                                                                           |
 | Folder batch ops          | `folder.py` + `base/folder.py`               | `Folder` class with DB mixin                                                                                     |
 | DB models                 | `src/models/media.py`                        | SQLAlchemy model (single source)                                                                                 |
 | State machine             | `src/schemas.py`                             | Pydantic State model (-2 failed → 2 finished)                                                                    |
 | DB engine                 | `src/db.py`                                  | Injectable engine via `get_engine(engine=None)`                                                                  |
 | Scheduler dispatcher      | `src/schedulers/folder.py`                   | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop)                                        |
-| Watcher scheduler         | `src/schedulers/watcher.py` (514L)           | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + callbacks.mark_compress_outcome                  |
+| Watcher scheduler         | `src/schedulers/watcher.py`                  | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + callbacks.mark_compress_outcome                  |
 | Dedupe                    | `src/schedulers/dedupe.py`                   | md5-based dedup: scans watched folders, moves duplicate media copies to macOS Trash (dry-run by default)          |
 | Middleware pattern        | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it                     |
 | Config                    | `config.py`                                  | Environment subclass pattern (Development/Testing/Production)                                                    |
-| CPU throttler coordinator | `utils/throttle/coordinator.py` (241L)       | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution               |
-| CPU throttler process     | `utils/throttle/throttler.py` (154L)         | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller                         |
-| CPU sampling              | `utils/throttle/sampling.py` (233L)          | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat`                                         |
+| CPU throttler coordinator | `utils/throttle/coordinator.py`              | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution               |
+| CPU throttler process     | `utils/throttle/throttler.py`                | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller                         |
+| CPU sampling              | `utils/throttle/sampling.py`                 | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat`                                         |
 | Media type registry       | `utils/media_types.json`                     | Data-driven extension→category mapping loaded by `utils/media.py`                                                |
 | Logging setup             | `utils/logger/init.py`                       | dictConfig with custom filters                                                                                   |
 | Progress bars             | `utils/progress.py`                          | tqdm (stdout TTY / stderr non-TTY) + MediaStateProgress (DB)                                                     |
@@ -157,6 +157,7 @@ launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 ## COMMIT RULES
 
 - **Do NOT commit `docs/`** — All files under `docs/` are excluded from commits (git-ignored); plans and drafts belong in `tmp/`, durable project knowledge belongs in this file
+- **No line counts or file counts in this file** — they rot on the next refactor (the WHERE-TO-LOOK table used to carry them and was wrong within a week). Name the file; if size matters, quote measured behaviour (memory, timing) instead
 - **User docs are `README.md` (canonical, English) + `README_zh.md`** — they are section-for-section mirrors: 29 headings, the same 15 actions, the same 21 options, the same tables. Change one, change the other in the same commit. Numbers that drift (test counts, line counts) do not belong in either
 - **Archive openspec before committing** — `openspec/changes/<name>` must be archived to `openspec/changes/archive/` before any openspec files can be committed
 
