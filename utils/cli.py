@@ -40,28 +40,30 @@ def _fps_arg(value: str) -> int:
     return fps
 
 
-mapper_action = {
-    'all': None,
-    'compress': None,
-    'trim': None,
-    'scale': None,
-    'change_file_extension': None,
-    'convert_format': None,
-    'save_text': None,
-    'combine': None,
-    'reverse': None,
-    'decode': None,
-    'delete_voice': None,
-    'save_metadata': None,
-    'set_metadata': None,
-    'images_to_video': None,
-    'concat': None,
-    'stop': None,
-    'dedupe': None,
-}
+# CLI 认得的所有 action; src/schedulers/folder.py::SCHEDULERS 必须全部实现,
+# 在 import 时校验 (见该模块), 这样加 action 漏改一边会立刻炸而不是跑到一半 AttributeError.
+# 'trim' 没有 scheduler: Folder.trim 需要 trim_times 而 CLI 没有对应参数, 历史上
+# `mediakit trim` 直接 AttributeError. 实现之前不放进 choices, 至少报错是清楚的
+ACTIONS: tuple[str, ...] = (
+    'compress',
+    'scale',
+    'change_file_extension',
+    'convert_format',
+    'save_text',
+    'combine',
+    'reverse',
+    'decode',
+    'delete_voice',
+    'save_metadata',
+    'set_metadata',
+    'images_to_video',
+    'concat',
+    'stop',
+    'dedupe',
+)
 
 
-def create_parser():
+def create_parser(actions: tuple[str, ...] = ACTIONS):
     parser = argparse.ArgumentParser(
         description="""
         MediaKit CLI;
@@ -70,7 +72,7 @@ def create_parser():
             %(prog)s compress -t video -w 2;
         """
     )
-    parser.add_argument('action', type=str, choices=mapper_action.keys(), default='compress', help='Action to run')
+    parser.add_argument('action', type=str, choices=actions, default='compress', help='Action to run')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {_version()}')
     parser.add_argument(
         '-f',
@@ -86,7 +88,11 @@ def create_parser():
         '-c',
         '--cpu-limit',
         type=int,
-        help='CPU limit per worker (100 = one core). When not set, uses auto mode with dynamic throttling. At runtime, send SIGUSR1 to cycle through fixed profiles: unlimited -> 100%% -> 50%% -> 25%% (SIGUSR1 cannot carry a value, so it uses a fixed cycle)',
+        help=(
+            'CPU limit per worker (100 = one core). When not set, uses auto mode with dynamic throttling. '
+            'At runtime, send SIGUSR1 to cycle through fixed profiles: unlimited -> 100%% -> 50%% -> 25%% '
+            '(SIGUSR1 cannot carry a value, so it uses a fixed cycle)'
+        ),
     )
     parser.add_argument('-d', '--daemon', type=bool, default=True, choices=(True, False))
     # parser.add_argument('-d', '--daemon', nargs="?", const=True)

@@ -27,9 +27,14 @@ def main():
 
         scheduler = WatcherScheduler()
     else:
-        from src.schedulers import folder
+        from src.schedulers.folder import SCHEDULERS
 
-        scheduler = getattr(folder, args.action)
+        try:
+            scheduler = SCHEDULERS[args.action]
+        except KeyError:
+            # utils.cli 的词表与实现由 src/schedulers/folder.py 在 import 期校验, 走到这里
+            # 说明 argv 绕过了 argparse 的 choices
+            raise SystemExit(f'unknown action: {args.action}')
     result = getattr(scheduler, 'core')(**args.__dict__)
     logger.info(result)
 

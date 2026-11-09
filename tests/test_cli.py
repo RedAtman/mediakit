@@ -111,9 +111,9 @@ class TestWatchFlag(TestCase):
     def test_watch_works_with_different_actions(self):
         from utils.cli import create_parser
 
-        kwargs = create_parser().parse_args(['trim', '--watch'])
+        kwargs = create_parser().parse_args(['scale', '--watch'])
         self.assertTrue(kwargs.watch)
-        self.assertEqual(kwargs.action, 'trim')
+        self.assertEqual(kwargs.action, 'scale')
 
     def test_watch_folder_file_on_compress(self):
         from utils.cli import create_parser
@@ -132,6 +132,21 @@ if __name__ == '__main__':
     import unittest
 
     unittest.main()
+
+
+class TestActionVocabulary(TestCase):
+    def test_every_cli_action_has_a_scheduler(self):
+        """CLI 词表与实现必须一致; 这条断言就是 trim 那种漂移的守门人."""
+        from src.schedulers.folder import SCHEDULERS
+        from utils.cli import ACTIONS
+
+        self.assertEqual(sorted(set(ACTIONS) - set(SCHEDULERS)), [])
+
+    def test_unknown_action_is_rejected_by_argparse(self):
+        from utils.cli import create_parser
+
+        with self.assertRaises(SystemExit):
+            create_parser().parse_args(['trim'])
 
 
 class TestFrozenStateDir(TestCase):

@@ -10,6 +10,7 @@ from config import CONFIG
 from folder import Folder, make_media
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
 from utils import file, response
+from utils.cli import ACTIONS
 from utils.command import CommandExecutor
 from utils.throttle import CPULimiterCoordinator
 
@@ -253,3 +254,12 @@ dedupe = _scheduler(lambda **kwargs: _dedupe_func(**kwargs))
 if __name__ == '__main__':
     result = getattr(compress, 'core')(folder=CONFIG.MEDIA_FILE_FOLDER, type='video', worker=1)
     logger.info(result)
+
+
+# getattr 派发把 action 名变成了静态分析看不见的裸字符串 (打包时还得手工补
+# hiddenimports). 这里在 import 期就把名字绑成对象, 缺一个立刻 KeyError.
+SCHEDULERS: dict[str, MiddlewareScheduler] = {name: globals()[name] for name in __all__}
+
+_missing = sorted(set(ACTIONS) - set(SCHEDULERS))
+if _missing:
+    raise RuntimeError(f'CLI actions without a scheduler: {_missing}')

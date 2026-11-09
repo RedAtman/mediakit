@@ -27,11 +27,9 @@ hiddenimports = [
     'utils.logger.filters',
     # src/__init__.py: import_module('src.signals')
     'src.signals',
-    # folder.py: import_module(f'base.{media_type}') - media_type comes from the
-    # --type flag at runtime, so the analyser cannot resolve any of these
-    'base.video',
-    'base.audio',
-    'base.image',
+    # base.video/base.audio used to be listed here because folder.py resolved them
+    # with import_module(f'base.{media_type}'); they are now static names in
+    # MEDIA_CLASSES, so the analyser finds them on its own.
 ]
 
 excludes = [
