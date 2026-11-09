@@ -33,3 +33,23 @@ class TestUtils(TestCase):
 
 if __name__ == '__main__':
     main(verbosity=2)
+
+
+class TestMediaCategories(TestCase):
+    """媒体类型清单必须只有一份真相 (utils/media.py), 其余模块引用它."""
+
+    def test_every_processable_category_exists_in_the_registry(self):
+        import json
+        import pathlib
+
+        from utils.media import MEDIA_CATEGORIES
+
+        registry = json.loads((pathlib.Path('utils') / 'media_types.json').read_text())
+        for category in MEDIA_CATEGORIES:
+            self.assertIn(category, registry, f'{category} 没有扩展名映射, guess() 永远猜不出来')
+
+    def test_base_and_dedupe_share_the_single_list(self):
+        from base.media import BaseMedia
+        from src.schedulers.dedupe import MEDIA_CATEGORIES
+
+        self.assertEqual(set(BaseMedia._INCLUDE_TYPE), set(MEDIA_CATEGORIES))

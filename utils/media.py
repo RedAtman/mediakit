@@ -3,9 +3,11 @@ import mimetypes
 import os
 import re
 
-__all__ = ['guess']
+__all__ = ['MEDIA_CATEGORIES', 'guess']
 
-categories = ['video', 'audio', 'archive', 'document', 'software', 'image', 'other']
+# 唯一能落到 base/ 子类的类型; media_types.json 里还有 archive/document/software/other,
+# 那些只用于分类展示, 没有对应的处理实现
+MEDIA_CATEGORIES = ('video', 'audio', 'image')
 
 rar_part_re = re.compile(r'^\.r[0-9]+$')
 

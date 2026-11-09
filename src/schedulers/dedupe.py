@@ -17,11 +17,9 @@ import subprocess
 
 from src.file.paths import find_folder_file, parse_folder_file
 from utils.file import calculate_md5
-from utils.media import guess
+from utils.media import MEDIA_CATEGORIES, guess
 
 logger = logging.getLogger()
-
-MEDIA_CATEGORIES = ('video', 'audio', 'image')
 
 __all__ = ['dedupe']
 
