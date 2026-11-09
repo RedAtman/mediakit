@@ -354,10 +354,12 @@ Exit codes: `0` success, `1` an action failed, `2` bad arguments (argparse).
 
 ```sh
 uv sync
-uv run pytest -q                                   # 216 tests
+uv run pytest -q                                   # full suite
 uv run ruff check --select F401,F841,I . && uv run ruff format --check .
-pre-commit run --all-files                         # what CI runs
+pre-commit run --all-files                         # exactly what CI runs
 ```
+
+The suite, the lint/format gates and the platform binaries all run in CI on every push and pull request — see the badge above for the current state rather than a count in this file.
 
 Layout: `cli.py` (entry point) → `utils/cli.py` (argument parsing) → `src/schedulers/folder.py` (one scheduler per action) → `base/` (ffmpeg wrappers per media type) → `utils/` (shared: command, db, throttle, progress). `AGENTS.md` documents the architecture, invariants and anti-patterns in detail.
 
