@@ -3,6 +3,8 @@
 [![CI](https://github.com/RedAtman/mediakit/actions/workflows/ci.yml/badge.svg)](https://github.com/RedAtman/mediakit/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/RedAtman/mediakit)](https://github.com/RedAtman/mediakit/releases)
 
+English | [中文](README_zh.md)
+
 A CLI for batch media operations on a folder tree: compress, scale, convert, reverse, combine, concatenate, extract text, rewrite metadata, and deduplicate. ffmpeg is driven over subprocess; every job is tracked in SQLite so an interrupted batch can resume; a `--watch` mode turns any action into a long-running daemon that processes files as they land.
 
 The CPU cost of ffmpeg is controlled in-process: mediakit `SIGSTOP`/`SIGCONT`s the child processes it started and keeps them inside a CPU budget you set per core.

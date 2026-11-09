@@ -156,7 +156,8 @@ launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
 
 ## COMMIT RULES
 
-- **Do NOT commit `docs/`** — All files under `docs/` are excluded from commits
+- **Do NOT commit `docs/`** — All files under `docs/` are excluded from commits (git-ignored); plans and drafts belong in `tmp/`, durable project knowledge belongs in this file
+- **User docs are `README.md` (canonical, English) + `README_zh.md`** — they are section-for-section mirrors: 29 headings, the same 15 actions, the same 21 options, the same tables. Change one, change the other in the same commit. Numbers that drift (test counts, line counts) do not belong in either
 - **Archive openspec before committing** — `openspec/changes/<name>` must be archived to `openspec/changes/archive/` before any openspec files can be committed
 
 ## RELEASING
