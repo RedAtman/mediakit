@@ -1,14 +1,15 @@
 import logging
 import logging.config
 import os
-import sys
 
 from . import lexers
 
 ENV = os.getenv('ENV')
+# config.py owns the sys.path insert and exports BASE_DIR as STATE_DIR; this module
+# only reads it, so a second insert here would be a duplicate writer. The fallback
+# keeps the logger usable standalone (tests) - it is the source-checkout root, not
+# the state dir.
 BASE_DIR: str = os.getenv('BASE_DIR', os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
 LOG_DIR: str = os.path.join(BASE_DIR, 'logs')
 LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'WARNING')
 LOG_BACKUP_COUNT: int = int(os.getenv('LOG_BACKUP_COUNT', 5))
