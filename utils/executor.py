@@ -1,8 +1,8 @@
-from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 import logging
 import os
 import threading
-from typing import Any, Callable, NamedTuple
+from typing import Any, Callable, Iterator, NamedTuple
 
 from utils.response import Result
 
@@ -44,11 +44,28 @@ class TaskManager:
             for _callback in callback_list:
                 _future.add_done_callback(_callback)
 
+    def results(self) -> Iterator[Any]:
+        """Yield results in completion order, releasing each future as it is consumed.
+
+        按完成顺序而不是按提交顺序: 消费完的 Future 立刻从 futures/mapper_future_args 里摘掉,
+        峰值驻留从"整批 Future + 整批参数 + 整批结果"降到"结果 + 在飞的 Future".
+        """
+        pending = set(self.futures)
+        while pending:
+            done, pending = wait(pending, timeout=1, return_when=FIRST_COMPLETED)
+            for future in done:
+                if future in self.futures:
+                    self.futures.remove(future)
+                self.mapper_future_args.pop(future, None)
+                yield future.result()
+
     def shutdown(self):
         """Release the semaphore on interrupt cleanup."""
         self.semaphore.release()
 
-    def submit_all(self, tasks: list[Callable[[], str]], *args: Any, **kwargs: Any):
+    def submit_all(self, tasks: list[Callable[[], str]], *args: Any, **kwargs: Any) -> None:
+        # 不是生成器: 之前带 yield, 不迭代就一个任务都不会提交 (调用方只能靠 list() 触发),
+        # 而那个 yield 出去的错误结果从来没被消费过.
         with self.executor:
             _ = [self.submit(task, *args, **kwargs) for task in tasks]
 
@@ -77,4 +94,3 @@ class TaskManager:
                 raise
             except Exception as err:
                 logger.exception(err)
-                yield Result(1, err)

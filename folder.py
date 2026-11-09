@@ -122,8 +122,9 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
         **kwargs: Dict[str, Any],
     ):
         task_manager = executor.TaskManager(max_workers)
-        _ = list(task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs))
-        return [future.result() for future in task_manager.futures]
+        task_manager.submit_all(tasks, *args, callback_list=callback_list, **kwargs)
+        # 结果按完成顺序收集, 每个 Future 消费完即释放 (见 TaskManager.results)
+        return list(task_manager.results())
 
     @property
     def meta(self):

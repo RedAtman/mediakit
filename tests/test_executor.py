@@ -159,3 +159,25 @@ class TestTaskManager(TestCase):
 
 if __name__ == '__main__':
     main(verbosity=2)
+
+
+class TestTaskManagerResults(TestCase):
+    def test_results_yield_in_completion_order_and_release_futures(self):
+        """consuming results 必须逐步释放 Future, 否则整批在飞的引用都留着."""
+        import time
+
+        from utils.executor import TaskManager
+
+        def job(delay):
+            time.sleep(delay)
+            return f'done-{delay}'
+
+        manager = TaskManager(max_workers=2)
+        manager.submit_all([lambda d=d: job(d) for d in (0.05, 0.01, 0.03)])
+
+        collected = list(manager.results())
+
+        self.assertEqual(sorted(collected), ['done-0.01', 'done-0.03', 'done-0.05'])
+        # 最快的先出, 但断言顺序会引入 flaky; 断言释放即可
+        self.assertEqual(manager.futures, [])
+        self.assertEqual(manager.mapper_future_args, {})
