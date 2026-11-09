@@ -47,6 +47,13 @@ class TestCombineCommand(unittest.TestCase):
     def _filter_complex(command: list[str]) -> str:
         return command[command.index('-filter_complex') + 1]
 
+    def test_source_video_is_the_first_input(self):
+        """滤镜里 [0:v] 指源视频, 所以它必须是第一个 -i; 少了它 ffmpeg 直接报错."""
+        command = self._combine(watermark_path='/tmp/logo.png', audio_path='/tmp/music.mp3', crop='1080p')
+
+        inputs = [command[i + 1] for i, arg in enumerate(command) if arg == '-i']
+        self.assertEqual(inputs, ['/tmp/source.mp4', '/tmp/logo.png', '/tmp/music.mp3'])
+
     def test_watermark_and_audio_and_crop(self):
         command = self._combine(watermark_path='/tmp/logo.png', audio_path='/tmp/music.mp3', crop='1080p')
         filters = self._filter_complex(command)
@@ -59,8 +66,8 @@ class TestCombineCommand(unittest.TestCase):
         # 音轨淡入淡出, 长度取视频时长减 1 秒
         self.assertIn('afade=t=in:st=0:d=1', filters)
         self.assertIn('afade=t=out:st=9.0:d=1', filters)
-        # 输入顺序: 源视频 -> logo -> 音频
-        self.assertEqual(command[command.index('-i') + 1], '/tmp/logo.png')
+        # 输入顺序: 源视频 -> logo -> 音频 (由 test_source_video_is_the_first_input 逐项校验)
+        self.assertIn('/tmp/logo.png', command)
         self.assertIn('/tmp/music.mp3', command)
 
     def test_audio_without_watermark_keeps_the_audio_filter(self):

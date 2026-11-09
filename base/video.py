@@ -307,6 +307,8 @@ class Video(BaseMedia, MixinMediaTranscriber):
             reverse {bool} -- [是否反转视频流] (default: {False})
         """
         command = self._FFMPEG_PREFIX.copy()
+        # 源视频必须是第一个输入: 滤镜里 [0:v] 指的就是它, logo/音频依次是 1、2
+        command.extend(['-i', self.path])
 
         # 额外输入的顺序决定滤镜里的流编号: 0=源视频, 1=logo, 2=音频
         watermark_filters: list[str] = []
