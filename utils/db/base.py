@@ -23,8 +23,10 @@ class BaseEngine(abc.ABC):
     def query__(self, statement: Select[Any] | Update | str | TextClause, params: Dict[str, Any] = {}):
         pass
 
-    def __init__(self, database: str):
+    def __init__(self, database: str, metadata: MetaData | None = None):
         self.database: str = database
+        # 由调用方注入: utils/ 不该知道 src/ 里有哪些表
+        self.metadata = metadata
 
     @contextmanager
     def get_session(self) -> Generator[Session, None, None]:

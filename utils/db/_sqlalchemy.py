@@ -3,32 +3,32 @@ import logging
 from typing import Any, Dict
 
 import sqlalchemy as db
-from sqlalchemy import TextClause, text
+from sqlalchemy import MetaData, TextClause, text
 import sqlalchemy.exc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
 
-from config import CONFIG
 from utils.db.base import BaseEngine
 
 logger = logging.getLogger()
 
 
 class Engine(BaseEngine):
-    def __init__(self, database: str):
-        super().__init__(database)
+    def __init__(self, database: str, metadata: MetaData | None = None):
+        super().__init__(database, metadata)
         # e.g. sqlite:///sqlite.db | sqlite+aiosqlite:///sqlite.db | postgresql://user:password@localhost:5432/dbname
         self.database: str = f'sqlite:///{self.database}'
-        from src import models as _models
-
-        self.metadata = _models.Base.metadata
 
     def create_db_and_tables(self):
+        if self.metadata is None:
+            raise ValueError('create_db_and_tables() needs metadata; pass it to the constructor')
         self.conn = self.engine.connect()
         self.metadata.create_all(self.engine)
 
     def drop_tables(self):
+        if self.metadata is None:
+            raise ValueError('drop_tables() needs metadata; pass it to the constructor')
         self.metadata.drop_all(self.engine)
 
     @cached_property
@@ -62,10 +62,6 @@ class Engine(BaseEngine):
                 if isinstance(statement, Select):
                     result = session.execute(statement, params).scalars().all()
                 elif isinstance(statement, Update):
-                    # result = session.query(models.Media).filter(models.Media.md5 == '3a51af5d5e4d3c8b84185729e91e0170').update(
-                    #     {'state': func.json_set(models.Media.state, "$.compress", 0)},
-                    #     synchronize_session='fetch'
-                    # )
                     _result = session.execute(statement, params)
                     # CursorResult.rowcount 是惰性属性, 不看属性只看 __dict__ 永远拿到 None,
                     # 导致所有 UPDATE 都误判为 0 行命中 (而 404 也不是合法的 ResultStatus)
@@ -86,33 +82,3 @@ class Engine(BaseEngine):
                 logger.exception(err)
                 return response.Result(code=600, msg=err)
             return response.Result(code=0, data=result)
-
-
-if __name__ == '__main__':
-    from src import models
-
-    engine = Engine(CONFIG.SQLITE_DATABASE)
-    # engine.create_db_and_tables()
-    with engine.get_session() as session:
-        # result = session.execute(text('select * from media'))
-        # result = session.execute(select(models.Media).where(models.Media.md5 == '3a51af5d5e4d3c8b84185729e91e0170').limit(1))
-        params = {'md5': '9b364cebea51dcd4315ee96d11fc7aff'}
-        # result = session.query(models.Media).filter_by(**params).all()
-        # logger.debug(result)
-
-        # result = models.Media.state['compress']
-        # result = session.query(update(models.Media).values(data=models.Media.state + literal({"compress":3}, JSON)),)
-
-        # result = session.query(models.Media).filter_by(**params).all()
-        result = session.query(models.Media).filter_by(**params).update({'state': {'compress': 2, 'trim': 0}})
-        logger.debug(result)
-        # {'_orig': (275265937, 275609729), '_propagate_attrs': immutabledict({'compile_state_plugin': 'orm', 'plugin_subject': <Mapper at 0x1067e8890; Media>}), 'left': Column('state', JSON(), table=<media>), 'right': BindParameter('%(4409755664 state)s', 'compress', type_=JSONStrIndexType()), 'operator': <function json_getitem_op at 0x1037ad800>, 'type': JSON(), 'negate': None, '_is_implicitly_boolean': False, 'modifiers': {}}
-        session.commit()
-
-        # Map the result to the model
-        # for row in result.fetchall():
-        #     logger.debug((type(row), row._mapping, type(row._mapping.get('state')), type(row._asdict().get('state')), ))
-        #     logger.info(models.Media(**row._mapping))
-        #
-        # media_list = [models.Media(row.__dict__) for row in result.fetchall()]
-        # logger.info(media_list)
