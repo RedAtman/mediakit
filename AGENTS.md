@@ -69,6 +69,7 @@ mediakit/
 - **Do NOT call ctx.next() inside core functions** — causes infinite loop in MiddlewareScheduler
 - **Do NOT import src/ from utils/** — `utils/progress.py` imports `src.models` which creates fragile layer coupling
 - **Do NOT extend config.py import graph** — already has side effects (sys.path insert, logging init)
+- **Do NOT collapse the watch list to ancestor roots** — each configured folder is an independent unit of identity: `_path_to_watch` maps one watch per configured path, config reload diffs `to_add`/`to_remove` per path and `unschedule`s exactly the removed one, and `_feed_existing(path)` builds one `Folder(path)` per configured dir. Watching a common ancestor recursively (e.g. two roots for a 224-entry list) would delete 100+ watches from one config line change and would start processing subdirectories nobody configured. `collapse_nested` is therefore applied only when `recursive=True`, where a parent genuinely covers its children
 - **Do NOT put config validation at class body** — `utils/translator.py` originally raised ValueError at import time; use `@classmethod _require_config()` called at runtime instead
 
 ## UNIQUE STYLES
@@ -97,7 +98,7 @@ live only in a 975-line implementation plan; keep them here instead.
 | `FileStabilityTracker(sample_interval=, stable_samples=, timeout=)` | 1.0 s / 3 / 30 s | a file is processed only after size+mtime stop changing for 3 samples; it is given up on after 30 s |
 | config mtime poll | 5.0 s | editing the folder file adds/removes watched dirs without a restart |
 | pid file | `~/.mediakit/daemon.pid` | written on start, removed on graceful exit, read by `mediakit stop` |
-| FSEvents emitter | one per watched path: ~33 KB (thread stack) plus one kernel stream | 224 paths ≈ 8 MB, 227 threads, ~2100 fds — measured, not estimated. Scheduling costs ~95 ms per stream and cannot be parallelised (macOS serialises stream creation): 224 paths ≈ 23 s before the daemon is fully watching. Collapse/de-dupe the list (`src/file/paths.py`) before adding paths; treat a 4-digit path count as a bug |
+| FSEvents emitter | one per watched path: ~33 KB (thread stack) plus one kernel stream | 224 paths ≈ 8 MB, 227 threads, ~2100 fds — measured, not estimated. Scheduling costs ~95 ms per stream and cannot be parallelised (macOS serialises stream creation): 224 paths ≈ 23 s before the daemon is fully watching. De-dupe/normalize the list (`src/file/paths.py`); treat a 4-digit path count as a bug |
 
 ## COMMANDS
 
