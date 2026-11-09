@@ -8,7 +8,7 @@ import ffmpeg
 from base.media import BaseMedia
 from config import CONFIG
 from src.mixins.transcriber import MixinMediaTranscriber
-from utils import decorator, translator
+from utils import decorator
 from utils.command import CommandExecutor
 from utils.video import VideoResolution
 
@@ -81,6 +81,10 @@ class Video(BaseMedia, MixinMediaTranscriber):
 
                 order_metadata.extend(['-metadata', str(key) + '=' + ','.join(meta_concat)])
                 self.keywords_list.update(meta_concat)
+        # 延迟导入: utils.translator 会拖进 requests (~4MB 边际), 而只有 save_metadata 用到.
+        # watch 守护进程空闲时不该为它付内存; PyInstaller 对函数内 import 同样可见, 不影响打包
+        from utils import translator
+
         keywords_en_list = translator.Translator.translate(self.keywords_list)
         self.keywords_list.update(keywords_en_list)
         self.keywords_list = {i.strip() for i in self.keywords_list}

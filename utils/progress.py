@@ -3,8 +3,6 @@ import re
 import sys
 from typing import IO, Any, Callable, Union
 
-from tqdm import tqdm
-
 
 def wrapper_setter(func: Callable) -> Callable:
     @functools.wraps(func)
@@ -162,7 +160,11 @@ class StdoutProgress(BaseProgress):
 
 
 class TqdmProgress(BaseProgress):
+    # 延迟导入: tqdm 只在真正开始处理媒体时才需要, 而 utils.progress 在启动链里
+    # (base/media.py 为了 BaseProgress). 放在 __init__ 里, 首次构造后走 sys.modules
     def __init__(self, total: int, title: str = ''):
+        from tqdm import tqdm
+
         super().__init__(total)
         is_tty = sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else False
         self.pbar = tqdm(

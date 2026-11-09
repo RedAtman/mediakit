@@ -41,3 +41,28 @@ class TestLayering(unittest.TestCase):
             if re.match(r'\s*(from|import)\s+src\.schedulers\b', line)
         ]
         self.assertEqual(offenders, [], 'src/file/ 是通用工具, 不应依赖调度器')
+
+
+class TestStartupImports(unittest.TestCase):
+    """启动链不该带上看库/翻译/进度条才需要的重依赖 (实测各值数 MB)."""
+
+    def _imported_after(self, code):
+        import json
+        import subprocess
+        import sys
+
+        out = subprocess.run(
+            [sys.executable, '-c', f'import sys, json; {code}; print(json.dumps(sorted(sys.modules)))'],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return set(json.loads(out.stdout))
+
+    def test_requests_is_not_loaded_by_the_watcher(self):
+        loaded = self._imported_after('import src.schedulers.watcher')
+        self.assertNotIn('requests', loaded, 'utils.translator 只有 save_metadata 需要, 必须延迟导入')
+
+    def test_tqdm_is_not_loaded_by_the_watcher(self):
+        loaded = self._imported_after('import src.schedulers.watcher')
+        self.assertNotIn('tqdm', loaded, 'tqdm 只有开始处理媒体时才需要, 必须延迟导入')
