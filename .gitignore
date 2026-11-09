@@ -2,6 +2,9 @@
 logs/
 log/
 tmp/
+# AGENTS.md: docs/ 不入库. 计划/草稿是本地产物, 项目知识进 AGENTS.md,
+# 不要把上千行执行计划当文档仓库
+docs/
 main.py
 reference.md
 .opencode/

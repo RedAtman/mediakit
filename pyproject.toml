@@ -21,7 +21,6 @@ force-sort-within-sections = true
 [tool.ruff]
 line-length = 120
 target-version = "py314"
-exclude = ["docs/reference.py"]
 
 [tool.ruff.lint]
 select = ["F401", "F841", "I", "F821", "E", "W"]
