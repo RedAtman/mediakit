@@ -399,25 +399,24 @@ class WatcherScheduler:
         self.observer.start()
         logger.info('Watching %d folders (recursive=%s)', len(paths), recursive)
 
-    def core(self, **kwargs):
-        folder_path = kwargs.get('folder', CONFIG.MEDIA_FILE_FOLDER)
-        folder_file = kwargs.get('folder_file', None)
-        media_type = kwargs.get('type', 'video')
-        max_workers = kwargs.get('max_workers', CONFIG.MAX_WORKERS)
-        cpu_limit = kwargs.get('cpu_limit', None)
-        # action = kwargs.get('action', 'compress')  # unused; kept for future extensibility
-        recursive = kwargs.get('recursive', False)
-        no_scan_existing = kwargs.get('no_scan_existing', False)
+    @staticmethod
+    def _resolve_watch_paths(folder_path: str, folder_file: str | None, recursive: bool):
+        """Resolve --folder-file / -f DIR / default var/folder.sh into watch paths.
 
-        self._setup_cpu_throttling(cpu_limit)
-
+        Returns (raw_paths as configured, existing paths to watch, the config file
+        being monitored or None). Kept out of core() because core() is the run loop
+        orchestrator and this is pure input resolution.
+        """
+        config_filepath: str | None = None
         if folder_file is not None:
             raw_paths = parse_folder_file(folder_file)
+            config_filepath = folder_file
         elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
             watch_file = find_folder_file()
             if watch_file:
                 logger.debug('Using watch folder file: %s', watch_file)
                 raw_paths = parse_folder_file(watch_file)
+                config_filepath = watch_file
             else:
                 logger.warning(
                     'No var/folder.sh found from cwd (%s). '
@@ -428,6 +427,7 @@ class WatcherScheduler:
                 )
                 raw_paths = [folder_path]
         else:
+            # 单个 -f DIR 模式, 没有配置文件可监控
             raw_paths = [folder_path]
 
         valid_paths = [p for p in raw_paths if os.path.isdir(p)]
@@ -442,6 +442,22 @@ class WatcherScheduler:
                 logger.info('Recursive watch: collapsed %d nested path(s)', len(valid_paths) - len(collapsed))
             valid_paths = collapsed
 
+        return raw_paths, valid_paths, config_filepath
+
+    def core(self, **kwargs):
+        folder_path = kwargs.get('folder', CONFIG.MEDIA_FILE_FOLDER)
+        folder_file = kwargs.get('folder_file', None)
+        media_type = kwargs.get('type', 'video')
+        max_workers = kwargs.get('max_workers', CONFIG.MAX_WORKERS)
+        cpu_limit = kwargs.get('cpu_limit', None)
+        # action = kwargs.get('action', 'compress')  # unused; kept for future extensibility
+        recursive = kwargs.get('recursive', False)
+        no_scan_existing = kwargs.get('no_scan_existing', False)
+
+        self._setup_cpu_throttling(cpu_limit)
+
+        raw_paths, valid_paths, config_filepath = self._resolve_watch_paths(folder_path, folder_file, recursive)
+
         # --- State initialization for dynamic config monitoring ---
         self._watched_paths = set(valid_paths)
         self._media_type = media_type
@@ -450,15 +466,7 @@ class WatcherScheduler:
         self._compress_opts = {key: kwargs[key] for key in COMPRESS_OPTS if kwargs.get(key) is not None}
         # self._action = action  # unused; kept for future extensibility
         self._recursive = recursive
-        # Resolve the config file path being used
-        if folder_file is not None:
-            self._config_filepath = folder_file
-        elif folder_path == CONFIG.MEDIA_FILE_FOLDER:
-            watch_file = find_folder_file()
-            if watch_file:
-                self._config_filepath = watch_file
-        else:
-            self._config_filepath = None  # single -f DIR mode, no config file to monitor
+        self._config_filepath = config_filepath
         # Initialize mtime if config file exists
         if self._config_filepath and os.path.isfile(self._config_filepath):
             self._config_mtime = os.path.getmtime(self._config_filepath)
