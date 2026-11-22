@@ -30,6 +30,8 @@ class BaseMedia:
     _INCLUDE_TYPE = MEDIA_CATEGORIES
     _LOG_LEVEL = CONFIG.LOG_LEVEL.lower()
     _LOCK = threading.Lock()
+    # APFS/HFS+ 和 Linux 的单个路径分量上限都是 255 字节, 不是 255 个字符
+    NAME_MAX = 255
 
     _FFMPEG_BIN = (
         os.path.join(CONFIG.FFMPEG_BIN_DIR, 'ffmpeg') if CONFIG.FFMPEG_BIN_DIR else (shutil.which('ffmpeg') or 'ffmpeg')
@@ -190,7 +192,22 @@ class BaseMedia:
         """
         # suffix or caller function name
         suffix = suffix or sys._getframe().f_back.f_code.co_name
-        return f'{self.dirname}/_{self.title}_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
+        tail = f'_{suffix}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.{self.ext}'
+        return os.path.join(self.dirname, self.fit_filename(f'_{self.title}', tail))
+
+    @staticmethod
+    def fit_filename(title: str, tail: str) -> str:
+        """拼 title + tail, 按字节把 title 截到不超过单个路径分量上限.
+
+        素材名本身接近 255 字节时, 再追加 `-[compress.libx265.slow]_1` 会让 ffmpeg
+        以 ENAMETOOLONG 退出 (外层只看到 exit status 193), 源文件永远压不了.
+        """
+        # clamp 到 0: suffix 本身超长时不能退化成负数切片 (那样会把整个 title 留下)
+        budget = max(BaseMedia.NAME_MAX - len(tail.encode()), 0)
+        if len(title.encode()) <= budget:
+            return title + tail
+        # 只切到完整 UTF-8 字符边界, 否则名字末尾会留半个汉字
+        return title.encode()[:budget].decode('utf-8', 'ignore') + tail
 
     @classmethod
     def create_file_path(cls, path: str, suffix: str = '', suffix_number: int = 1, ext: Optional[str] = None):
@@ -226,7 +243,7 @@ class BaseMedia:
 
         with cls._LOCK:
             while True:
-                file_path = os.path.join(dirname, f'{title}-{suffix}_{suffix_number}.{ext}')
+                file_path = os.path.join(dirname, cls.fit_filename(title, f'-{suffix}_{suffix_number}.{ext}'))
                 # file_path = os.path.join(dirname, f"{title}.{ext}")
                 if not os.path.exists(file_path):
                     break
