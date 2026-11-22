@@ -19,6 +19,16 @@ class TestVideo(TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def test_reject_reason_agrees_with_constructor_filter(self):
+        # Video accepts only 'video'; reject_reason must answer exactly what __init__
+        # raises on, otherwise the scan skip and the raised exception can diverge.
+        assert Video.reject_reason(self.temp_video) is None
+        audio = os.path.join(self.temp_dir, 'a.mp3')
+        with open(audio, 'w'):
+            pass
+        assert Video.reject_reason(audio) == f'File is not media file: {audio}'
+        assert Video.reject_reason(self.temp_dir) == f'Path is not a file: {self.temp_dir}'
+
     def _make_video(self) -> Video:
         """构造 Video 实例且不触碰真实 DB (get_or_create 走 mock)"""
         with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:

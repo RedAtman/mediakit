@@ -57,15 +57,28 @@ class BaseMedia:
     # TODO: Type[super]?
     _MEDIA_CLS: Type[models.Media] = models.Media
 
+    @classmethod
+    def reject_reason(cls, path: str) -> str | None:
+        """Why path is not processable media, or None when it is.
+
+        Single source of truth for the media filter: __init__ rejects on it, folder
+        scans skip on it. One copy means the skip list and the raised exception can
+        not drift apart.
+        """
+        if not os.path.isfile(path):
+            return f'Path is not a file: {path}'
+        if guess(path) not in cls._INCLUDE_TYPE:
+            return f'File is not media file: {path}'
+        return None
+
     def __init__(self, path: str):
         super().__init__()
         path = path.strip()
         if not os.path.exists(path):
             raise FileNotFoundError(f'File not found at path: {path}')
-        if not os.path.isfile(path):
-            raise exceptions.NotMediaException(101, f'Path is not a file: {path}')
-        if guess(path) not in self._INCLUDE_TYPE:
-            raise exceptions.NotMediaException(101, f'File is not media file: {path}')
+        reason = self.reject_reason(path)
+        if reason is not None:
+            raise exceptions.NotMediaException(101, reason)
         logger.info('BaseMedia: %s', path)
         self.path: str = Path(path).absolute().as_posix()
         self.dirname, self.title, self.ext = self.get_file_info(path)

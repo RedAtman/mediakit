@@ -57,6 +57,8 @@ class Folder(BaseFolder, SqlAlchemyFolderMixin):
         MEDIA_CLS: Type[BaseMedia] = cls.media_cls(media_type)
         folder = SimpleNamespace(MEDIA_CLS=MEDIA_CLS)
         for file in cls.get_files(path):
+            if MEDIA_CLS.reject_reason(file) is not None:
+                continue
             media = make_media(folder, file)
             if media is not None:
                 yield media

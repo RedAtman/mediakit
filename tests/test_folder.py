@@ -1,4 +1,5 @@
 import logging
+import os
 import tempfile
 from typing import Generator, Iterable
 import unittest
@@ -54,6 +55,19 @@ class TestFolder(unittest.TestCase):
         result = Folder.scan_media__(Folder.medias_(self.temp_dir))
         logger.info(result)
         assert hasattr(result, '__iter__')
+
+    def test_medias_skips_non_media_entries_without_warning(self):
+        # listdir hands us every entry: dirs, .DS_Store, .torrent, marker dirs. Those used
+        # to reach the constructor and log a WARNING per entry on every scan.
+        os.makedirs(os.path.join(self.temp_dir, 'some_dir'))
+        for name in ('.DS_Store', 'a.torrent', 'concat.txt'):
+            with open(os.path.join(self.temp_dir, name), 'w'):
+                pass
+        with open(os.path.join(self.temp_dir, 'clip.mp4'), 'w'):
+            pass
+        with self.assertNoLogs(logger, level='WARNING'):
+            medias = list(Folder.medias_(self.temp_dir))
+        self.assertEqual([os.path.basename(m.path) for m in medias], ['clip.mp4'])
 
     def test_query(self):
         folder = Folder(self.temp_dir)
