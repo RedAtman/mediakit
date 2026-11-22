@@ -33,7 +33,9 @@ skip-magic-trailing-comma = true
 
 [tool.codespell]
 check-filenames = ""
-ignore-words-list = "word,another,something"
+# "medias" is the project's own API name (Folder.medias / medias_ / scan_media); "ans" is the
+# .ans extension in media_types.json. Neither is a typo.
+ignore-words-list = "medias,ans"
 skip = "htmlcov,.doctrees,*.pyc,*.class,*.ico,*.out,*.PNG,*.inv,*.png,*.jpg,*.dot"
 
 [project]
