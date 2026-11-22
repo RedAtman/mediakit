@@ -4,6 +4,8 @@ import shutil
 import tempfile
 from unittest import TestCase, mock
 
+import pytest
+
 from base.media import BaseMedia
 from base.video import Video
 
@@ -100,3 +102,25 @@ def test_get_metadata_passes_argv_list():
     command = run.call_args[0][0]
     assert isinstance(command, list)
     assert command[-1] == path
+
+
+def test_resolution_and_audio_share_one_probe():
+    # resolution 曾自己调 ffmpeg.probe, 与 has_decodable_audio 的 metadata 各探一次;
+    # 现在两者都走 cached_property metadata, 同一个文件只 probe 一次
+    video = object.__new__(Video)
+    video.path = '/tmp/src.mp4'
+    metadata = {
+        'streams': [{'codec_type': 'video', 'width': 640, 'height': 480}, {'codec_type': 'audio', 'codec_name': 'aac'}]
+    }
+    with mock.patch.object(Video, 'get_metadata', return_value=metadata) as probe:
+        assert video.resolution == (640, 480)
+        assert video.has_decodable_audio is True
+    assert probe.call_count == 1
+
+
+def test_resolution_without_video_stream_raises():
+    video = object.__new__(Video)
+    video.path = '/tmp/src.mp4'
+    with mock.patch.object(Video, 'get_metadata', return_value={'streams': [{'codec_type': 'audio'}]}):
+        with pytest.raises(ValueError, match='No video streams found'):
+            video.resolution

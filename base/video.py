@@ -3,8 +3,6 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Set, Union
 
-import ffmpeg
-
 from base.media import BaseMedia
 from config import CONFIG
 from src.mixins.transcriber import MixinMediaTranscriber
@@ -143,8 +141,9 @@ class Video(BaseMedia, MixinMediaTranscriber):
 
     @property
     def resolution(self) -> tuple[int, int]:
-        probe = ffmpeg.probe(self.path, cmd=self._FFPROBE_BIN)
-        video_streams = [stream for stream in probe['streams'] if stream['codec_type'] == 'video']
+        """视频流分辨率. 复用 self.metadata 的 ffprobe 结果, 不再单独 probe 一次."""
+        streams = self.metadata.get('streams', [])
+        video_streams = [stream for stream in streams if stream.get('codec_type') == 'video']
         if not video_streams:
             raise ValueError('No video streams found')
         return video_streams[0]['width'], video_streams[0]['height']
