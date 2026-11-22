@@ -150,6 +150,17 @@ class Video(BaseMedia, MixinMediaTranscriber):
         return video_streams[0]['width'], video_streams[0]['height']
 
     @functools.cached_property
+    def has_decodable_audio(self) -> bool:
+        """所有音轨都存在已知 codec (即 ffmpeg 有对应解码器).
+
+        ffprobe 认不出的 codec tag (例如 AVI 里的 qg[0][0]) 不会出现在 codec_name
+        里, ffmpeg 建流时报 "no decoder found for: none" 并以 EINVAL 整个失败
+        (exit status 234), 连视频都不给编. 任一首轨认不出就降级成只处理视频.
+        """
+        audio_streams = [s for s in self.metadata.get('streams', []) if s.get('codec_type') == 'audio']
+        return bool(audio_streams) and all(s.get('codec_name') for s in audio_streams)
+
+    @functools.cached_property
     def frames_count(self):
         try:
             command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
@@ -439,6 +450,13 @@ class Video(BaseMedia, MixinMediaTranscriber):
 
         suffix, vcodec, preset = 'compress', 'libx265', 'slow'
         new_file_path = self.create_file_path(self.path, suffix=f'[{suffix}.{vcodec}.{preset}]', ext=ext)
+        if self.has_decodable_audio:
+            # 音频: AAC 96k 44100Hz (平衡质量与体积)
+            audio_args = ['-c:a', 'aac', '-b:a', '96k', '-ar', '44100']
+        else:
+            # 静默丢音轨会让输出看起来像坏文件, 必须留一行线索
+            logger.warning('No decodable audio stream, compressing video only: %s', self.path)
+            audio_args = ['-an']
 
         command.extend(
             [
@@ -465,13 +483,8 @@ class Video(BaseMedia, MixinMediaTranscriber):
                 # x265 调优参数: 自适应量化 + 关闭 SAO 滤波器
                 '-x265-params',
                 'aq-mode=3:no-sao=1',
-                # 音频: AAC 96k 44100Hz (平衡质量与体积)
-                '-c:a',
-                'aac',
-                '-b:a',
-                '96k',
-                '-ar',
-                '44100',
+                # 音频参数由 has_decodable_audio 决定 (见上)
+                *audio_args,
                 # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
                 # '-crf', '24',
                 # '-avoid_negative_ts', 'make_zero',

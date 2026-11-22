@@ -27,11 +27,14 @@ class TestResolutionParse(TestCase):
 class TestCompressCommand(TestCase):
     """只验证 command 拼装, 不真跑 ffmpeg。"""
 
-    def _command(self, source_wh, **kwargs):
+    def _command(self, source_wh, audio_decodable=True, **kwargs):
         video = object.__new__(Video)
         video.path = '/tmp/src.mp4'
         with (
             mock.patch.object(Video, 'resolution', new_callable=mock.PropertyMock, return_value=source_wh),
+            mock.patch.object(
+                Video, 'has_decodable_audio', new_callable=mock.PropertyMock, return_value=audio_decodable
+            ),
             mock.patch.object(Video, 'create_file_path', return_value='/tmp/out.mp4'),
             mock.patch('utils.decorator.CommandExecutor.run', return_value='done') as run,
         ):
@@ -47,6 +50,17 @@ class TestCompressCommand(TestCase):
     def test_no_upscale(self):
         command = self._command((640, 480))
         assert '-vf' not in command
+
+    def test_undecodable_audio_falls_back_to_video_only(self):
+        # AVI 音轨 codec_tag 'qg[0][0]' 认不出 -> ffmpeg 建流即 EINVAL, 连视频都不编
+        command = self._command((640, 480), audio_decodable=False)
+        assert '-an' in command
+        assert '-c:a' not in command
+
+    def test_decodable_audio_keeps_aac(self):
+        command = self._command((640, 480))
+        assert command[command.index('-c:a') + 1] == 'aac'
+        assert '-an' not in command
 
     def test_explicit_resolution_and_fps(self):
         command = self._command((3840, 2160), resolution='FHD', fps=30)
