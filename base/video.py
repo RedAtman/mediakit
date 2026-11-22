@@ -163,11 +163,18 @@ class Video(BaseMedia, MixinMediaTranscriber):
     @functools.cached_property
     def frames_count(self):
         try:
-            command = f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" | grep nb_frames | sed -e s/nb_frames=//'
+            command = (
+                f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" '
+                '| grep nb_frames | sed -e s/nb_frames=//'
+            )
             result = CommandExecutor.run(command)
             return int(result)
         except Exception:
-            command = f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "{self.path}"'
+            command = (
+                f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 '
+                '-show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 '
+                f'"{self.path}"'
+            )
             result = CommandExecutor.run(command)
             if result.isdigit():
                 return int(result)
@@ -465,8 +472,10 @@ class Video(BaseMedia, MixinMediaTranscriber):
                 str(fps),
                 # More faster, but more bigger size.
                 # '-vcodec', 'libx264',
-                # More smaller size, but more time, more CPU usage. Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
-                # -preset: ultrafast, superfast, veryfast, faster, fast, medium(default), slow, slower, veryslow, placebo
+                # More smaller size, but more time, more CPU usage.
+                # Option parameter crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible.
+                # -preset: ultrafast, superfast, veryfast, faster, fast, medium(default), slow, slower,
+                # veryslow, placebo
                 # '-vcodec', vcodec,
                 '-c:v',
                 vcodec,
@@ -508,7 +517,8 @@ class Video(BaseMedia, MixinMediaTranscriber):
         # but it is fast
         # More faster, more smaller size.
         # * -hwaccel videotoolbox: Use VideoToolbox hardware acceleration.
-        # Use -b:v to control quality. -crf is only for libx264, libx265, libvpx, and libvpx-vp9. It will be ignored by other encoders. It will also ignore -preset.
+        # Use -b:v to control quality. -crf is only for libx264, libx265, libvpx, and libvpx-vp9.
+        # It will be ignored by other encoders. It will also ignore -preset.
         # * -q:v 50: Constant quality mode (VBR). Lower values mean better quality, The value should be 1-100, \
         # the higher the number, the better the quality. 65 seems to be acceptable.
         # command = self._FFMPEG_PREFIX + [
