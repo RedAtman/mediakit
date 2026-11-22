@@ -174,8 +174,10 @@ class WatcherScheduler:
 
         if isinstance(cpu_limit, str) and cpu_limit.isdigit():
             cpu_limit = int(cpu_limit)
+        # 同上: watch 模式也必须先把协调器建出来, 否则 /tmp/mediakit_cpu_* 没人扫
+        coord = coordinator()
         if isinstance(cpu_limit, int) and cpu_limit > 0:
-            coordinator().set_manual_override(cpu_limit)
+            coord.set_manual_override(cpu_limit)
 
     def _flush_callback(self, paths: list[str], media_type: str, max_workers: int):
         with self._flush_lock:

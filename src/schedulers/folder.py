@@ -65,8 +65,12 @@ def _config(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
     cpu_limit = kwargs.pop('cpu_limit', None)
     if isinstance(cpu_limit, str) and cpu_limit.isdigit():
         cpu_limit = int(cpu_limit)
+    # 协调器必须无条件建出来: 它同时是 /tmp/mediakit_cpu_* 手动覆盖的扫描者,
+    # 而监视线程只在 coord 存在时才会跑. 之前只在 -c 给出时才建,
+    # 于是不带 -c 跑的任务里那些 touch 文件根本没人看.
+    coord = coordinator()
     if isinstance(cpu_limit, int) and cpu_limit > 0:
-        coordinator().set_manual_override(cpu_limit)
+        coord.set_manual_override(cpu_limit)
     logger.debug(CONFIG.CPU_LIMIT)
     return ctx.next(*args, **kwargs)
 

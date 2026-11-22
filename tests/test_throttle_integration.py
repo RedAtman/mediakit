@@ -137,3 +137,78 @@ class TestFileOverrideIntegration(TestCase):
         finally:
             if os.path.exists(filepath):
                 os.remove(filepath)
+
+
+def _install_private_coordinator(monkeypatch, tmp_path):
+    """让 folder.coordinator() 造出来的协调器只扫 tmp_path 下的 override 文件.
+
+    默认 /tmp/mediakit_cpu_* 是进程间共享的, 别人的监视线程会抢着删掉测试文件.
+    返回被创建过的协调器列表, 供断言 "到底有没有被建出来".
+    """
+    from src.schedulers import folder as folder_sched
+    from utils.command import CommandExecutor
+    from utils.throttle.coordinator import CPULimiterCoordinator
+
+    created = []
+
+    def factory(**kwargs):
+        coord = CPULimiterCoordinator(file_override_pattern=str(tmp_path / 'mediakit_cpu_*'), **kwargs)
+        created.append(coord)
+        return coord
+
+    monkeypatch.setattr(folder_sched, '_coordinator', None)
+    monkeypatch.setattr(folder_sched, 'CPULimiterCoordinator', factory)
+    monkeypatch.setattr(CommandExecutor, 'coordinator', None, raising=False)
+    return created
+
+
+def test_folder_config_creates_coordinator_without_cpu_limit(monkeypatch, tmp_path):
+    """不带 -c 时也必须建出协调器, 否则 /tmp/mediakit_cpu_* 根本没人扫. 回归测试."""
+    from src.schedulers.folder import _config
+    from utils.command import CommandExecutor
+
+    created = _install_private_coordinator(monkeypatch, tmp_path)
+    ctx = mock.MagicMock()
+    _config(ctx=ctx)
+    ctx.next.assert_called_once()
+
+    assert len(created) == 1, 'no -c must still create the coordinator'
+    coord = created[0]
+    try:
+        # 协调器必须挂到 CommandExecutor 上, 否则 attach() 永远不会被调用
+        assert CommandExecutor.coordinator is coord
+        # 没用 -c 就不该动预算, 保持 auto 模式
+        assert coord._manual_override_active is False
+        (tmp_path / 'mediakit_cpu_12').touch()
+        coord._scan_file_override()
+        assert coord._manual_target == 12
+        assert not (tmp_path / 'mediakit_cpu_12').exists()
+    finally:
+        coord._stop_monitor()
+
+
+def test_folder_config_applies_cpu_limit(monkeypatch, tmp_path):
+    """-c 仍然要立刻变成手动预算 (它只是不再是一切的前提)."""
+    from src.schedulers.folder import _config
+
+    created = _install_private_coordinator(monkeypatch, tmp_path)
+    _config(cpu_limit='40', ctx=mock.MagicMock())
+
+    assert len(created) == 1
+    coord = created[0]
+    try:
+        assert coord._manual_override_active is True
+        assert coord._manual_target == 40
+    finally:
+        coord._stop_monitor()
+
+
+def test_watcher_setup_creates_coordinator_without_cpu_limit(monkeypatch, tmp_path):
+    """watch 模式同样的一条回归: 不带 -c 也要有协调器在盯 override 文件."""
+    from src.schedulers.watcher import WatcherScheduler
+
+    created = _install_private_coordinator(monkeypatch, tmp_path)
+    WatcherScheduler._setup_cpu_throttling(object.__new__(WatcherScheduler), None)
+
+    assert len(created) == 1, 'watch mode must create the coordinator too'
+    created[0]._stop_monitor()

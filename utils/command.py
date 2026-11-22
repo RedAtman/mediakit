@@ -37,7 +37,8 @@ class ProgressMonitor:
 
 class CommandExecutor:
     # Optional coordinator for dynamic CPU throttling.
-    # Set by src/schedulers/folder.py on startup.
+    # Set by src/schedulers/folder.py::coordinator() the first time the task path asks for
+    # it; it is also the only thing that scans /tmp/mediakit_cpu_*, so it must always exist.
     coordinator = None
 
     @classmethod
