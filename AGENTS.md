@@ -194,18 +194,25 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   (`src.signals`), `config.py` (`utils.logger.init`, plus the `dictConfig` `()` entries that
   reflect `utils.logger.filters/formatters`), and `folder.py` (`base.{video,audio}` chosen from the
   `--type` flag). Static analysis cannot see any of them
-- **`multiprocessing` is excluded from the bundle on purpose** — `ffmpeg-python` depends on the
-  abandoned `future` package, whose `future.moves.multiprocessing` shim drags the module in and
-  makes PyInstaller's onefile runtime hook die with `No module named 'array'`. Nothing here uses
-  processes: `utils/executor.py` is ThreadPoolExecutor-only (it borrows `os.cpu_count()`, not
-  `multiprocessing.cpu_count()`)
+- **`multiprocessing` is excluded from the bundle on purpose** — nothing here uses processes
+  (`utils/executor.py` is ThreadPoolExecutor-only and borrows `os.cpu_count()`), but the module still
+  gets bundled: PyInstaller's multiprocessing runtime hook then spawns a helper that re-enters this
+  very frozen CLI, so argparse reads the hook's `-c` payload as `--cpu-limit` and the resource_tracker
+  dies (older failure path: `No module named 'array'` in the onefile child). Verified 2026-11-23 by
+  removing the exclude: the encode still finished, but every run printed the argparse error plus a
+  `process died unexpectedly` warning. `ffmpeg-python -> future.moves` used to be one importer of the
+  module; dropping that dependency (it was only used by a single `ffmpeg.probe` call, now gone) did
+  **not** make the module unreachable, so the exclude has to stay
 - **CPU throttling degrades instead of crashing off Linux/macOS** — `utils/throttle/sampling.py`
   only implements those two, so `CPULimiterCoordinator` checks the platform up front and runs
   unthrottled with one warning. This is what keeps the Windows binary usable
 
 - `.venv/` has 22k+ files from dependencies — excluded from AGENTS.md analysis
 - **`requires-python` is `>=3.14,<3.15` on purpose** — pyobjc 11.1 has no cp315 wheel, so building `pyobjc-framework-quartz` from source fails on 3.15 and takes the whole `uv sync` down with it. Without the upper bound uv auto-selects the newest homebrew `python3` (3.15) whenever `.venv` is missing or deemed stale. Remove the bound only after confirming pyobjc ships cp315 wheels
-- **Do not run bare `uv lock`** — local uv (0.13.7) rewrites lock revision 3→5 and churns ~258 lines of `platform_release` markers for no resolution change. For a `requires-python` tweak, hand-edit that single line in `uv.lock` and confirm with `uv lock --check`
+- **`uv lock` is safe now** — the lock is already at revision 5 and the local uv (0.13.7) regenerates
+  it without the old platform-marker churn: dropping `ffmpeg-python`/`future` produced a 24-line
+  deletion with no unrelated changes (verified 2026-11-23). The old advice to hand-edit a single line
+  applied to the revision 3 → 5 bump and is stale; still run `uv lock --check` after hand edits
 - Config loads logger at module end via `import_module("utils.logger.init")` — import order matters
 - `build/` directory contains stale frozen distribution (bdist.macosx-15.0-arm64)
 - Largest complexity hotspot: `base/video.py:combine()` — 167 lines, 4+ nesting levels

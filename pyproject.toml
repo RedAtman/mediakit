@@ -55,7 +55,6 @@ dependencies = [
     "pygments==2.17.2",
     "pydantic>=2.11,<3",
     "psutil==7.0.0",
-    "ffmpeg-python==0.2.0",
     # pyttsx3 pulls pyobjc on darwin; still referenced nowhere, see AGENTS.md NOTES
     "pyttsx3==2.90",
     # MacOS seems to need this for pyttsx3

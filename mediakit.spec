@@ -33,10 +33,12 @@ hiddenimports = [
 ]
 
 excludes = [
-    # pulls in PyInstaller's multiprocessing runtime hook, whose onefile child dies
-    # with "No module named 'array'". Nothing here uses it: utils/executor.py is
-    # ThreadPoolExecutor-only (it used to borrow multiprocessing.cpu_count).
-    # The import graph reaches it only through ffmpeg-python -> future.moves.
+    # Without this, PyInstaller's multiprocessing runtime hook spawns a helper that
+    # re-enters this frozen CLI, so argparse sees the hook's -c payload as --cpu-limit
+    # and the resource_tracker dies (the older failure path was 'No module named array').
+    # Nothing here uses processes: utils/executor.py is ThreadPoolExecutor-only and
+    # borrows os.cpu_count(). Verified 2026-11-23: dropping this line still bundles
+    # multiprocessing even with ffmpeg-python gone, so it is not a leftover.
     'multiprocessing',
 ]
 
