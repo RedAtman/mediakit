@@ -134,6 +134,8 @@ class BaseMedia:
         Returns:
             [type] -- [description]
         """
+        # 必须用列表, 不能拼成 shell 字符串: 文件名里的 & ( ) ' 空格会被 shell
+        # 当成语法, 导致 ffprobe 以 127/解析错误失败 (见 has_decodable_audio)
         command = [
             cls._FFPROBE_BIN,
             '-v',
@@ -144,7 +146,6 @@ class BaseMedia:
             'json',
             path.strip(),
         ]
-        command = f'{cls._FFPROBE_BIN} -v quiet -show_format -show_streams -print_format json {path.strip()}'
         metadata = CommandExecutor.run(command)
         try:
             return json.loads(metadata)

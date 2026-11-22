@@ -4,6 +4,7 @@ import shutil
 import tempfile
 from unittest import TestCase, mock
 
+from base.media import BaseMedia
 from base.video import Video
 
 logger = logging.getLogger()
@@ -88,3 +89,14 @@ class TestVideo(TestCase):
         for bad in ('00:00:01', None, ('00:00:01',), ('a', 'b', 'c')):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 video.trim(trim_time=bad)
+
+
+def test_get_metadata_passes_argv_list():
+    # 拼成 shell 字符串时, 文件名里的 & ( ) ' 会让 ffprobe 以 127 失败,
+    # 而 has_decodable_audio / width_height 都靠这次 probe
+    path = "/tmp/Silvia Saint & Hakan (Serbes)'s.avi"
+    with mock.patch('base.media.CommandExecutor.run', return_value='{"streams": []}') as run:
+        BaseMedia.get_metadata(path)
+    command = run.call_args[0][0]
+    assert isinstance(command, list)
+    assert command[-1] == path
