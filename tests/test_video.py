@@ -95,7 +95,7 @@ class TestVideo(TestCase):
 
 def test_get_metadata_passes_argv_list():
     # 拼成 shell 字符串时, 文件名里的 & ( ) ' 会让 ffprobe 以 127 失败,
-    # 而 has_decodable_audio / width_height 都靠这次 probe
+    # 而音轨检查 / width_height 都靠这次 probe
     path = "/tmp/Silvia Saint & Hakan (Serbes)'s.avi"
     with mock.patch('base.media.CommandExecutor.run', return_value='{"streams": []}') as run:
         BaseMedia.get_metadata(path)
@@ -105,7 +105,7 @@ def test_get_metadata_passes_argv_list():
 
 
 def test_resolution_and_audio_share_one_probe():
-    # resolution 曾自己调 ffmpeg.probe, 与 has_decodable_audio 的 metadata 各探一次;
+    # resolution 曾自己调 ffmpeg.probe, 与音轨检查的 metadata 各探一次;
     # 现在两者都走 cached_property metadata, 同一个文件只 probe 一次
     video = object.__new__(Video)
     video.path = '/tmp/src.mp4'
@@ -114,7 +114,7 @@ def test_resolution_and_audio_share_one_probe():
     }
     with mock.patch.object(Video, 'get_metadata', return_value=metadata) as probe:
         assert video.resolution == (640, 480)
-        assert video.has_decodable_audio is True
+        assert video.decodable_audio_indexes == [0]
     assert probe.call_count == 1
 
 

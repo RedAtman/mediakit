@@ -149,15 +149,20 @@ class Video(BaseMedia, MixinMediaTranscriber):
         return video_streams[0]['width'], video_streams[0]['height']
 
     @functools.cached_property
-    def has_decodable_audio(self) -> bool:
-        """所有音轨都存在已知 codec (即 ffmpeg 有对应解码器).
+    def audio_streams(self) -> list[dict]:
+        """所有音轨, 按流顺序."""
+        return [stream for stream in self.metadata.get('streams', []) if stream.get('codec_type') == 'audio']
+
+    @functools.cached_property
+    def decodable_audio_indexes(self) -> list[int]:
+        """能解码的音轨序号 (音轨内从 0 数, 即 -map 0:a:<n> 的 n).
 
         ffprobe 认不出的 codec tag (例如 AVI 里的 qg[0][0]) 不会出现在 codec_name
         里, ffmpeg 建流时报 "no decoder found for: none" 并以 EINVAL 整个失败
-        (exit status 234), 连视频都不给编. 任一首轨认不出就降级成只处理视频.
+        (exit status 234). 一条好音轨都没有时才只能只处理视频; 有好的就显式 map
+        留下它们, 各自丢掉坏的那几条.
         """
-        audio_streams = [s for s in self.metadata.get('streams', []) if s.get('codec_type') == 'audio']
-        return bool(audio_streams) and all(s.get('codec_name') for s in audio_streams)
+        return [index for index, stream in enumerate(self.audio_streams) if stream.get('codec_name')]
 
     def _probe_frames(self, entry: str, count_frames: bool = False) -> Optional[int]:
         """取一次帧数, 拿不到返回 None.
@@ -463,13 +468,24 @@ class Video(BaseMedia, MixinMediaTranscriber):
 
         suffix, vcodec, preset = 'compress', 'libx265', 'slow'
         new_file_path = self.create_file_path(self.path, suffix=f'[{suffix}.{vcodec}.{preset}]', ext=ext)
-        if self.has_decodable_audio:
-            # 音频: AAC 96k 44100Hz (平衡质量与体积)
-            audio_args = ['-c:a', 'aac', '-b:a', '96k', '-ar', '44100']
-        else:
+        # 音轨: 只保留能解码的那几条; 一条都没有时才只处理视频
+        decodable_audio = self.decodable_audio_indexes
+        if not decodable_audio:
             # 静默丢音轨会让输出看起来像坏文件, 必须留一行线索
             logger.warning('No decodable audio stream, compressing video only: %s', self.path)
             audio_args = ['-an']
+        else:
+            # 音频: AAC 96k 44100Hz (平衡质量与体积)
+            audio_args = ['-c:a', 'aac', '-b:a', '96k', '-ar', '44100']
+            dropped = len(self.audio_streams) - len(decodable_audio)
+            if dropped:
+                # 一旦给了 -map, ffmpeg 就不再自动选流, 视频必须显式带上;
+                # 但只在真有坏音轨要丢时才走这条路, 否则维持原来的自动映射
+                logger.warning('Dropping %d undecodable audio stream(s): %s', dropped, self.path)
+                mapping = ['-map', '0:v:0']
+                for index in decodable_audio:
+                    mapping += ['-map', f'0:a:{index}']
+                audio_args = mapping + audio_args
 
         command.extend(
             [
@@ -498,7 +514,7 @@ class Video(BaseMedia, MixinMediaTranscriber):
                 # x265 调优参数: 自适应量化 + 关闭 SAO 滤波器
                 '-x265-params',
                 'aq-mode=3:no-sao=1',
-                # 音频参数由 has_decodable_audio 决定 (见上)
+                # 音频参数/映射由 decodable_audio_indexes 决定 (见上)
                 *audio_args,
                 # crf 0-51, 0 is lossless, 23 is default, and 51 is worst quality possible
                 # '-crf', '24',

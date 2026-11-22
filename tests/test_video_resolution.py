@@ -27,13 +27,20 @@ class TestResolutionParse(TestCase):
 class TestCompressCommand(TestCase):
     """只验证 command 拼装, 不真跑 ffmpeg。"""
 
-    def _command(self, source_wh, audio_decodable=True, **kwargs):
+    def _command(self, source_wh, audio_streams=None, **kwargs):
+        """audio_streams: 音轨列表, codec_name 缺失即视为解不了; None = 一条可解码的 AAC 音轨."""
+        if audio_streams is None:
+            audio_streams = [{'index': 1, 'codec_type': 'audio', 'codec_name': 'aac'}]
         video = object.__new__(Video)
         video.path = '/tmp/src.mp4'
         with (
             mock.patch.object(Video, 'resolution', new_callable=mock.PropertyMock, return_value=source_wh),
+            mock.patch.object(Video, 'audio_streams', new_callable=mock.PropertyMock, return_value=audio_streams),
             mock.patch.object(
-                Video, 'has_decodable_audio', new_callable=mock.PropertyMock, return_value=audio_decodable
+                Video,
+                'decodable_audio_indexes',
+                new_callable=mock.PropertyMock,
+                return_value=[i for i, s in enumerate(audio_streams) if s.get('codec_name')],
             ),
             mock.patch.object(Video, 'create_file_path', return_value='/tmp/out.mp4'),
             mock.patch('utils.decorator.CommandExecutor.run', return_value='done') as run,
@@ -51,9 +58,9 @@ class TestCompressCommand(TestCase):
         command = self._command((640, 480))
         assert '-vf' not in command
 
-    def test_undecodable_audio_falls_back_to_video_only(self):
+    def test_no_decodable_audio_falls_back_to_video_only(self):
         # AVI 音轨 codec_tag 'qg[0][0]' 认不出 -> ffmpeg 建流即 EINVAL, 连视频都不编
-        command = self._command((640, 480), audio_decodable=False)
+        command = self._command((640, 480), audio_streams=[{'codec_type': 'audio', 'codec_tag_string': 'qg[0][0]'}])
         assert '-an' in command
         assert '-c:a' not in command
 
@@ -61,6 +68,34 @@ class TestCompressCommand(TestCase):
         command = self._command((640, 480))
         assert command[command.index('-c:a') + 1] == 'aac'
         assert '-an' not in command
+        # 全部音轨都好时维持自动映射, 不要凭空多出 -map 改变选流
+        assert '-map' not in command
+
+    def test_partially_decodable_audio_keeps_the_good_streams(self):
+        # 第二条音轨 codec 认不出: 只有第一条留下, 且必须显式 map (给了 -map 就不再自动选流)
+        command = self._command(
+            (640, 480),
+            audio_streams=[
+                {'codec_type': 'audio', 'codec_name': 'aac'},
+                {'codec_type': 'audio', 'codec_tag_string': 'qg[0][0]'},
+            ],
+        )
+        maps = [command[i + 1] for i, part in enumerate(command) if part == '-map']
+        assert maps == ['0:v:0', '0:a:0']
+        assert command[command.index('-c:a') + 1] == 'aac'
+        assert '-an' not in command
+
+    def test_mapping_uses_audio_relative_index(self):
+        # 坏的是第一条, 好的那条是 -map 0:a:1 而不是按流 index 算
+        command = self._command(
+            (640, 480),
+            audio_streams=[
+                {'codec_type': 'audio', 'codec_tag_string': 'qg[0][0]'},
+                {'codec_type': 'audio', 'codec_name': 'aac'},
+            ],
+        )
+        maps = [command[i + 1] for i, part in enumerate(command) if part == '-map']
+        assert maps == ['0:v:0', '0:a:1']
 
     def test_explicit_resolution_and_fps(self):
         command = self._command((3840, 2160), resolution='FHD', fps=30)
