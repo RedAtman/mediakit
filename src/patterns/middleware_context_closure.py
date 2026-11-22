@@ -12,7 +12,8 @@ from utils.method import check_method_bound_to
 class Context:
     """Context is a class that wraps around the arguments of a Middleware function.
     It also provides a next function that can be called to call the next middleware.
-    in the chain. The next function is initialized to a dummy function that does nothing. That is, the closure around the next middleware.
+    in the chain. The next function is initialized to a dummy function that does nothing. That is, the
+    closure around the next middleware.
     In this case, Mainly used to store contextual of the current call, and pass it to the next middleware.
     """
 
@@ -61,7 +62,8 @@ class MiddlewareScheduler:
     MiddlewareSchedule is a class that encapsulates all middlewares and core functions based on closures.
     Use Context to pass contextual data between each middleware function.
     It provides a method to add middleware and core functions.
-    It also provides a method to initialize the scheduler. The initialization process will wrap all core functions with middlewares. The wrapped functions will be added to the scheduler as attributes.
+    It also provides a method to initialize the scheduler. The initialization process will wrap all core
+    functions with middlewares. The wrapped functions will be added to the scheduler as attributes.
 
     Can be used for functions, instance methods, and class methods.
 

@@ -55,7 +55,10 @@ class TestExecutor(TestCase):
     # def test_subprocess_run_str(self):
     #     command = "ls -l"
     #     command = 'echo "foo"'
-    #     command = f"ffprobe -v error -select_streams v -show_streams {CONFIG.MEDIA_FILE_PATH} | grep nb_frames | sed -e s/nb_frames=//"
+    #     command = (
+    #         f"ffprobe -v error -select_streams v -show_streams {CONFIG.MEDIA_FILE_PATH} "
+    #         "| grep nb_frames | sed -e s/nb_frames=//"
+    #     )
     #     logger.info(command)
     #     result = subprocess.run(
     #         command,
@@ -72,7 +75,8 @@ class TestExecutor(TestCase):
     #     command = "ls -l"
     #     command = 'echo "foo"'
     #     command = str(
-    #         f"ffprobe -v error -select_streams v -show_streams {CONFIG.MEDIA_FILE_PATH} | grep nb_frames | sed -e s/nb_frames=//"
+    #         f"ffprobe -v error -select_streams v -show_streams {CONFIG.MEDIA_FILE_PATH} "
+    #         "| grep nb_frames | sed -e s/nb_frames=//"
     #     )
     #     result = subprocess.call(
     #         command,

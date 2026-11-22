@@ -64,7 +64,12 @@ class _BaseConfig:
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
 
     PROJECT_NAME = 'mediakit'
-    PROJECT_DESCRIPTION = 'MediaKit is a media processing toolkit that provides a unified interface for various media-related tasks, including compression, trimming, scaling, format conversion, and metadata management. It is designed to be extensible and adaptable to different media processing needs.'
+    PROJECT_DESCRIPTION = (
+        'MediaKit is a media processing toolkit that provides a unified interface for various '
+        'media-related tasks, including compression, trimming, scaling, format conversion, and '
+        'metadata management. It is designed to be extensible and adaptable to different media '
+        'processing needs.'
+    )
     # PROJECT_AUTHOR = 'mediakit'
 
     # CPU throttling default limit
