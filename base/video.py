@@ -159,27 +159,34 @@ class Video(BaseMedia, MixinMediaTranscriber):
         audio_streams = [s for s in self.metadata.get('streams', []) if s.get('codec_type') == 'audio']
         return bool(audio_streams) and all(s.get('codec_name') for s in audio_streams)
 
+    def _probe_frames(self, entry: str, count_frames: bool = False) -> Optional[int]:
+        """取一次帧数, 拿不到返回 None.
+
+        argv 列表 + 不走 shell: 路径里的 $ ` " \\ 不会再被解释, 也不用 grep/sed 管道.
+        """
+        command = [self._FFPROBE_BIN, '-v', 'error']
+        if count_frames:
+            command.append('-count_frames')
+        command += ['-select_streams', 'v:0', '-show_entries', f'stream={entry}']
+        command += ['-of', 'default=nokey=1:noprint_wrappers=1', self.path]
+        try:
+            result = CommandExecutor.run(command).strip()
+        except Exception as err:
+            # ffprobe 对坏文件会非零退出, 这里当"没探到"而不是让整条任务失败
+            logger.debug('ffprobe %s failed on %s: %s', entry, self.path, err)
+            return None
+        return int(result) if result.isdigit() else None
+
     @functools.cached_property
     def frames_count(self):
-        try:
-            command = (
-                f'{self._FFPROBE_BIN} -v error -select_streams v -show_streams "{self.path}" '
-                '| grep nb_frames | sed -e s/nb_frames=//'
-            )
-            result = CommandExecutor.run(command)
-            return int(result)
-        except Exception:
-            command = (
-                f'{self._FFPROBE_BIN} -v error -count_frames -select_streams v:0 '
-                '-show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 '
-                f'"{self.path}"'
-            )
-            result = CommandExecutor.run(command)
-            if result.isdigit():
-                return int(result)
-            default_frames_count = 10000000
-            logger.warning(f'Cannot get frames count: {self.path}, set to {default_frames_count}.')
-            return default_frames_count
+        """视频帧数: 先读容器里的 nb_frames (快), 没有再逐帧数 (慢但准)."""
+        for entry, count_frames in (('nb_frames', False), ('nb_read_frames', True)):
+            frames = self._probe_frames(entry, count_frames)
+            if frames:
+                return frames
+        default_frames_count = 10000000
+        logger.warning(f'Cannot get frames count: {self.path}, set to {default_frames_count}.')
+        return default_frames_count
 
     @functools.cached_property
     def width_height(self):

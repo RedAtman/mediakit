@@ -124,3 +124,37 @@ def test_resolution_without_video_stream_raises():
     with mock.patch.object(Video, 'get_metadata', return_value={'streams': [{'codec_type': 'audio'}]}):
         with pytest.raises(ValueError, match='No video streams found'):
             video.resolution
+
+
+def _video_with_path(path: str) -> Video:
+    video = object.__new__(Video)
+    video.path = path
+    return video
+
+
+def test_frames_count_reads_container_metadata_without_shell():
+    # 路径里有 $ ` " \ 时, 拼成 shell 字符串会被解释掉; argv 列表则原样传参
+    path = '/tmp/weird $HOME `id` "quoted" \\name.mp4'
+    with mock.patch('base.video.CommandExecutor.run', return_value='31345\n') as run:
+        assert _video_with_path(path).frames_count == 31345
+    command = run.call_args[0][0]
+    assert isinstance(command, list)
+    assert command[-1] == path
+    assert 'nb_frames' in ' '.join(command)
+    assert not any(part in ' '.join(command) for part in ('grep', 'sed', '|'))
+
+
+def test_frames_count_falls_back_to_count_frames():
+    # 容器没有 nb_frames (常见于 mkv/webm 转出来的文件) 时才逐帧数, 后者很慢
+    answers = ['N/A\n', '42\n']
+    with mock.patch('base.video.CommandExecutor.run', side_effect=answers) as run:
+        assert _video_with_path('/tmp/src.mkv').frames_count == 42
+    assert '-count_frames' not in run.call_args_list[0][0][0]
+    assert '-count_frames' in run.call_args_list[1][0][0]
+
+
+def test_frames_count_warns_and_defaults_when_probe_fails():
+    with mock.patch('base.video.CommandExecutor.run', side_effect=RuntimeError('boom')):
+        with mock.patch('base.video.logger') as logger:
+            assert _video_with_path('/tmp/broken.mp4').frames_count == 10000000
+    logger.warning.assert_called_once()
