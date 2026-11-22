@@ -59,24 +59,14 @@ class BaseFolderMixin:
         return self.engine().query(statement, params)
 
     def scan_media(self, media_type: str = 'video'):
-        medias = self.medias_(self.path, media_type)
-        return self.scan_media_(self.path, medias, media_type)
+        return self.scan_media_(self.path, media_type)
 
     @classmethod
-    def scan_media_(
-        cls,
-        path: str = CONFIG.MEDIA_FILE_FOLDER,
-        medias: Generator[BaseMedia, None, None] | None = None,
-        media_type: str = 'video',
-    ):
-        medias = cls.medias_(path, media_type)
-        # try:
-        #     result = cls.scan_media__(medias)
-        #     return response.Result(code=200, data=result)
-        # except Exception as err:
-        #     logger.error(err)
-        #     return response.Result(code=400, msg=err)
-        return cls.scan_media__(medias)
+    def scan_media_(cls, path: str = CONFIG.MEDIA_FILE_FOLDER, media_type: str = 'video'):
+        # scan_media__ takes the generator, not the folder: it is the piece that also
+        # serves the "medias came from somewhere else" case, so the path-only entry
+        # point derives the stream here instead of accepting one it would drop.
+        return cls.scan_media__(cls.medias_(path, media_type))
 
     @classmethod
     def scan_media__(cls, medias: Generator[BaseMedia, None, None] | None = None):
