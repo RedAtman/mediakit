@@ -85,8 +85,11 @@ class BaseMedia:
         logger.info('BaseMedia: %s', path)
         self.path: str = Path(path).absolute().as_posix()
         self.dirname, self.title, self.ext = self.get_file_info(path)
+        # title 必须是去掉扩展名的拆分值, 不能是 basename: 带上扩展名会让
+        # Media.path 拼成 'clip.mp4.mp4' (不存在的路径), 那些行在重新扫描时
+        # 永远找不到文件. 这里与 scan 注册 (src/mixins/db.py) 用同一套拆分值.
         self.model: models.Media = self._MEDIA_CLS.get_or_create(
-            md5=self.md5, title=os.path.basename(path), dirname=self.dirname
+            md5=self.md5, title=self.title, dirname=self.dirname, ext=self.ext
         )
 
     def __repr__(self):

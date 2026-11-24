@@ -53,6 +53,22 @@ class TestVideo(TestCase):
         assert video.title == 'test_video'
         assert video.ext == 'mp4'
 
+    def test_construct_registers_split_title_and_ext(self):
+        """入库的 title 必须是去扩展名的拆分值.
+
+        回归: 以前传的是 os.path.basename(path) 且不带 ext, Media.path 于是拼成
+        'test_video.mp4.mp4' —— 那行以后再也找不到真实文件, 重扫时被静默跳过.
+        """
+        with mock.patch.object(Video, '_MEDIA_CLS') as mock_model:
+            mock_model.get_or_create.return_value = mock.MagicMock()
+            with mock.patch('base.media.calculate_md5', return_value='test_md5_hash'):
+                Video(self.temp_video)
+
+        kwargs = mock_model.get_or_create.call_args.kwargs
+        assert kwargs['title'] == 'test_video'
+        assert kwargs['ext'] == 'mp4'
+        assert f'{kwargs["dirname"]}/{kwargs["title"]}.{kwargs["ext"]}' == self.temp_video
+
     @mock.patch('base.media.calculate_md5', return_value='test_md5_hash')
     def test_md5_comes_from_calculate_md5(self, mock_md5):
         video = self._make_video()
