@@ -35,6 +35,8 @@ class ResultStatus(_StatusConstructor):
     FAILED = 1, 'Failed', 'Failed'
     DATABASE_ERROR = 600, 'Database Error', 'Database Error'
     KEYBOARD_INTERRUPT = 601, 'Keyboard Interrupt', 'Keyboard Interrupt'
+    # 探测元信息失败 (ffprobe 打不开): 不是失败, 是“这不该被当成媒体”
+    NOT_MEDIA = 602, 'Not Media', 'Not Media'
 
 
 # Can't support typing.Union[Status, int]

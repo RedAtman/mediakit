@@ -516,6 +516,31 @@ class TestWatcherScheduler(TestCase):
             scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 1)
         self.assertNotIn(os.path.realpath('/tmp/media/file.mp4'), scheduler._processing_files)
 
+    def test_flush_callback_ignores_probe_failure_before_scheduling(self):
+        """扩展名过了但 ffprobe 打不开 (如 AppleDouble 的 ._clip.mp4) 就不该建任务.
+
+        回归: 以前它会跑完一整条 compress 才失败, 每轮扫描再重试.
+        """
+        scheduler = self.scheduler
+        mock_media = mock.Mock()
+        type(mock_media).metadata = mock.PropertyMock(side_effect=exceptions.NotMediaException(101, 'Not processable'))
+
+        with mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls:
+            mock_folder = mock.Mock()
+            mock_folder.MEDIA_CLS.return_value = mock_media
+            mock_folder_cls.return_value = mock_folder
+            with (
+                mock.patch('src.schedulers.watcher.Folder.run___') as mock_run,
+                mock.patch('src.schedulers.watcher.logger') as watcher_logger,
+            ):
+                scheduler._flush_callback(['/tmp/media/._clip.mp4'], 'video', 1)
+
+        mock_run.assert_not_called()
+        # 探不到是 INFO (针对性忽略), 不是 WARNING
+        watcher_logger.info.assert_called_once()
+        watcher_logger.warning.assert_not_called()
+        self.assertNotIn(os.path.realpath('/tmp/media/._clip.mp4'), scheduler._processing_files)
+
     def test_flush_callback_cleans_up_even_when_callback_cannot_identify_path(self):
         """Batch-level finally guarantees cleanup even if callback can't identify path."""
         scheduler = self.scheduler

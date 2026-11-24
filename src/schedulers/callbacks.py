@@ -11,6 +11,7 @@ import logging
 
 from src.schemas import StateChoices
 from utils import file
+from utils.response import ResultStatus
 
 logger = logging.getLogger()
 
@@ -37,6 +38,13 @@ def mark_compress_outcome(result) -> bool:
             file.soft_remove(media.path)
         except Exception as exc:
             logger.error('soft_remove(%s) raised %s: %s', media.path, type(exc).__name__, exc)
+    elif result == ResultStatus.NOT_MEDIA:
+        # ffprobe 打不开: 终态 ignored, 下一轮扫描 (QUERY_UNPROCESSED 只收 unprocessed/failed)
+        # 不会再把拿它重试一次; 文件原地留着, 不是我们的东西不动它
+        try:
+            media.model.update_state('compress', StateChoices.ignored)
+        except Exception as exc:
+            logger.error('update_state(ignored) raised %s: %s', type(exc).__name__, exc)
     else:
         try:
             media.model.update_state('compress', StateChoices.failed)

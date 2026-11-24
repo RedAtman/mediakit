@@ -220,11 +220,23 @@ class WatcherScheduler:
                     medias = []
                     for path in new_paths:
                         try:
-                            medias.append(folder.MEDIA_CLS(path))
+                            media = folder.MEDIA_CLS(path)
                         except exceptions.NotMediaException:
                             with self._processing_lock:
                                 self._processing_files.discard(self._normalize_path(path))
                             logger.warning('Ignoring non-media file during watch: %s', path)
+                            continue
+                        try:
+                            # 扩展名只能粗筛 (._foo.mp4 借了 .mp4 的扩展名); 真正的判定是 ffprobe.
+                            # metadata 是 cached_property: 这里探到的结果会被后续 compress 复用,
+                            # 不多花一个进程; 探不到就不建任务, 免得白跑一趟再记 failed.
+                            media.metadata
+                        except exceptions.NotMediaException as err:
+                            with self._processing_lock:
+                                self._processing_files.discard(self._normalize_path(path))
+                            logger.info('Not processable media, ignoring: %s (%s)', path, err.msg)
+                            continue
+                        medias.append(media)
                     if medias:
                         scheduler = media_compress.core
                         tasks = [_make_watched_task(scheduler, media, self._compress_opts) for media in medias]

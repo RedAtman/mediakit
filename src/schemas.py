@@ -12,6 +12,9 @@ class StateChoices(IntEnum):
     failed = -2
     unprocessed = -1
     finished = 2
+    # ffprobe 根本打不开 (AppleDouble `._foo.mp4` 这类扩展名骗人的文件):
+    # 既不是失败也不该重试, 所以单独给一个终态
+    ignored = -3
 
     @classmethod
     def __str__(cls) -> str:
@@ -19,7 +22,7 @@ class StateChoices(IntEnum):
 
 
 _state_field = Field(
-    ge=StateChoices.failed,
+    ge=StateChoices.ignored,
     le=StateChoices.finished,
     default=StateChoices.unprocessed,
     # description="-2 is failed, -1 is unprocessed, 0.0 - 1.0 is in progress, 2 is finished.",
@@ -45,7 +48,7 @@ class State(BaseModel):
     @field_validator('compress', 'trim')
     @classmethod
     def field_validator(cls, value: float, info: ValidationInfo) -> float:
-        assert StateChoices.failed <= value <= StateChoices.finished, f'{info.field_name} must be between 0 and 1.'
+        assert StateChoices.ignored <= value <= StateChoices.finished, f'{info.field_name} must be between 0 and 1.'
         return value
 
 

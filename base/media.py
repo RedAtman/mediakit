@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -146,11 +147,16 @@ class BaseMedia:
             'json',
             path.strip(),
         ]
-        metadata = CommandExecutor.run(command)
+        try:
+            metadata = CommandExecutor.run(command)
+        except subprocess.CalledProcessError as err:
+            # ffprobe 打不开 = 这不是能处理的媒体 (AppleDouble `._foo.mp4` 之类借了
+            # 扩展名的元信息文件). 判据是内容, 不是扩展名: 扩展名只能粗筛, 定夺在这里.
+            raise exceptions.NotMediaException(101, f'Not processable media: {path}') from err
         try:
             return json.loads(metadata)
-        except Exception as err:
-            raise TypeError(f'Not a json string: {metadata}') from err
+        except json.JSONDecodeError as err:
+            raise exceptions.NotMediaException(101, f'Not processable media: {path}') from err
 
     @cached_property
     def width_height(self):

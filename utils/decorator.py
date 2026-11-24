@@ -6,8 +6,9 @@ import threading
 import time
 from typing import Any, Callable
 
+from utils import exceptions
 from utils.command import CommandExecutor
-from utils.response import Result
+from utils.response import Result, ResultStatus
 
 logger = logging.getLogger()
 
@@ -47,6 +48,12 @@ class exception:
             logger.exception(err)
             result = Result(601, msg=err)
             return result
+        except exceptions.NotMediaException as err:
+            # 探测不到元信息 = 这不该被当成媒体: 不是失败, 不重试, 不输出 traceback
+            media = getattr(self.fn, '__self__', None)
+            data = {'media': media} if media else None
+            logger.info('Not processable media, ignoring: %s', err.msg)
+            return Result(ResultStatus.NOT_MEDIA, data=data, msg=err.msg)
         except Exception as err:
             logger.exception(err)
             media = getattr(self.fn, '__self__', None)
