@@ -17,6 +17,7 @@ from src.file.debounce import DebounceBuffer
 from src.file.paths import collapse_nested, find_folder_file, parse_folder_file
 from src.file.stability import FileStabilityTracker
 from utils import exceptions, response
+from utils.media import MEDIA_CATEGORIES, guess
 
 from .callbacks import mark_compress_outcome
 from .media import COMPRESS_OPTS
@@ -25,10 +26,28 @@ from .media import compress as media_compress
 logger = logging.getLogger()
 
 
+def _include_categories(media_type: str) -> list[str]:
+    """把 --type 翻成事件入口可接受的 guess() 类别.
+
+    不走 Folder.media_cls(): 'all'/'image' 在 MEDIA_CLASSES 里没有实现类,
+    而这里只需要"这个扩展名该不该进管道"的粗筛, 末级 flush 仍由 MEDIA_CLS 定调.
+    认不出的类型放过所有媒体类别 —— 闸门宁可漏不可误杀.
+    """
+    if media_type in MEDIA_CATEGORIES:
+        return [media_type]
+    return list(MEDIA_CATEGORIES)
+
+
 class _WatchEventHandler(FileSystemEventHandler):
-    def __init__(self, debounce_buffer: DebounceBuffer, stability_tracker: FileStabilityTracker):
+    def __init__(
+        self,
+        debounce_buffer: DebounceBuffer,
+        stability_tracker: FileStabilityTracker,
+        include_categories: list[str] | None = None,
+    ):
         self.debounce_buffer = debounce_buffer
         self.stability_tracker = stability_tracker
+        self.include_categories = list(include_categories or MEDIA_CATEGORIES)
 
     def dispatch(self, event):
         if event.is_directory:
@@ -40,6 +59,11 @@ class _WatchEventHandler(FileSystemEventHandler):
         else:
             path = event.src_path
         if '/_[' in path or '/.removed/' in path:
+            return
+        # 扩展名类别闸门: .DS_Store / ._xxx / --type 之外的扩展名在这里就出去.
+        # 放行的话它们会先进 FileStabilityTracker (同步轮询阻塞 Observer 事件线程 ~3s),
+        # 再进去抖缓冲, 直到 flush 阶段的类型判定才被拒.
+        if guess(path) not in self.include_categories:
             return
         logger.info(f'File event detected: {event.event_type} {path}')
         if self.stability_tracker.wait_until_stable(path):
@@ -221,7 +245,7 @@ class WatcherScheduler:
             callback=partial(self._flush_callback, media_type=media_type, max_workers=max_workers),
         )
         tracker = FileStabilityTracker(sample_interval=1.0, stable_samples=3, timeout=30.0)
-        handler = _WatchEventHandler(buffer, tracker)
+        handler = _WatchEventHandler(buffer, tracker, _include_categories(media_type))
         self._handler = handler
 
         self.observer = Observer()
@@ -388,7 +412,7 @@ class WatcherScheduler:
             callback=partial(self._flush_callback, media_type=media_type, max_workers=max_workers),
         )
         tracker = FileStabilityTracker(sample_interval=1.0, stable_samples=3, timeout=30.0)
-        handler = _WatchEventHandler(buffer, tracker)
+        handler = _WatchEventHandler(buffer, tracker, _include_categories(media_type))
         self._handler = handler
 
         # New Observer + clear stale state so the dict matches what this Observer

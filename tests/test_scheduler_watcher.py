@@ -233,6 +233,57 @@ class TestWatcherScheduler(TestCase):
         handler.dispatch(file_event)
         handler.debounce_buffer.add.assert_not_called()
 
+    def _handler_with_categories(self, categories):
+        from src.schedulers.watcher import _WatchEventHandler
+
+        tracker = mock.Mock()
+        tracker.wait_until_stable.return_value = True
+        buffer = mock.Mock()
+        return _WatchEventHandler(buffer, tracker, categories), tracker, buffer
+
+    @mock.patch('src.schedulers.watcher.logger')
+    def test_drops_ds_store_before_stability_and_logging(self, watcher_logger):
+        """扩展名认不出类别就不该进管道.
+
+        回归: 以前 .DS_Store 会先被 FileStabilityTracker 同步轮询阻塞 Observer
+        线程 3 秒, 再去抖, 最后才在 flush 阶段报 WARNING, 同时刷一条 INFO.
+        """
+        handler, tracker, buffer = self._handler_with_categories(['video'])
+        handler.dispatch(self._make_event('/tmp/media/Max Betancur/.DS_Store', 'created'))
+
+        tracker.wait_until_stable.assert_not_called()
+        buffer.add.assert_not_called()
+        watcher_logger.info.assert_not_called()
+
+    def test_drops_media_of_another_type(self):
+        handler, tracker, buffer = self._handler_with_categories(['video'])
+        handler.dispatch(self._make_event('/tmp/media/song.mp3', 'created'))
+        handler.dispatch(self._make_event('/tmp/media/cover.jpg', 'created'))
+
+        tracker.wait_until_stable.assert_not_called()
+        buffer.add.assert_not_called()
+
+    def test_all_type_keeps_every_media_category(self):
+        from src.schedulers.watcher import _include_categories
+
+        handler, tracker, buffer = self._handler_with_categories(_include_categories('all'))
+        for path in ('/tmp/media/clip.mp4', '/tmp/media/song.mp3', '/tmp/media/cover.jpg'):
+            handler.dispatch(self._make_event(path, 'created'))
+        handler.dispatch(self._make_event('/tmp/media/.DS_Store', 'created'))
+
+        assert buffer.add.call_count == 3
+        tracker.wait_until_stable.assert_any_call('/tmp/media/clip.mp4')
+
+    def test_type_string_maps_to_categories(self):
+        from src.schedulers.watcher import _include_categories
+        from utils.media import MEDIA_CATEGORIES
+
+        assert _include_categories('video') == ['video']
+        assert _include_categories('audio') == ['audio']
+        # all / 未来的未知类型都放过所有媒体类别, 闸门宁可漏不可误杀
+        assert _include_categories('all') == list(MEDIA_CATEGORIES)
+        assert _include_categories('image') == ['image']
+
     def test_batch_callback_soft_removes_on_success(self):
         from concurrent.futures import Future
 
