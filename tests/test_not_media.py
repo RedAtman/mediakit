@@ -21,11 +21,28 @@ class _FakeMedia:
         self.model = mock.Mock()
 
 
-def test_get_metadata_raises_not_media_when_ffprobe_cannot_open():
-    failure = subprocess.CalledProcessError(1, ['ffprobe'], output='Invalid data')
+def test_get_metadata_raises_not_media_when_ffprobe_cannot_open(tmp_path):
+    broken = tmp_path / '._clip.mp4'
+    broken.write_bytes(b'\x00\x05\x16\x07' + b'x' * 200)
+    failure = subprocess.CalledProcessError(1, ['ffprobe'], output='moov atom not found\nInvalid data found')
+
     with mock.patch('base.media.CommandExecutor.run', side_effect=failure):
-        with pytest.raises(exceptions.NotMediaException):
-            BaseMedia.get_metadata('/tmp/._clip.mp4')
+        with pytest.raises(exceptions.NotMediaException) as caught:
+            BaseMedia.get_metadata(str(broken))
+
+    # 带上 ffprobe 的原话, 否则日志里只剩一个路径, 没法定位为什么打不开
+    assert 'moov atom not found' in caught.value.msg
+    assert str(broken) in caught.value.msg
+
+
+def test_get_metadata_keeps_vanished_file_retryable(tmp_path):
+    """文件不在 ≠ 不是媒体: 下载改名 / 卷未挂载都走这条, 必须留给 failed 重试."""
+    missing = str(tmp_path / 'gone.mp4')
+    failure = subprocess.CalledProcessError(1, ['ffprobe'], output='No such file or directory')
+
+    with mock.patch('base.media.CommandExecutor.run', side_effect=failure):
+        with pytest.raises(subprocess.CalledProcessError):
+            BaseMedia.get_metadata(missing)
 
 
 def test_exception_decorator_maps_not_media_to_its_own_status():

@@ -263,6 +263,14 @@ class TestWatcherScheduler(TestCase):
         tracker.wait_until_stable.assert_not_called()
         buffer.add.assert_not_called()
 
+    def test_explicit_empty_categories_accepts_nothing(self):
+        """显式的空列表是"什么都不收", 不能被 `or` 吞成"放过所有类别"."""
+        handler, tracker, buffer = self._handler_with_categories([])
+        handler.dispatch(self._make_event('/tmp/media/clip.mp4', 'created'))
+
+        tracker.wait_until_stable.assert_not_called()
+        buffer.add.assert_not_called()
+
     def test_all_type_keeps_every_media_category(self):
         from src.schedulers.watcher import _include_categories
 

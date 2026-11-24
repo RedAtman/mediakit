@@ -46,7 +46,7 @@ class exception:
             return result
         except KeyboardInterrupt as err:
             logger.exception(err)
-            result = Result(601, msg=err)
+            result = Result(ResultStatus.KEYBOARD_INTERRUPT, msg=err)
             return result
         except exceptions.NotMediaException as err:
             # 探测不到元信息 = 这不该被当成媒体: 不是失败, 不重试, 不输出 traceback

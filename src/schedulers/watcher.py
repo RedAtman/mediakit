@@ -34,6 +34,8 @@ def _include_categories(media_type: str) -> list[str]:
     认不出的类型放过所有媒体类别 —— 闸门宁可漏不可误杀.
     """
     if media_type in MEDIA_CATEGORIES:
+        # 'image' 在 MEDIA_CLASSES 里还没有实现类, 放行到 flush 阶段只会换来一条
+        # WARNING (Folder 默认按 video 判) —— 这里只做粗筛, 不为它能不能处理背书
         return [media_type]
     return list(MEDIA_CATEGORIES)
 
@@ -47,7 +49,8 @@ class _WatchEventHandler(FileSystemEventHandler):
     ):
         self.debounce_buffer = debounce_buffer
         self.stability_tracker = stability_tracker
-        self.include_categories = list(include_categories or MEDIA_CATEGORIES)
+        # 显式的空列表就是"什么都不收", 不能被 `or` 吞成"放过所有类别"
+        self.include_categories = list(MEDIA_CATEGORIES if include_categories is None else include_categories)
 
     def dispatch(self, event):
         if event.is_directory:

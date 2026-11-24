@@ -142,8 +142,10 @@ class BaseMedia:
         # 当成语法, 导致 ffprobe 以 127/解析错误失败 (见 decodable_audio_indexes)
         command = [
             cls._FFPROBE_BIN,
+            # -v error 而不是 -v quiet: 好文件不会有额外输出, 而坏文件的原因
+            # (moov atom not found / Permission denied) 才不会被吞掉
             '-v',
-            'quiet',
+            'error',
             '-show_format',
             '-show_streams',
             '-print_format',
@@ -153,13 +155,18 @@ class BaseMedia:
         try:
             metadata = CommandExecutor.run(command)
         except subprocess.CalledProcessError as err:
+            # 文件不在了 ≠ "这不是媒体": 下载中途改名 / 外接卷未挂载 / SMB 抖动都会
+            # 走到这里, 那条路径必须保持可重试 (failed), 不能写进终态 ignored.
+            if not os.path.exists(path.strip()):
+                raise
             # ffprobe 打不开 = 这不是能处理的媒体 (AppleDouble `._foo.mp4` 之类借了
             # 扩展名的元信息文件). 判据是内容, 不是扩展名: 扩展名只能粗筛, 定夺在这里.
-            raise exceptions.NotMediaException(101, f'Not processable media: {path}') from err
+            detail = ' '.join((err.output or '').split())[:200]
+            raise exceptions.NotMediaException(101, f'Not processable media: {path} ({detail})') from err
         try:
             return json.loads(metadata)
         except json.JSONDecodeError as err:
-            raise exceptions.NotMediaException(101, f'Not processable media: {path}') from err
+            raise exceptions.NotMediaException(101, f'Not processable media: {path} (unparsable output)') from err
 
     @cached_property
     def width_height(self):

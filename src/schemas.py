@@ -25,7 +25,7 @@ _state_field = Field(
     ge=StateChoices.ignored,
     le=StateChoices.finished,
     default=StateChoices.unprocessed,
-    # description="-2 is failed, -1 is unprocessed, 0.0 - 1.0 is in progress, 2 is finished.",
+    # description="-3 ignored, -2 is failed, -1 is unprocessed, 0.0 - 1.0 is in progress, 2 is finished.",
     description=StateChoices.__str__(),
     validate_default=True,
 )
@@ -48,7 +48,9 @@ class State(BaseModel):
     @field_validator('compress', 'trim')
     @classmethod
     def field_validator(cls, value: float, info: ValidationInfo) -> float:
-        assert StateChoices.ignored <= value <= StateChoices.finished, f'{info.field_name} must be between 0 and 1.'
+        assert StateChoices.ignored <= value <= StateChoices.finished, (
+            f'{info.field_name} must be between {StateChoices.ignored} and {StateChoices.finished}.'
+        )
         return value
 
 

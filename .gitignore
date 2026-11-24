@@ -135,6 +135,8 @@ venv.bak/
 
 # db
 *.db
+# 备份是 db.db.bak.<epoch>, 不匹配上面的 *.db, 会整包 1.4MB 误入库
+db.db.bak.*
 *.sqlite
 *.sqlite3
 
