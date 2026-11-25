@@ -533,9 +533,56 @@ class TestWatcherScheduler(TestCase):
         finally:
             watcher_module._thread_context.current_path = None
 
-    def test_flush_callback_cleans_up_on_folder_exception(self):
+    def test_flush_callback_skips_path_whose_folder_vanished(self):
+        """目录在事件与 flush 之间消失 (Folder 构造失败) 只跳过这一条."""
         scheduler = self.scheduler
-        with mock.patch('src.schedulers.watcher.Folder', side_effect=RuntimeError('folder failed')):
+        with (
+            mock.patch('src.schedulers.watcher.Folder', side_effect=FileNotFoundError('gone')),
+            mock.patch('src.schedulers.watcher.Folder.run___') as mock_run,
+            mock.patch('src.schedulers.watcher.logger') as watcher_logger,
+        ):
+            scheduler._flush_callback(['/tmp/media/gone/file.mp4'], 'video', 1)
+
+        mock_run.assert_not_called()
+        watcher_logger.warning.assert_called_once()
+        self.assertIn('Cannot build media', watcher_logger.warning.call_args[0][0])
+        self.assertNotIn(os.path.realpath('/tmp/media/gone/file.mp4'), scheduler._processing_files)
+
+    def test_flush_callback_isolates_folder_construction_failure(self):
+        """一条路径的目录消失不能连累同批其他文件 (回归: Folder 曾在 per-path try 之外)."""
+        scheduler = self.scheduler
+        mock_media = mock.Mock()
+        type(mock_media).metadata = mock.PropertyMock(return_value={'streams': []})
+        calls = {'n': 0}
+
+        def folder_factory(dirname, media_type='video'):
+            calls['n'] += 1
+            if calls['n'] == 1:
+                raise FileNotFoundError(f'File not found at path: {dirname}')
+            folder = mock.Mock()
+            folder.MEDIA_CLS.return_value = mock_media
+            return folder
+
+        with (
+            mock.patch('src.schedulers.watcher.Folder', side_effect=folder_factory),
+            mock.patch('src.schedulers.watcher.Folder.run___') as mock_run,
+            mock.patch('src.schedulers.watcher._make_watched_task') as make_task,
+        ):
+            scheduler._flush_callback(['/tmp/media/gone/a.mp4', '/tmp/media/ok/b.mp4'], 'video', 1)
+
+        mock_run.assert_called_once()
+        make_task.assert_called_once()
+
+    def test_flush_callback_cleans_up_when_run_raises(self):
+        """批任务执行本身抛异常时, _processing_files 仍要清理干净."""
+        scheduler = self.scheduler
+        mock_media = mock.Mock()
+        type(mock_media).metadata = mock.PropertyMock(return_value={'streams': []})
+        with (
+            mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls,
+            mock.patch('src.schedulers.watcher.Folder.run___', side_effect=RuntimeError('boom')),
+        ):
+            mock_folder_cls.return_value.MEDIA_CLS.return_value = mock_media
             with self.assertRaises(RuntimeError):
                 scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 1)
         self.assertNotIn(os.path.realpath('/tmp/media/file.mp4'), scheduler._processing_files)

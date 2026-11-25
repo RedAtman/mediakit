@@ -223,10 +223,18 @@ class TestWatcherInflightTracking(TestCase):
         from src.schedulers.watcher import WatcherScheduler
 
         scheduler = WatcherScheduler()
-        with mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True):
-            with mock.patch('src.schedulers.watcher.Folder', side_effect=RuntimeError('boom')):
-                with self.assertRaises(RuntimeError):
-                    scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 2)
+        # Folder 构造失败现在只跳过该文件, 所以要制造一个"逃出去"的异常来验在飞标记的清理:
+        # 用 run___ 抛错 (Folder 本身能构造成功)
+        mock_media = mock.Mock()
+        type(mock_media).metadata = mock.PropertyMock(return_value={'streams': []})
+        with (
+            mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True),
+            mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls,
+            mock.patch('src.schedulers.watcher.Folder.run___', side_effect=RuntimeError('boom')),
+        ):
+            mock_folder_cls.return_value.MEDIA_CLS.return_value = mock_media
+            with self.assertRaises(RuntimeError):
+                scheduler._flush_callback(['/tmp/media/file.mp4'], 'video', 2)
         self.assertFalse(scheduler._inflight_batch.is_set())
 
     def test_signal_handler_waits_for_inflight(self):

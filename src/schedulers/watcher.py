@@ -229,7 +229,17 @@ class WatcherScheduler:
     def _write_pid_file(self):
         pid_dir = self._ensure_pid_dir()
         pid_path = Path(pid_dir) / 'daemon.pid'
-        pid_path.write_text(str(os.getpid()))
+        try:
+            # O_EXCL: 早先的 liveness 检查与写入之间仍有窗口, 两个进程可能同时通过检查
+            fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        except FileExistsError:
+            live = self._read_live_pid(pid_path)
+            if live is not None:
+                raise SystemExit(f'watch daemon already running (PID {live}); run `mediakit stop` first') from None
+            pid_path.unlink(missing_ok=True)  # 陈旧文件: 重来一次
+            fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        with os.fdopen(fd, 'w') as handle:
+            handle.write(str(os.getpid()))
         logger.info('PID file written to %s', pid_path)
 
     @staticmethod
@@ -264,17 +274,23 @@ class WatcherScheduler:
                 try:
                     tasks = []
                     for path in new_paths:
-                        # 'image'/'all' 没有对应的 MEDIA_CLASSES 实现, 与旧行为一致按 video 判定
-                        folder = Folder(
-                            os.path.dirname(path),
-                            _processing_media_type(self._resolver.media_type_for(path, media_type)),
-                        )
                         try:
+                            # 'image'/'all' 没有对应的 MEDIA_CLASSES 实现, 与旧行为一致按 video 判定
+                            folder = Folder(
+                                os.path.dirname(path),
+                                _processing_media_type(self._resolver.media_type_for(path, media_type)),
+                            )
                             media = folder.MEDIA_CLS(path)
                         except exceptions.NotMediaException:
                             with self._processing_lock:
                                 self._processing_files.discard(self._normalize_path(path))
                             logger.warning('Ignoring non-media file during watch: %s', path)
+                            continue
+                        except Exception as err:
+                            # 目录在事件与 flush 之间消失 (Folder 构造失败) 也不能连累同批文件
+                            with self._processing_lock:
+                                self._processing_files.discard(self._normalize_path(path))
+                            logger.warning('Cannot build media, skipping for now: %s (%s)', path, err)
                             continue
                         try:
                             # 扩展名只能粗筛 (._foo.mp4 借了 .mp4 的扩展名); 真正的判定是 ffprobe.
@@ -603,6 +619,9 @@ class WatcherScheduler:
             self._config_is_toml = True
             raw_paths, valid_paths = self._resolve_config_paths(self._resolver.paths(), recursive)
         else:
+            # 同一进程内二次 core() 时, 上一次的 TOML 标志必须清掉, 否则热重载会拿纯文本
+            # 清单去 TOML 解析
+            self._config_is_toml = False
             raw_paths, valid_paths, config_filepath = self._resolve_watch_paths(folder_path, folder_file, recursive)
 
         # --- State initialization for dynamic config monitoring ---
