@@ -224,7 +224,8 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   applied to the revision 3 → 5 bump and is stale; still run `uv lock --check` after hand edits
 - **Watch config lives in `~/.config/mediakit/config.toml` (XDG, even on macOS), state stays in the platform
   state dir** — config vs state is the split; `logs/`/`db.db` do not move. Discovery order: `--config` →
-  `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml` → legacy `var/folder.sh` → `-f`. A bad key/path/resolution
+  `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml`; with no TOML it falls back to `--folder-file` →
+  `~/.config/mediakit/folders.txt` → legacy `var/folder.sh` walk-ups → `-f DIR`. A bad key/path/resolution
   aborts startup via `ConfigError` (cli prints one line), because a silently-ignored typo is worse than refusing to
   start. `[watch] folders_file` keeps a plain one-path-per-line list usable, so 300+ entries need not be rewritten;
   `[[watch.folders]]` entries are merged on top and win on duplicates. Per-path `media_type`/`recursive`/`compress`

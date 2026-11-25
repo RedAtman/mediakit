@@ -32,6 +32,18 @@
         <string>--watch</string>
     </array>
 
+    <!--
+      launchd does NOT inherit the login shell's PATH (/usr/bin:/bin only), and
+      config.py's FFMPEG_BIN_DIR is empty by default, so ffmpeg/ffprobe are
+      resolved through PATH. Without this the daemon starts but every task dies
+      with "No such file or directory: 'ffprobe'".
+    -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
     <!-- .env, db.db and logs/ resolve relative to this directory -->
     <key>WorkingDirectory</key>
     <string>/Users/nut/Dropbox/dev/redatman/mediakit</string>

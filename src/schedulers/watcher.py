@@ -237,7 +237,11 @@ class WatcherScheduler:
             if live is not None:
                 raise SystemExit(f'watch daemon already running (PID {live}); run `mediakit stop` first') from None
             pid_path.unlink(missing_ok=True)  # 陈旧文件: 重来一次
-            fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            try:
+                fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            except FileExistsError:
+                # 极端竞态: 另一进程在同一瞬间抢到了; 不要带着 traceback 崩
+                raise SystemExit('watch daemon is starting up concurrently; retry in a moment') from None
         with os.fdopen(fd, 'w') as handle:
             handle.write(str(os.getpid()))
         logger.info('PID file written to %s', pid_path)
@@ -614,6 +618,11 @@ class WatcherScheduler:
 
         self._setup_cpu_throttling(cpu_limit)
 
+        if not self._resolver.paths() and find_config_file(config_path) is not None:
+            logger.warning(
+                'Config file declares no [[watch.folders]]; falling back to --folder-file/-f. '
+                'Add folders there, or delete the file to silence this.'
+            )
         if self._resolver.paths():
             config_filepath = str(find_config_file(config_path) or '')
             self._config_is_toml = True
