@@ -4,18 +4,72 @@ MediaKit 是一款批量媒体处理 CLI 工具，支持压缩、格式转换、
 
 ## 安装
 
+### 前置要求
+
+| 依赖 | 说明 |
+| --- | --- |
+| `ffmpeg` / `ffprobe` | **不随包分发**，必须在 `PATH` 上（`brew install ffmpeg` / `apt install ffmpeg`）。在 launchd/cron 下 `PATH` 很小，需要设 `FFMPEG_BIN_DIR=/opt/homebrew/bin` 或在环境里补 `PATH`（仓库自带的 plist 用的是后者） |
+| Python 3.14 | 仅源码/uv 安装需要；`uv` 可代为安装（`uv python install 3.14`）。上界钉在 `<3.15` 是因为 pyobjc 还没有 3.15 的 wheel |
+| `transcriber` CLI | 可选，只有转写动作需要（`brew install RedAtman/tap/transcriber`） |
+| macOS / Linux | CPU 限流只在两者上实现；Windows 下守护进程不限流，只打一条 warning |
+
+### 方式一：Homebrew（macOS）
+
 ```sh
-# 前置要求
-
-brew install ffmpeg
-brew install RedAtman/tap/transcriber
-
-# 创建虚拟环境并安装依赖
-uv venv .venv && source .venv/bin/activate && uv sync
-
-# (可选) 安装为系统命令
-uv tool install --editable . --python 3.14
+brew install RedAtman/tap/mediakit ffmpeg
+mediakit -v
 ```
+
+### 方式二：预编译二进制（无需 Python）
+
+每个 release 都附带 `mediakit-<os>-<arch>`（`mediakit-macos-arm64`、`mediakit-macos-x86_64`、
+`mediakit-linux-x86_64`、`mediakit-windows-x86_64.exe`），下载后给执行权限并放进 `PATH`：
+
+```sh
+chmod +x mediakit-macos-arm64 && sudo mv mediakit-macos-arm64 /usr/local/bin/mediakit
+```
+
+### 方式三：uv / 源码
+
+```sh
+git clone https://github.com/RedAtman/mediakit && cd mediakit
+uv sync                                          # 创建 Python 3.14 的 .venv
+uv tool install --editable . --python 3.14       # 可选：把 mediakit 装到 PATH
+```
+
+## 首次运行
+
+```sh
+# 1. 生成带注释的起始配置到 ~/.config/mediakit/config.toml（已存在则拒绝覆盖）
+mediakit --init-config
+
+# 2. 告诉它要盯哪些目录 —— 两种写法任选
+printf '%s\n' "~/Downloads/rs" >> ~/.config/mediakit/folders.txt
+#    再由配置引用:  [watch] folders_file = "~/.config/mediakit/folders.txt"
+#    或直接写条目:
+#    [[watch.folders]]
+#    path = "~/Downloads/rs"
+
+# 3. 先拿一个目录试跑（一次性，不起守护进程）
+mediakit compress -t video -f ~/Movies/rs
+
+# 4. 作为守护进程运行（Ctrl-C 或另开一个终端 `mediakit stop`）
+mediakit compress -t video --watch
+```
+
+仓库里提供了模板：`config.toml.example`、`folders.txt.example`。
+
+### 状态文件位置
+
+| 内容 | 源码 / uv 安装 | Homebrew 或预编译二进制 |
+| --- | --- | --- |
+| 配置 | `~/.config/mediakit/config.toml`（`$XDG_CONFIG_HOME`） | 同左 |
+| 数据库 | `<仓库>/db.db`，或 `[database] path` | `~/Library/Application Support/mediakit/db.db`（macOS）、`~/.local/state/mediakit/db.db`（Linux）、`%LOCALAPPDATA%\mediakit\db.db`（Windows） |
+| 日志 | `<仓库>/logs/` | 同一平台状态目录下的 `logs/` |
+| 守护进程 pid | `~/.mediakit/daemon.pid` | 同左 |
+
+冻结二进制把**状态放在平台状态目录而不是可执行文件旁边**，所以 `brew upgrade` 不会丢掉数据库；`.env`（当前目录
+或 `~`）里设置 `SQLITE_DATABASE` 仍然可以覆盖它。
 
 ## 使用
 
@@ -166,6 +220,45 @@ launchctl kickstart -k gui/$(id -u)/com.nut.mediakit     # 原地重启
   `EnvironmentVariables.PATH`（Homebrew 在前）。缺了它 ffmpeg/ffprobe 找不到，每个任务都会失败。
 - **日志**：launchd 的 stdout/stderr 落在 `logs/launchd.{out,err}`；真正有用的是应用自己的
   `logs/{info,warning,error}.log`（自动轮转）。
+
+## 构建
+
+```sh
+# 静态检查 + 测试（与 CI 相同的门禁）
+pre-commit run --all-files
+uv run pytest -q
+
+# sdist + wheel → dist/
+uv build
+
+# 单文件二进制（打包的唯一真源是 PyInstaller spec）
+uv run --with pyinstaller==6.22.3 pyinstaller mediakit.spec --distpath dist --workpath build
+```
+
+冻结构建的几个要点：
+
+- `mediakit.spec` 承载了静态分析看不见的部分：`utils/media_types.json`、发行版元数据（`mediakit -v` 从它读版本）、
+  以及动态 import 的 logger/signal 模块。新增动态 import 必须同步写进 spec，否则二进制运行时才会炸。
+- `ffmpeg` **不打包**，二进制同样调用系统 `PATH` 上的 ffmpeg，与 pip/uv 安装行为一致。
+- `multiprocessing` 是被**故意排除**的：PyInstaller 的运行时钩子会拉起一个辅助进程，反过来重新进入这个 CLI，
+  于是参数解析被破坏。项目本身不用多进程（`utils/executor.py` 只有线程池）。
+
+## 发布
+
+```sh
+# 1. bump 唯一的版本源
+$EDITOR pyproject.toml          # [project].version
+uv lock                         # 同步 lock 里的 mediakit 版本
+
+# 2. 提交，然后给这个提交打 tag 并推送
+git commit -am "chore(release): x.y.z"
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+随后 `.github/workflows/release.yml` 会：跑 pre-commit + 测试（tag 可以指向任何提交，所以发布必须以测试为门禁）、
+校验 tag 与 `[project].version` 一致、构建 sdist+wheel、为 macOS arm64/x86_64 / Linux x86_64 / Windows 构建二进制、
+把全部产物挂到 GitHub Release，并触发 Homebrew formula bump。tag 里含 `alpha`/`beta`/`rc` 会发成 prerelease。
+tag 指向的提交必须能从 `main` 到达 —— 工作流也会检查这一点。
 
 ## CPU 动态限流
 

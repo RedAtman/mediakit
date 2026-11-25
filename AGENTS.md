@@ -123,6 +123,12 @@ pytest -vv --rootdir . --color=yes --capture=tee-sys
 # Lint
 uv run ruff check . tests
 
+# Build sdist + wheel
+uv build
+
+# Build the frozen binary (see NOTES for what the spec carries)
+uv run --with pyinstaller==6.22.3 pyinstaller mediakit.spec --distpath dist --workpath build
+
 # Format
 uv run ruff format .
 
@@ -196,10 +202,11 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   x86_64 and Windows, and attaches `mediakit-<os>-<arch>` to the GitHub release. ffmpeg is **not**
   bundled: the binary shells out to a system ffmpeg on PATH, same as the pip/uv install
 - **Frozen paths** — onefile puts `__file__` in a temp dir that is deleted on exit, so `config.py`
-  anchors `BASE_DIR` to `sys.executable` when `sys.frozen` is set. That is why the state DB
-  (`db.db`) and `logs/` land **next to the binary**; without it every run would start from an empty
-  database and `compress` could never resume. A `.env` (or `~/.env`) that sets `SQLITE_DATABASE`
-  still overrides this
+  anchors `BASE_DIR` to `sys.executable` when `sys.frozen` is set (that is only the import root).
+  `STATE_DIR` — and therefore `db.db` and `logs/` — comes from `frozen_state_dir()`: `~/Library/
+  Application Support/mediakit` on macOS, `~/.local/state/mediakit` on Linux, `%LOCALAPPDATA%\mediakit`
+  on Windows, precisely so `brew upgrade` cannot delete the database. A `.env` (or `~/.env`) that sets
+  `SQLITE_DATABASE` still overrides this
 - **Frozen bundle needs explicit hidden imports for every dynamic import** — `src/__init__.py`
   (`src.signals`), `config.py` (`utils.logger.init`, plus the `dictConfig` `()` entries that
   reflect `utils.logger.filters/formatters`), and `folder.py` (`base.{video,audio}` chosen from the
@@ -242,6 +249,10 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   test enforces it, otherwise the example rots. `folders.txt.example` is validated through `parse_folder_file`
   the same way. A run with no configured folders is a hard failure (`nothing to watch …`), never a silent watch
   of `MEDIA_FILE_FOLDER`
+- **CLI flags beat the config file for compress params** — `Resolver.compress_opts_for()` layers
+  `[compress]` then the matched `[[watch.folders]].compress`, then overwrites with whatever CLI passed
+  (`resolution`/`fps` that were actually given). An explicit `--resolution` therefore always wins, which is
+  what the README promises
 - **Watch config lives in `~/.config/mediakit/config.toml` (XDG, even on macOS), state stays in the platform
   state dir** — config vs state is the split; `logs/`/`db.db` do not move. Discovery order: `--config` →
   `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml`; with no TOML it falls back to `--folder-file` →

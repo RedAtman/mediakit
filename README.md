@@ -4,18 +4,73 @@ MediaKit is a CLI tool for batch media operations — compress, convert, scale, 
 
 ## Installation
 
+### Prerequisites
+
+| Requirement | Notes |
+| --- | --- |
+| `ffmpeg` / `ffprobe` | **Not bundled** — must be on `PATH` (`brew install ffmpeg`, `apt install ffmpeg`). Under launchd/cron, `PATH` is minimal, so either export `FFMPEG_BIN_DIR=/opt/homebrew/bin` or set `PATH` (the shipped plist does the latter) |
+| Python 3.14 | Only for the source/uv installs; `uv` can fetch it (`uv python install 3.14`). The range is pinned `<3.15` because pyobjc has no 3.15 wheel |
+| `transcriber` CLI | Optional — only the transcription action needs it (`brew install RedAtman/tap/transcriber`) |
+| macOS or Linux | CPU throttling is implemented there; on Windows the daemon runs unthrottled with one warning |
+
+### Option 1 — Homebrew (macOS)
+
 ```sh
-# Prerequisites
-
-brew install ffmpeg
-brew install RedAtman/tap/transcriber
-
-# Create virtual environment and install dependencies
-uv venv .venv && source .venv/bin/activate && uv sync
-
-# (Optional) Install as a system-wide command
-uv tool install --editable . --python 3.14
+brew install RedAtman/tap/mediakit ffmpeg
+mediakit -v
 ```
+
+### Option 2 — Prebuilt binary (no Python needed)
+
+Every release attaches `mediakit-<os>-<arch>` (`mediakit-macos-arm64`, `mediakit-macos-x86_64`,
+`mediakit-linux-x86_64`, `mediakit-windows-x86_64.exe`) — download it from the release page, make it executable and
+put it on `PATH`:
+
+```sh
+chmod +x mediakit-macos-arm64 && sudo mv mediakit-macos-arm64 /usr/local/bin/mediakit
+```
+
+### Option 3 — uv / from source
+
+```sh
+git clone https://github.com/RedAtman/mediakit && cd mediakit
+uv sync                                          # creates .venv with Python 3.14
+uv tool install --editable . --python 3.14       # optional: `mediakit` on PATH
+```
+
+## First Run
+
+```sh
+# 1. write a commented starter to ~/.config/mediakit/config.toml (never overwrites)
+mediakit --init-config
+
+# 2. tell it which folders to watch — either a plain list ...
+printf '%s\n' "~/Downloads/rs" >> ~/.config/mediakit/folders.txt
+#    ... referenced from the config:  [watch] folders_file = "~/.config/mediakit/folders.txt"
+#    ... or explicit entries in the config:
+#    [[watch.folders]]
+#    path = "~/Downloads/rs"
+
+# 3. smoke-test on one folder (one-shot, no daemon)
+mediakit compress -t video -f ~/Movies/rs
+
+# 4. run as a daemon (Ctrl-C to stop, or `mediakit stop` from another shell)
+mediakit compress -t video --watch
+```
+
+Templates live in the repo: `config.toml.example`, `folders.txt.example`.
+
+### Where state lives
+
+| What | Source / uv install | Homebrew or prebuilt binary |
+| --- | --- | --- |
+| Config | `~/.config/mediakit/config.toml` (`$XDG_CONFIG_HOME`) | same |
+| Database | `<repo>/db.db`, or `[database] path` | `~/Library/Application Support/mediakit/db.db` (macOS), `~/.local/state/mediakit/db.db` (Linux), `%LOCALAPPDATA%\mediakit\db.db` (Windows) |
+| Logs | `<repo>/logs/` | same platform state dir, `logs/` |
+| Daemon pid | `~/.mediakit/daemon.pid` | same |
+
+The frozen binary keeps **state next to the platform state dir, not next to the binary**, so `brew upgrade` cannot
+lose your database; an `.env` (cwd or `~`) that sets `SQLITE_DATABASE` still overrides it.
 
 ## Usage
 
@@ -193,6 +248,47 @@ launchctl kickstart -k gui/$(id -u)/com.nut.mediakit     # restart in place
   `EnvironmentVariables.PATH` (Homebrew first). Without it ffmpeg/ffprobe are not found and every task fails.
 - **Logs** — launchd captures stdout/stderr into `logs/launchd.{out,err}`; the app's own rotating
   `logs/{info,warning,error}.log` stay the useful ones.
+
+## Building
+
+```sh
+# lint + tests (what CI runs)
+pre-commit run --all-files
+uv run pytest -q
+
+# sdist + wheel → dist/
+uv build
+
+# single-file binary (PyInstaller spec is the single source of truth for packaging)
+uv run --with pyinstaller==6.22.3 pyinstaller mediakit.spec --distpath dist --workpath build
+```
+
+Notes on the frozen build:
+
+- `mediakit.spec` carries the pieces static analysis cannot see: `utils/media_types.json`, the distribution metadata
+  (`mediakit -v` reads it), and the dynamically imported logger/signal modules. Adding a new dynamic import means
+  adding it there, or the binary fails at runtime.
+- `ffmpeg` is **not** bundled — the binary shells out to a system ffmpeg on `PATH`, exactly like the pip/uv install.
+- `multiprocessing` is excluded on purpose: PyInstaller's runtime hook spawns a helper that re-enters the frozen CLI
+  and breaks argument parsing. Nothing here uses processes (`utils/executor.py` is thread-only).
+
+## Releasing
+
+```sh
+# 1. bump the only version source
+$EDITOR pyproject.toml          # [project].version
+uv lock                         # syncs mediakit's version in the lock
+
+# 2. commit, then tag the exact commit and push the tag
+git commit -am "chore(release): x.y.z"
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+`.github/workflows/release.yml` then: runs pre-commit + the test suite (a tag can point at anything, so the release
+is gated on tests), refuses to publish unless the tag equals `[project].version`, builds sdist+wheel, builds the
+binary for macOS arm64/x86_64, Linux x86_64 and Windows, attaches all of them to the GitHub release, and dispatches
+a Homebrew formula bump. Tags containing `alpha`, `beta` or `rc` are published as prereleases. The tagged commit must
+be reachable from `main` — the workflow checks that too.
 
 ## Dynamic CPU Throttling
 
