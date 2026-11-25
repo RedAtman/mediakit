@@ -158,6 +158,11 @@ class BaseMedia:
         except subprocess.CalledProcessError as err:
             # 文件不在了 / 读不了 ≠ "这不是媒体": 下载中途改名 / 外接卷未挂载 / SMB 抖动 /
             # ACL 受限都会走到这里, 那条路径必须保持可重试 (failed), 不能写进终态 ignored.
+            # ponytail: os.access 只查权限位, 不验证能否真读 —— SMB/云盘抖动时 access 通过、
+            # open 失败, 这些文件会落进 ignored 终态. 但两种恢复路径都还在: 内容变了就是新
+            # md5 新行 (下载完成走这条, 自动重新入队); 字节没变只恢复可读性的只能靠 watch
+            # 事件 (任务开跑时 update_state 写回 unprocessed), 一次性扫描不会重试.
+            # 升级路径: 内存里记一轮再落终态 (无需改 schema).
             if not os.path.exists(target) or not os.access(target, os.R_OK):
                 raise
             # ffprobe 打不开 = 这不是能处理的媒体. 判据是内容, 不是扩展名: 扩展名只能粗筛.

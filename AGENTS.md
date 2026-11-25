@@ -82,7 +82,7 @@ mediakit/
 - **Progress bar: tqdm with TTY detection**: `TqdmProgress` in `utils/progress.py` auto-detects TTY: uses `sys.stdout` + `dynamic_ncols` for interactive terminals, `sys.stderr` + `ascii=True` for daemon/watch mode (non-TTY, log-friendly)
 - **FFmpeg progress pipe**: `base/video.py` passes `-progress pipe:1 -nostats` to ffmpeg — sends machine-readable progress to stdout (unbuffered), parsed by `FfmpegCurrentFrameStdoutParser` in `utils/process/parser.py`
 - **Callback failure handling**: `src/schedulers/callbacks.py::mark_compress_outcome` is the ONLY place that turns a finished compress task into DB state — `result == 0` sets `StateChoices.finished(2)` + `soft_remove`, `ResultStatus.NOT_MEDIA(602)` sets `StateChoices.ignored(-3)` (file left where it is), otherwise `StateChoices.failed(-2)`. Both `_callback` (folder) and `_batch_callback` (watcher) call it and keep only their own bookkeeping; do not re-implement the state decision in either
-- **"Not media" is decided by content, not by extension**: `BaseMedia.get_metadata` raises `exceptions.NotMediaException(101)` when ffprobe cannot open the file (e.g. AppleDouble `._foo.mp4`, which borrows a real video extension). `utils/decorator.exception` turns that into `ResultStatus.NOT_MEDIA(602)`, the watcher probes `media.metadata` before scheduling a task (the cached probe is reused by compress, so no extra process), and `ignored` is terminal: `QUERY_UNPROCESSED` only re-queries `unprocessed`/`failed`. Extension matching (`reject_reason`, the watcher `dispatch` gate) is a cheap prefilter only — never the authority
+- **"Not media" is decided by content, not by extension**: `BaseMedia.get_metadata` raises `exceptions.NotMediaException(101)` when ffprobe cannot open the file (e.g. AppleDouble `._foo.mp4`, which borrows a real video extension). `utils/decorator.exception` turns that into `ResultStatus.NOT_MEDIA(602)`, the watcher probes `media.metadata` before scheduling a task (the cached probe is reused by compress, so no extra process), and `ignored` is terminal: `QUERY_UNPROCESSED` only re-queries `unprocessed`/`failed`. Extension matching (`reject_reason`, the watcher `dispatch` gate) is a cheap prefilter only — never the authority. Recovery has two distinct branches: **content changed** (a finished download) means a new md5, hence a new row that is queued normally — the stale `-3` row is left behind as an orphan; **same bytes, only readable again** (permissions, remount) keeps the row at `-3`, so scans never retry it and only a fresh watch event can, because a task's opening `update_state` writes `unprocessed` back. `os.access` only inspects permission bits, so an SMB/cloud hiccup that fails on open but passes `access` still ends at `ignored`
 - **Result contract**: the watcher feeds tasks through `media_compress.core` (not `Folder.run__`) precisely so results arrive as `response.Result`; `Folder.run__` returns plain dicts and would silently skip every state update
 - **Watcher folder file fallback**: `src/file/paths.py::find_folder_file()` resolves `var/folder.sh` via: (1) `WATCH_FOLDER_FILE` env var, (2) parent-dir walk from cwd, (3) parent-dir walk from config.py source location. `parse_folder_file()` (expanduser + normpath + de-dup) and `collapse_nested()` live in the same module so watcher and dedupe share one parser
 
@@ -178,6 +178,11 @@ git tag v0.1.1 && git push origin v0.1.1
 
 No secrets required: the release uses the default `GITHUB_TOKEN` with
 `contents: write`.
+
+- **0.1.7 widened `State`'s lower bound to `-3` (ignored)** — a binary older than
+  0.1.7 will hit a pydantic `ValidationError` if it ever deserialises a row written by
+  0.1.7+. Old versions only query `-1/-2`, so the exposure is limited to paths that
+  `update_state` every row; back up `db.db` before any downgrade comparison.
 
 ## NOTES
 
