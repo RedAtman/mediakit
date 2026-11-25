@@ -212,6 +212,14 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   `process died unexpectedly` warning. `ffmpeg-python -> future.moves` used to be one importer of the
   module; dropping that dependency (it was only used by a single `ffmpeg.probe` call, now gone) did
   **not** make the module unreachable, so the exclude has to stay
+- **LaunchAgent gotchas (learned the hard way)** — (1) launchd does not inherit the login shell's PATH
+  (`/usr/bin:/bin` only), so with an empty `FFMPEG_BIN_DIR` the daemon starts and then fails every task with
+  "No such file or directory: 'ffprobe'"; the plist ships `EnvironmentVariables.PATH`. (2) A plist copied out of
+  Dropbox carries `com.apple.quarantine`/`com.dropbox.attrs`, and `launchctl bootstrap` then fails with a bare
+  `5: Input/output error` while `plutil -lint` passes — run `xattr -c` on the installed copy. (3) `KeepAlive`
+  uses `SuccessfulExit: false` so `mediakit stop` (SIGTERM, exit 0) leaves the job down, while the
+  single-instance guard exits 1 on purpose — launchd then retries it every `ThrottleInterval`, which is the
+  behaviour we want when a stray daemon holds the pid file
 - **CPU throttling degrades instead of crashing off Linux/macOS** — `utils/throttle/sampling.py`
   only implements those two, so `CPULimiterCoordinator` checks the platform up front and runs
   unthrottled with one warning. This is what keeps the Windows binary usable

@@ -4,10 +4,17 @@
 <!--
   mediakit watch daemon.
 
-  Install:   cp macOS/LaunchAgents/mediakit.plist ~/Library/LaunchAgents/
+  Install:   xattr -c macOS/LaunchAgents/mediakit.plist   # 见下方 xattr 说明
+             cp macOS/LaunchAgents/mediakit.plist ~/Library/LaunchAgents/
+             xattr -c ~/Library/LaunchAgents/mediakit.plist
              launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/mediakit.plist
   Stop:      launchctl bootout gui/$(id -u)/com.nut.mediakit    (or: mediakit stop)
   Reload:    launchctl kickstart -k gui/$(id -u)/com.nut.mediakit
+
+  xattr: this file lives in a Dropbox folder, so it carries com.apple.quarantine
+  and com.dropbox.attrs. launchd refuses such a plist with a bare
+  "Bootstrap failed: 5: Input/output error" (plutil -lint still says OK), so strip
+  the attributes on both the source and the installed copy before bootstrapping.
 
   No shell wrapper on purpose: the folder list and per-directory parameters live
   in ~/.config/mediakit/config.toml, single-instance protection is inside the
