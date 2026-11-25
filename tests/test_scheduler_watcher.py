@@ -550,6 +550,38 @@ class TestWatcherScheduler(TestCase):
         watcher_logger.warning.assert_not_called()
         self.assertNotIn(os.path.realpath('/tmp/media/._clip.mp4'), scheduler._processing_files)
 
+    def test_flush_callback_isolates_unexpected_probe_errors(self):
+        """一条探测异常不能连累同批其他文件.
+
+        回归: 解析失败改成 RuntimeError 之后, flush 循环只捕获 NotMediaException,
+        异常会冲出循环, 而 DebounceBuffer 在此之前已 clear(), 整批路径静默丢失.
+        """
+        scheduler = self.scheduler
+        bad, good = mock.Mock(), mock.Mock()
+        type(bad).metadata = mock.PropertyMock(side_effect=RuntimeError('Unparsable ffprobe output'))
+        type(good).metadata = mock.PropertyMock(return_value={'streams': []})
+
+        def media_cls(path):
+            return bad if path.endswith('bad.mp4') else good
+
+        with mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls:
+            mock_folder_cls.return_value.MEDIA_CLS.side_effect = media_cls
+            with (
+                mock.patch('src.schedulers.watcher.Folder.run___') as mock_run,
+                mock.patch('src.schedulers.watcher._make_watched_task') as make_task,
+                mock.patch('src.schedulers.watcher.logger') as watcher_logger,
+            ):
+                scheduler._flush_callback(['/tmp/media/bad.mp4', '/tmp/media/good.mp4'], 'video', 1)
+
+        # good 仍然被排进任务, bad 只是本轮跳过
+        mock_run.assert_called_once()
+        make_task.assert_called_once()
+        self.assertIs(make_task.call_args[0][1], good)
+        watcher_logger.warning.assert_called_once()
+        self.assertIn('Probe failed', watcher_logger.warning.call_args[0][0])
+        self.assertNotIn(os.path.realpath('/tmp/media/bad.mp4'), scheduler._processing_files)
+        self.assertNotIn(os.path.realpath('/tmp/media/good.mp4'), scheduler._processing_files)
+
     def test_flush_callback_reuses_the_probed_instance(self):
         """探过的实例必须原样交给任务, 否则 cached_property 的"不重复 probe"契约就断了."""
         import functools

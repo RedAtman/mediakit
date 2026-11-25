@@ -223,3 +223,4 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
 - `utils/translator.py` must NOT validate config at class body level — import-time crash when env vars missing
 - `_batch_callback` receives `response.Result` objects (not plain dicts) — always use `result.data.get("media")`, never `result.get("new_file_path")`
 - `base/video.py` compress command includes `-progress pipe:1 -nostats` — ffmpeg outputs machine-readable progress to stdout (unbuffered)
+- **`media.title` must never include the extension** — `Media.path` is `dirname/title.ext`, so a title ending in `.mp4` produced `x.mp4.mp4`. A one-off migration stripped the extension from 242 stale rows on 2026-11-25; **do not re-run that UPDATE** — a file legitimately named `movie.mp4.mp4` (title `movie.mp4`, ext `mp4`) would be stripped a second time and lose its real name

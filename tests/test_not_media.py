@@ -46,17 +46,22 @@ def test_get_metadata_keeps_vanished_file_retryable(tmp_path):
 
 
 def test_get_metadata_keeps_unreadable_file_retryable(tmp_path):
-    """文件在但读不了 (ACL / SMB 抖动) 也不是"非媒体"."""
+    """文件在但读不了 (ACL / SMB 抖动) 也不是"非媒体".
+
+    用真的 chmod 000 而不是 patch os.access: base.media.os 就是全局 os 模块,
+    patch 它会连同其他调用方一起改掉, 而我们要验证的正是 os.access 的判断本身.
+    """
     unreadable = tmp_path / 'locked.mp4'
     unreadable.write_bytes(b'x')
+    unreadable.chmod(0o000)
     failure = subprocess.CalledProcessError(1, ['ffprobe'], output='Permission denied')
 
-    with (
-        mock.patch('base.media.CommandExecutor.run', side_effect=failure),
-        mock.patch('base.media.os.access', return_value=False),
-    ):
-        with pytest.raises(subprocess.CalledProcessError):
-            BaseMedia.get_metadata(str(unreadable))
+    try:
+        with mock.patch('base.media.CommandExecutor.run', side_effect=failure):
+            with pytest.raises(subprocess.CalledProcessError):
+                BaseMedia.get_metadata(str(unreadable))
+    finally:
+        unreadable.chmod(0o644)  # 让 tmp_path 清理走得掉
 
 
 def test_broken_media_warns_with_size(tmp_path):

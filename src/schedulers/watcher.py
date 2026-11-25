@@ -240,13 +240,18 @@ class WatcherScheduler:
                             # 同上: 级别与原因由 get_metadata 打过了, 这里只留 trace
                             logger.debug('Not processable media, skipping task: %s (%s)', path, err.msg)
                             continue
+                        except Exception as err:
+                            # 探测报的其他异常 (如 ffprobe 输出解析不出) 不能连累同批文件:
+                            # 跳过这一条, 它保持未处理状态, 下一轮还能再试
+                            with self._processing_lock:
+                                self._processing_files.discard(self._normalize_path(path))
+                            logger.warning('Probe failed, skipping for now: %s (%s)', path, err)
+                            continue
                         medias.append(media)
                     if medias:
                         scheduler = media_compress.core
                         tasks = [_make_watched_task(scheduler, media, self._compress_opts) for media in medias]
                         Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
-                except Exception:
-                    raise
                 finally:
                     with self._processing_lock:
                         for path in new_paths:
