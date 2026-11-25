@@ -1,0 +1,4 @@
+# One media folder per line. Blank lines and lines starting with '#' are skipped.
+# ~ is expanded; duplicates are collapsed; missing directories are skipped with a warning.
+~/Downloads/rs/jp.gv
+~/Movies/rs

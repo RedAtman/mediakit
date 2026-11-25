@@ -1,0 +1,23 @@
+# mediakit watch configuration
+# Location: ~/.config/mediakit/config.toml ($XDG_CONFIG_HOME / MEDIAKIT_CONFIG / --config override it)
+# Precedence: CLI flags > this file > .env / CONFIG > built-in defaults
+#
+# After editing, check it with:
+#   mediakit compress -t video --watch --no-scan-existing
+
+[watch]
+# Total CPU budget across workers; 100 == one core. `-c` overrides it.
+cpu_limit = 200
+# Keep a long folder list as a plain file instead of hundreds of [[watch.folders]]:
+# folders_file = "~/.config/mediakit/folders.txt"
+
+[compress]
+# Global compress defaults; --resolution / --fps override them per run.
+fps = 24
+
+# Per-directory overrides. Longest matching path wins; explicit entries beat folders_file.
+# [[watch.folders]]
+# path       = "~/Downloads/rs/jp.gv"
+# media_type = "video"                      # video | audio | image
+# recursive  = true
+# compress   = { resolution = "HD", fps = 30 }

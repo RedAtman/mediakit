@@ -23,6 +23,21 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
+    if args.init_config:
+        from src.config_file import write_starter_config
+
+        try:
+            target = write_starter_config(args.config)
+        except FileExistsError as err:
+            raise SystemExit(str(err)) from None
+        print(f'wrote starter config: {target}')
+        print('next: add [[watch.folders]] (or [watch] folders_file) to it, then run')
+        print('      mediakit compress -t video --watch')
+        return
+
+    if args.action is None:
+        raise SystemExit('an action is required (e.g. `mediakit compress ...`); see --help')
+
     if args.watch:
         from src.schedulers.watcher import WatcherScheduler
 

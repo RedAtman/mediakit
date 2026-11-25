@@ -14,7 +14,7 @@ from watchdog.observers import Observer
 
 from config import CONFIG
 from folder import Folder, make_media
-from src.config_file import Resolver, find_config_file, load_settings
+from src.config_file import Resolver, default_config_path, find_config_file, load_settings
 from src.file.debounce import DebounceBuffer
 from src.file.paths import collapse_nested, find_folder_file, parse_folder_file
 from src.file.stability import FileStabilityTracker
@@ -596,14 +596,10 @@ class WatcherScheduler:
                 raw_paths = parse_folder_file(watch_file)
                 config_filepath = watch_file
             else:
-                logger.warning(
-                    'No folder list found from cwd (%s). '
-                    'Either: (1) create ~/.config/mediakit/config.toml, '
-                    '(2) create ~/.config/mediakit/folders.txt, '
-                    '(3) set WATCH_FOLDER_FILE, (4) use -f DIR, or (5) use --folder-file FILE.',
-                    os.getcwd(),
-                )
-                raw_paths = [folder_path]
+                logger.warning('No folder list found from cwd (%s); nothing configured via -f either.', os.getcwd())
+                # 以前这里回落成 [folder_path] (MEDIA_FILE_FOLDER 默认 'samples') ——
+                # 不报错、去盯一个相对路径, 用户完全看不出自己没配东西. 现在交给 core() 硬失败.
+                raw_paths = []
         else:
             # 单个 -f DIR 模式, 没有配置文件可监控
             raw_paths = [folder_path]
@@ -690,12 +686,19 @@ class WatcherScheduler:
         # --- END state initialization ---
 
         if not valid_paths:
-            if raw_paths:
-                logger.info('No valid folder paths found in folder file')
-            self._watched_paths = set()
-            self._run_event_loop()
-            logger.info('Watch session ended.')
-            return
+            # 空目录集合不是"没事可做", 是配置错了: 跑一个什么都不盯的守护进程最误导人
+            existing = find_config_file(config_path)
+            hint = (
+                f'{existing} declares no [[watch.folders]] — add one, or set [watch] folders_file'
+                if existing
+                else f'create {default_config_path()} (e.g. `mediakit --init-config`)'
+            )
+            raise SystemExit(
+                'nothing to watch: no media folders configured.\n'
+                f'  {hint}, or\n'
+                '  pass --folder-file FILE (one path per line), or\n'
+                '  pass -f DIR'
+            )
 
         if not no_scan_existing:
             logger.info('Scanning existing media files...')

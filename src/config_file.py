@@ -28,6 +28,8 @@ logger = logging.getLogger()
 
 __all__ = [
     'CONFIG_ENV_VAR',
+    'EXAMPLE_CONFIG_TEXT',
+    'write_starter_config',
     'ConfigError',
     'CompressOptions',
     'FolderEntry',
@@ -45,6 +47,45 @@ CONFIG_FILENAME = 'config.toml'
 
 class ConfigError(ValueError):
     """配置不可用: 让调用方可以只捕获这一类, 而不是所有 ValueError."""
+
+
+# 起始配置的单一来源: --init-config 写的就是这段文本, 仓库里的 config.toml.example
+# 由测试保证与它一致 (示例与产物不会漂移). 故意不含任何生效的 [[watch.folders]],
+# 因为没人能猜出用户的媒体目录.
+EXAMPLE_CONFIG_TEXT = """# mediakit watch configuration
+# Location: ~/.config/mediakit/config.toml ($XDG_CONFIG_HOME / MEDIAKIT_CONFIG / --config override it)
+# Precedence: CLI flags > this file > .env / CONFIG > built-in defaults
+#
+# After editing, check it with:
+#   mediakit compress -t video --watch --no-scan-existing
+
+[watch]
+# Total CPU budget across workers; 100 == one core. `-c` overrides it.
+cpu_limit = 200
+# Keep a long folder list as a plain file instead of hundreds of [[watch.folders]]:
+# folders_file = "~/.config/mediakit/folders.txt"
+
+[compress]
+# Global compress defaults; --resolution / --fps override them per run.
+fps = 24
+
+# Per-directory overrides. Longest matching path wins; explicit entries beat folders_file.
+# [[watch.folders]]
+# path       = "~/Downloads/rs/jp.gv"
+# media_type = "video"                      # video | audio | image
+# recursive  = true
+# compress   = { resolution = "HD", fps = 30 }
+"""
+
+
+def write_starter_config(target: str | Path | None = None) -> Path:
+    """Write the starter config to `target` (default: the XDG location). Never overwrites."""
+    path = Path(target).expanduser() if target else default_config_path()
+    if path.exists():
+        raise FileExistsError(f'refusing to overwrite existing config: {path}')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(EXAMPLE_CONFIG_TEXT, encoding='utf-8')
+    return path
 
 
 class CompressOptions(BaseModel):
@@ -218,4 +259,9 @@ def load_settings(explicit: str | Path | None = None) -> Settings:
         return Settings(**data)
     except Exception as err:
         detail = ' '.join(str(err).split())
-        raise ConfigError(f'invalid config {path}: {detail[:400]}') from err
+        # 用带注释的模板时最容易犯的错: 取消注释了 path 却忘了 [[watch.folders]] 头,
+        # 于是键落进了上一个 section. pydantic 只会说 "extra inputs are not permitted".
+        hint = ''
+        if 'Extra inputs are not permitted' in detail or 'extra_forbidden' in detail:
+            hint = ' — hint: per-folder keys belong under [[watch.folders]]; [compress] only takes resolution/fps'
+        raise ConfigError(f'invalid config {path}: {detail[:400]}{hint}') from err

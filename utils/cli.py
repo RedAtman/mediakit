@@ -72,7 +72,8 @@ def create_parser(actions: tuple[str, ...] = ACTIONS):
             %(prog)s compress -t video -w 2;
         """
     )
-    parser.add_argument('action', type=str, choices=actions, default='compress', help='Action to run')
+    # nargs='?': --init-config 是独立开关, 不该强制写一个 action
+    parser.add_argument('action', type=str, choices=actions, nargs='?', default=None, help='Action to run')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {_version()}')
     parser.add_argument(
         '-f',
@@ -108,6 +109,12 @@ def create_parser(actions: tuple[str, ...] = ACTIONS):
         type=str,
         default=None,
         help='Legacy plain-text folder list (one path per line, # comments); prefer --config',
+    )
+    parser.add_argument(
+        '--init-config',
+        action='store_true',
+        default=False,
+        help='Write a starter config.toml to the XDG location (or --config PATH) and exit',
     )
     parser.add_argument(
         '--config',

@@ -228,6 +228,32 @@ class TestWatcherScheduler(TestCase):
         self.assertIn(os.path.realpath('/tmp/reload-cfg/b'), scheduler._watched_paths)
         self.assertEqual(scheduler._folders_mtime, 200.0)
 
+    def test_core_fails_fast_when_nothing_is_configured(self):
+        """没有可看的目录 = 配置错, 不能去跑一个什么都不盯的守护进程."""
+        scheduler = self.scheduler
+        scheduler._run_event_loop = mock.Mock()
+        with (
+            mock.patch('src.schedulers.watcher.os.path.isdir', return_value=False),
+            mock.patch('src.schedulers.watcher.find_config_file', return_value=None),
+        ):
+            with self.assertRaises(SystemExit) as caught:
+                scheduler.core(folder='/tmp/nothing-here', type='video', max_workers=1, no_scan_existing=True)
+        message = str(caught.exception)
+        self.assertIn('nothing to watch', message)
+        self.assertIn('--init-config', message)
+        scheduler._run_event_loop.assert_not_called()
+
+    def test_core_names_the_config_when_it_declares_no_folders(self):
+        scheduler = self.scheduler
+        scheduler._run_event_loop = mock.Mock()
+        with (
+            mock.patch('src.schedulers.watcher.os.path.isdir', return_value=False),
+            mock.patch('src.schedulers.watcher.find_config_file', return_value=Path('/tmp/cfg/config.toml')),
+        ):
+            with self.assertRaises(SystemExit) as caught:
+                scheduler.core(folder='/tmp/nothing', type='video', max_workers=1, no_scan_existing=True)
+        self.assertIn('declares no [[watch.folders]]', str(caught.exception))
+
     def test_event_handler_filters_directories(self):
         from src.schedulers.watcher import _WatchEventHandler
 

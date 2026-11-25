@@ -3,11 +3,13 @@
 配置非法必须当场报错 (daemon 静默忽略一个写错的 key 比拒绝启动更糟).
 """
 
+from pathlib import Path
 from unittest import mock
 
 import pytest
 
 from src.config_file import (
+    EXAMPLE_CONFIG_TEXT,
     ConfigError,
     FolderEntry,
     Resolver,
@@ -16,7 +18,10 @@ from src.config_file import (
     default_config_path,
     find_config_file,
     load_settings,
+    write_starter_config,
 )
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_config_dir_honours_xdg(monkeypatch, tmp_path):
@@ -175,3 +180,31 @@ def test_folders_file_expands_into_entries_and_explicit_wins(tmp_path):
 def test_folders_file_must_be_absolute():
     with pytest.raises(ValueError):
         Settings(watch={'folders_file': 'relative/list.txt'})
+
+
+def test_repo_examples_cannot_drift_from_the_code():
+    """仓库里的示例必须与代码里的常量/解析器一致, 否则文档会悄悄腐烂."""
+    assert (REPO_ROOT / 'config.toml.example').read_text(encoding='utf-8') == EXAMPLE_CONFIG_TEXT
+    # 示例本身要能通过同一套校验 (它故意不含生效目录, 所以只验参数)
+    settings = load_settings(REPO_ROOT / 'config.toml.example')
+    assert settings.watch.folders == []
+    assert settings.watch.cpu_limit == 200
+    assert settings.compress.fps == 24
+
+    from src.file.paths import parse_folder_file
+
+    listed = parse_folder_file(str(REPO_ROOT / 'folders.txt.example'))
+    assert listed == [str(Path(p).expanduser()) for p in listed]
+    assert len(listed) == 2
+
+
+def test_write_starter_config_writes_and_refuses_overwrite(tmp_path):
+    target = tmp_path / 'nested' / 'config.toml'
+    written = write_starter_config(target)
+    assert written == target
+    assert written.read_text(encoding='utf-8') == EXAMPLE_CONFIG_TEXT
+    # 生成的文件同样要是合法配置
+    assert load_settings(written).watch.cpu_limit == 200
+
+    with pytest.raises(FileExistsError):
+        write_starter_config(target)

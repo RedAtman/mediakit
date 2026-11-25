@@ -176,3 +176,18 @@ class TestFrozenStateDir(TestCase):
         self.assertEqual(
             frozen_state_dir('win32', r'C:\Users\x'), os.path.join(r'C:\Users\x', 'AppData', 'Local', 'mediakit')
         )
+
+
+def test_init_config_needs_no_action():
+    from utils.cli import create_parser
+
+    args = create_parser().parse_args(['--init-config'])
+    assert args.init_config is True
+    assert args.action is None
+
+
+def test_action_positional_is_optional_at_parse_time():
+    # action 变成 nargs='?' 后, 缺失不再由 argparse 直接报错, 而是由 main() 给出可读提示
+    from utils.cli import create_parser
+
+    assert create_parser().parse_args([]).action is None
