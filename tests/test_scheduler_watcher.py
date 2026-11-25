@@ -187,6 +187,47 @@ class TestWatcherScheduler(TestCase):
                 scheduler.core(folder='/tmp/media', type='video', max_workers=1, no_scan_existing=True)
             self.assertEqual(observed['pid'], str(os.getpid()))
 
+    def test_check_config_file_changes_tracks_folders_file(self):
+        """TOML 只引用 folders_file 时, 改清单本身也必须触发 reconcile.
+
+        回归: 早期实现只轮询 config.toml 的 mtime, 于是编辑清单 (最常见的日常操作)
+        要重启 daemon 才生效.
+        """
+        scheduler = self.scheduler
+        scheduler._feed_existing = mock.Mock()
+        cfg = Path('/tmp/reload-cfg/config.toml')
+        listing = Path('/tmp/reload-cfg/folders.txt')
+        with (
+            mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True),
+            mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True),
+            mock.patch('src.schedulers.watcher.load_settings') as load,
+        ):
+            from src.config_file import Settings
+
+            # 这里只关心"清单 mtime 变化是否触发 reconcile", 所以直接给条目,
+            # 不经过 folders_file 的读盘展开
+            load.return_value = Settings(
+                watch={'folders': [{'path': '/tmp/reload-cfg/a'}, {'path': '/tmp/reload-cfg/b'}]}
+            )
+            scheduler._config_is_toml = True
+            scheduler._config_filepath = str(cfg)
+            scheduler._folders_file = str(listing)
+            scheduler._config_mtime = 100.0
+            scheduler._folders_mtime = 100.0
+            scheduler._watched_paths = {'/tmp/reload-cfg/a'}
+            scheduler.observer = mock.Mock()
+
+            def fake_mtime(path):
+                # TOML 没变, 清单变了
+                return 100.0 if str(path) == str(cfg) else 200.0
+
+            with mock.patch('src.schedulers.watcher.os.path.getmtime', side_effect=fake_mtime):
+                scheduler._check_config_file_changes()
+
+        # resolver 与 watch 集合都用 realpath (macOS /tmp -> /private/tmp)
+        self.assertIn(os.path.realpath('/tmp/reload-cfg/b'), scheduler._watched_paths)
+        self.assertEqual(scheduler._folders_mtime, 200.0)
+
     def test_event_handler_filters_directories(self):
         from src.schedulers.watcher import _WatchEventHandler
 

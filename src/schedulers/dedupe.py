@@ -78,6 +78,12 @@ def dedupe(**kwargs) -> None:
         apply: When truthy, move duplicates to Trash; otherwise dry-run.
     """
     folder_file = kwargs.get('folder_file') or find_folder_file() or str(default_config_path().parent / 'folders.txt')
+    if not os.path.isfile(folder_file):
+        # 配置迁移后最常见的就是"清单不在这儿了": 与其抛 FileNotFoundError 栈,
+        # 不如说清去哪配、怎么临时指定
+        raise SystemExit(
+            f'folder list not found: {folder_file} (create ~/.config/mediakit/config.toml, or pass --folder-file FILE)'
+        )
     db_path = os.path.abspath(kwargs.get('db') or 'db.db')
     apply = bool(kwargs.get('apply'))
     duplicates = _collect_duplicates(folder_file, db_path)

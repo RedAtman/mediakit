@@ -128,6 +128,10 @@ class WatcherScheduler:
         self._handler: _WatchEventHandler | None = None
         self._config_filepath: str | None = None
         self._config_mtime: float | None = None
+        # TOML 里的 [watch] folders_file: 清单文件也要参与 mtime 轮询, 否则改清单
+        # (最常见的日常操作) 要等重启才生效
+        self._folders_file: str | None = None
+        self._folders_mtime: float | None = None
         self._config_poll_interval: float = 5.0
         self._last_config_check: float = 0.0
         self._watched_paths: set[str] = set()
@@ -392,8 +396,17 @@ class WatcherScheduler:
                     for m in medias:
                         self._processing_files.discard(self._normalize_path(m.path))
 
+    @staticmethod
+    def _mtime_of(path: str | None) -> float | None:
+        if not path:
+            return None
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return None
+
     def _check_config_file_changes(self):
-        """Poll WATCH_FOLDER_FILE for modifications and reconcile watched directories."""
+        """Poll the config file (and its [watch] folders_file) and reconcile watches."""
         if not self._config_filepath:
             logger.debug('Config monitoring: _config_filepath is None, skipping')
             return
@@ -408,11 +421,18 @@ class WatcherScheduler:
             logger.warning('Failed to read mtime for config file: %s', self._config_filepath)
             return
 
-        if current_mtime == self._config_mtime:
+        folders_mtime = self._mtime_of(self._folders_file)
+        if current_mtime == self._config_mtime and folders_mtime == self._folders_mtime:
             logger.debug('Config monitoring: mtime unchanged (%s), skipping', self._config_mtime)
             return
 
-        logger.info('Config monitoring: mtime changed %s -> %s', self._config_mtime, current_mtime)
+        logger.info(
+            'Config monitoring: mtime changed (config %s -> %s, folders %s -> %s)',
+            self._config_mtime,
+            current_mtime,
+            self._folders_mtime,
+            folders_mtime,
+        )
 
         try:
             if self._config_is_toml:
@@ -441,6 +461,8 @@ class WatcherScheduler:
                 'Config monitoring: mtime changed but no path diff (file content same), updating mtime tracking only'
             )
             self._config_mtime = current_mtime
+            self._folders_mtime = folders_mtime
+            self._folders_mtime = folders_mtime
             return
 
         logger.info('Config monitoring: applying change: remove=%s, add=%s', to_remove, to_add)
@@ -464,6 +486,7 @@ class WatcherScheduler:
                 self._watched_paths.discard(path)
             self._watched_paths.update(to_add)
             self._config_mtime = current_mtime
+            self._folders_mtime = folders_mtime
             return
 
         for path in to_remove:
@@ -487,6 +510,7 @@ class WatcherScheduler:
             )
 
         self._config_mtime = current_mtime
+        self._folders_mtime = folders_mtime
 
     def _run_event_loop(self):
         while not self._stop_event.is_set():
@@ -626,11 +650,16 @@ class WatcherScheduler:
         if self._resolver.paths():
             config_filepath = str(find_config_file(config_path) or '')
             self._config_is_toml = True
+            listed = self._resolver.settings.watch.folders_file
+            self._folders_file = os.path.normpath(os.path.expanduser(listed)) if listed else None
+            self._folders_mtime = self._mtime_of(self._folders_file)
             raw_paths, valid_paths = self._resolve_config_paths(self._resolver.paths(), recursive)
         else:
             # 同一进程内二次 core() 时, 上一次的 TOML 标志必须清掉, 否则热重载会拿纯文本
             # 清单去 TOML 解析
             self._config_is_toml = False
+            self._folders_file = None
+            self._folders_mtime = None
             raw_paths, valid_paths, config_filepath = self._resolve_watch_paths(folder_path, folder_file, recursive)
 
         # --- State initialization for dynamic config monitoring ---
