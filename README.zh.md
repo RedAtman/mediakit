@@ -44,8 +44,20 @@ recursive  = true                                 # 只对这一条
 compress   = { resolution = "HD", fps = 30 }
 ```
 
+先用模板生成，不要手写：
+
+```sh
+mediakit --init-config              # 写到 ~/.config/mediakit/config.toml（已存在则拒绝覆盖）
+mediakit --init-config --config /path/to/config.toml
+```
+
+仓库里还有 `config.toml.example` 与 `folders.txt.example`；测试保证前者与 `--init-config` 写出的内容逐字节一致，
+示例不会跟 schema 漂移。
+
 - 配置写错（未知键、相对路径、未知 `media_type`、`resolution="1080p"`、`fps=0`）会**直接拒绝启动**并打印一行
   `config error: …`，不会静默忽略。
+- **一个目录都没有配**同样硬失败：`nothing to watch: no media folders configured`，并列出三条修复途径
+  （`--init-config` / `--folder-file` / `-f`），不会再静默去盯一个相对路径。
 - 运行中编辑：目录增删与 `resolution`/`fps` 热生效（清单文件自身也参与轮询）；`recursive` 变更需重启。
 - `cpu_limit` 是全局的（限流协调器是单例）；`max_workers` 目前也是全局的（一次 flush 一个线程池）。
 

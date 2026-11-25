@@ -41,6 +41,7 @@ mediakit scale --watch -f /path/to/folder -t video
 | `-w`                 | Number of worker threads                                       | `MAX_WORKERS`                   |
 | `-c`                 | CPU limit per worker (%)                                       | auto                            |
 | `--config`           | TOML config (default `~/.config/mediakit/config.toml`)         | `$XDG_CONFIG_HOME/mediakit/config.toml` |
+| `--init-config`      | Write the starter config and exit (never overwrites)            | `False`                         |
 | `--folder-file`      | Legacy plain-text folder list (one per line, # comments)       | —                               |
 | `--recursive`        | Watch subdirectories                                           | `False` (non-recursive default) |
 | `--no-scan-existing` | Skip processing existing files at startup                      | `False`                         |
@@ -65,8 +66,19 @@ recursive  = true                          # this subtree only
 compress   = { resolution = "HD", fps = 30 }
 ```
 
-An invalid config aborts startup with a one-line message instead of being ignored. Editing the file while the
-daemon runs re-reads folders and `resolution`/`fps`; changing `recursive` needs a restart.
+Start from a commented template instead of writing it by hand:
+
+```sh
+mediakit --init-config              # writes ~/.config/mediakit/config.toml (never overwrites)
+mediakit --init-config --config /path/to/config.toml
+```
+
+The repo also ships `config.toml.example` and `folders.txt.example`; a test keeps the former byte-identical to
+the text `--init-config` writes, so the example cannot drift from the schema.
+
+An invalid config aborts startup with a one-line message instead of being ignored, and so does a run with no
+folders at all (`nothing to watch: no media folders configured` plus the three ways to fix it). Editing the file
+while the daemon runs re-reads folders and `resolution`/`fps`; changing `recursive` needs a restart.
 
 When no config file exists, the watcher falls back to `--folder-file`, then `~/.config/mediakit/folders.txt`
 (a plain one-path-per-line list), then `-f DIR`.

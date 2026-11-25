@@ -231,6 +231,11 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   it without the old platform-marker churn: dropping `ffmpeg-python`/`future` produced a 24-line
   deletion with no unrelated changes (verified 2026-11-23). The old advice to hand-edit a single line
   applied to the revision 3 → 5 bump and is stale; still run `uv lock --check` after hand edits
+- **The starter config has one source** — `src/config_file.py::EXAMPLE_CONFIG_TEXT` is what `mediakit
+  --init-config` writes (refusing to overwrite); the repo's `config.toml.example` must stay byte-identical and a
+  test enforces it, otherwise the example rots. `folders.txt.example` is validated through `parse_folder_file`
+  the same way. A run with no configured folders is a hard failure (`nothing to watch …`), never a silent watch
+  of `MEDIA_FILE_FOLDER`
 - **Watch config lives in `~/.config/mediakit/config.toml` (XDG, even on macOS), state stays in the platform
   state dir** — config vs state is the split; `logs/`/`db.db` do not move. Discovery order: `--config` →
   `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml`; with no TOML it falls back to `--folder-file` →
