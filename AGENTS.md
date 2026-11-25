@@ -13,15 +13,14 @@ mediakit — Python 3.14+ CLI tool for batch media operations (compress, convert
 ```
 mediakit/
 ├── base/         # Base class hierarchy (Media → Audio/Video/Image)
-├── src/          # Core package: models, mixins, patterns, schedulers
+├── src/          # Core package: models, mixins, patterns, schedulers, config_file.py (watch TOML)
 ├── utils/        # Shared utilities: command, db, logger, process, media
 │   ├── throttle/ # CPU throttling subsystem (coordinator, throttler, sampling)
 │   └── media_types.json  # Extension→category mapping (data-driven)
-├── tests/        # pytest suite (flat, 26 files)
+├── tests/        # pytest suite (flat, 30 files)
 ├── cli.py          # Entry point (shebang + [project.scripts] → mediakit)
 ├── folder.py       # Root-level Folder orchestrator (MRO: BaseFolder + SqlAlchemyFolderMixin)
 ├── config.py       # Environment config with side-effect imports (sys.path, logging init, find_dotenv)
-├── watcher.sh      # macOS LaunchAgent watcher loop
 └── pyproject.toml  # uv + pytest + Ruff + pyright + tqdm
 ```
 
@@ -57,13 +56,15 @@ mediakit/
 - **Imports**: Ruff import sorting (I rule), 5-group order, forced alphabetical within sections
 - **Types**: pyright `basic` mode (not strict)
 - **Lint pipeline**: vulture (100%) → codespell → ruff
-- **Scripts**: shell scripts in `scripts/` directory (format, lint, fix, codespell, vulture)
+- **Lint/format gate**: `pre-commit` (`.pre-commit-config.yaml` → ruff check F401/F841/I + ruff format) is the
+  commit gate; codespell and vulture are dev dependencies run by hand. There is no `scripts/` directory
 - **CLI dispatch**: MiddlewareScheduler pattern (not argparse subcommands)
 - **Config**: `from config import CONFIG` — all env vars via subclass attributes
 - **Testing**: pytest with unittest.TestCase, mock.patch, setUp pattern
 - **Dead code**: Vulture at 100% min-confidence — no false positives tolerated
 - **Lint tools**: `ruff`, `codespell`, `vulture` installed as dev deps
-- **Commit**: `scripts/format-commit.sh` auto-formats with ruff before committing
+- **Commit**: the installed pre-commit hook formats staged files with ruff and aborts the commit if it changed
+  anything (re-stage and commit again)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -245,7 +246,7 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
 - Largest complexity hotspot: `base/video.py:combine()` — 167 lines, 4+ nesting levels
 - `config.py` uses `find_dotenv(usecwd=True)` to load `.env` — falls back to `~/.env` if not found in cwd
 - `FFMPEG_BIN_DIR` default is `/opt/homebrew/bin` (not the `ffmpeg` binary) — `os.path.join()` appends `ffmpeg`
-- `WATCH_FOLDER_FILE` default is `~/.config/mediakit/folders.txt`; the legacy `var/folder.sh` keeps working as a last-resort fallback, and an env var pointing at a missing file now logs a warning
+- The folder list defaults to `~/.config/mediakit/folders.txt` (`CONFIG.WATCH_FOLDER_FILE` was removed: `src/file/paths.py` reads the `WATCH_FOLDER_FILE` env var directly); the legacy `var/folder.sh` keeps working as a last-resort fallback, and an env var pointing at a missing file now logs a warning instead of being skipped silently
 - `utils/translator.py` must NOT validate config at class body level — import-time crash when env vars missing
 - `_batch_callback` receives `response.Result` objects (not plain dicts) — always use `result.data.get("media")`, never `result.get("new_file_path")`
 - `base/video.py` compress command includes `-progress pipe:1 -nostats` — ffmpeg outputs machine-readable progress to stdout (unbuffered)

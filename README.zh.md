@@ -23,6 +23,32 @@ uv tool install --editable . --python 3.14
 mediakit compress -t video -f /path/to/video/directory
 ```
 
+### 监控配置（`~/.config/mediakit/config.toml`）
+
+监控模式的配置是一个 TOML 文件，默认位置 `~/.config/mediakit/config.toml`（遵循 `XDG_CONFIG_HOME`，
+macOS 上同样使用 `~/.config`；状态目录 `logs/`、`db.db` 仍在平台状态目录，配置与状态分开）。
+查找顺序：`--config` → `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml` → `~/.config/mediakit/folders.txt` → `-f DIR`。
+
+```toml
+[watch]
+cpu_limit    = 200                                # 全局；-c 优先
+folders_file = "~/.config/mediakit/folders.txt"   # 仍然支持"一行一路径 + # 注释"的纯文本清单
+
+[compress]                                        # 全局压缩缺省；--resolution/--fps 优先
+fps = 24
+
+[[watch.folders]]                                 # 逐目录覆盖（最长前缀匹配，显式条目优先）
+path       = "~/Downloads/rs/jp.gv"
+media_type = "video"                              # video | audio | image
+recursive  = true                                 # 只对这一条
+compress   = { resolution = "HD", fps = 30 }
+```
+
+- 配置写错（未知键、相对路径、未知 `media_type`、`resolution="1080p"`、`fps=0`）会**直接拒绝启动**并打印一行
+  `config error: …`，不会静默忽略。
+- 运行中编辑：目录增删与 `resolution`/`fps` 热生效（清单文件自身也参与轮询）；`recursive` 变更需重启。
+- `cpu_limit` 是全局的（限流协调器是单例）；`max_workers` 目前也是全局的（一次 flush 一个线程池）。
+
 ### 停止监控
 
 优雅停止或强制停止正在运行的 watch 守护进程：
@@ -70,48 +96,58 @@ mediakit dedupe --apply
 | `dedupe`                | 查找 md5 相同的媒体文件，将重复文件移入废纸篓 |
 | `stop`                  | 停止正在运行的 watch 守护进程（优雅或强制）   |
 
-## macOS LaunchAgent（定时服务）
+## macOS LaunchAgent（后台守护进程）
 
-MediaKit 可通过 macOS LaunchAgent 以定时服务方式自动运行，适用于无人值守的批量处理（如文件夹监控）。
+可以通过 launchd 托管监控守护进程：注销后继续运行、崩溃后自动重启。**没有 shell 包装脚本**了 ——
+launchd 直接执行入口程序，其余职责都在应用内部。
 
-### 步骤一：配置虚拟环境
+### 步骤一：先配好监控
 
-确保已完成依赖安装和虚拟环境配置（见上文"安装"部分）。
-
-### 步骤二：编辑 watcher.sh
-
-`watcher.sh` 会自动激活虚拟环境并调用 `watcher_.sh` 进行主循环处理。可根据需要修改 `watcher_.sh` 中的 `ENV` 变量（`development`/`production`）。
-
-### 步骤三：配置 LaunchAgent
-
-示例配置文件位于 `macOS/LaunchAgents/mediakit.plist`。
-
-主要字段说明：
-
-- `ProgramArguments`：指向 `watcher.sh` 的绝对路径
-- `StartInterval`：定时执行间隔（单位：秒，例如 60 表示每分钟执行一次）
-- `WorkingDirectory`：工作目录（需为项目根目录）
-- `StandardOutPath`/`StandardErrorPath`：日志输出路径
-
-### 步骤四：安装/卸载服务
+写好 `~/.config/mediakit/config.toml`（见上文"监控配置"），并确认能正常加载：
 
 ```sh
-# 安装（开机自启 + 定时）
-launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
-
-# 卸载
-launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
+mediakit compress -t video --watch --no-scan-existing   # 打印 "Watching N folders" 后 Ctrl-C
 ```
 
-### 步骤五：查看日志
+### 步骤二：按你的安装方式改 plist
 
-日志文件位于 `logs/` 目录下，如 `logs/watcher.log.YYYY-MM-DD.log`。
+`macOS/LaunchAgents/mediakit.plist` 里默认指向仓库的 venv 入口；若用 brew 安装，改成
+`/opt/homebrew/bin/mediakit`。`WorkingDirectory` 保持指向拥有 `.env`、`db.db`、`logs/` 的那个目录。
 
-### 其他说明
+### 步骤三：安装
 
-- `watcher.sh` 会自动激活 `.venv` 环境并调用 `watcher_.sh`
-- `watcher_.sh` 会检测脚本是否已在运行，避免重复进程
-- 支持通过 crontab 或手动运行 `watcher.sh` 进行调试
+```sh
+# 1. 先清扩展属性：Dropbox/下载目录里的 plist 带 com.apple.quarantine，
+#    launchd 会拒绝并只报一句 "Bootstrap failed: 5: Input/output error"（plutil -lint 却是 OK）
+xattr -c macOS/LaunchAgents/mediakit.plist
+cp macOS/LaunchAgents/mediakit.plist ~/Library/LaunchAgents/
+xattr -c ~/Library/LaunchAgents/mediakit.plist
+
+# 2. 载入（立即启动，且每次登录自动启动）
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/mediakit.plist
+
+# 3. 验证
+launchctl print gui/$(id -u)/com.nut.mediakit | grep -E 'state|pid'
+tail -3 logs/launchd.err
+```
+
+### 步骤四：停止 / 卸载
+
+```sh
+mediakit stop                                            # 优雅停止；launchd 不会再拉起
+launchctl bootout gui/$(id -u)/com.nut.mediakit          # 彻底移除服务
+launchctl kickstart -k gui/$(id -u)/com.nut.mediakit     # 原地重启
+```
+
+### 说明
+
+- **单实例**：再起一个 `mediakit compress --watch` 会打印 `watch daemon already running (PID …)` 并退出；
+  守卫在应用内部，不依赖 launchd 也不依赖 shell 脚本。
+- **`KeepAlive = { SuccessfulExit: false }`**：崩溃会重启，`mediakit stop`（SIGTERM，退出码 0）后保持停止。
+- **PATH**：launchd 不继承登录 shell 的 PATH（只有 `/usr/bin:/bin`），所以 plist 里显式设了
+  `EnvironmentVariables.PATH`（Homebrew 在前）。缺了它 ffmpeg/ffprobe 找不到，每个任务都会失败。
+- **日志**：launchd 的 stdout/stderr 落在 `logs/launchd.{out,err}`；真正有用的是应用自己的
+  `logs/{info,warning,error}.log`（自动轮转）。
 
 ## CPU 动态限流
 

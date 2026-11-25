@@ -119,48 +119,60 @@ mediakit dedupe --apply
 | `dedupe`                | Find media files with identical md5 and move duplicates to Trash |
 | `stop`                  | Stop the running watch daemon (graceful or force)                |
 
-## macOS LaunchAgent (Scheduled Service)
+## macOS LaunchAgent (Background Daemon)
 
-MediaKit can run as a scheduled service via macOS LaunchAgent — useful for unattended batch processing (e.g., watching a folder).
+MediaKit can run the watch daemon under launchd so it survives logout and restarts on crash. There is no
+shell wrapper: launchd execs the entry point directly and the daemon owns everything else.
 
-### Step 1: Configure Virtual Environment
+### Step 1: Configure Watch
 
-Ensure dependencies are installed and `.venv` is set up (see Installation above).
-
-### Step 2: Edit `watcher.sh`
-
-`watcher.sh` automatically activates the virtual environment and delegates to `watcher_.sh` for the main processing loop. Edit the `ENV` variable in `watcher_.sh` to switch between `development`/`production` if needed.
-
-### Step 3: Configure LaunchAgent
-
-An example plist is provided at `macOS/LaunchAgents/mediakit.plist`.
-
-Key fields:
-
-- `ProgramArguments`: Absolute path to `watcher.sh`
-- `StartInterval`: Execution interval in seconds (e.g., 60 = every minute)
-- `WorkingDirectory`: Must point to the project root
-- `StandardOutPath` / `StandardErrorPath`: Log output paths
-
-### Step 4: Install / Uninstall the Service
+Write `~/.config/mediakit/config.toml` (see [Config file](#config-file)) and confirm it loads:
 
 ```sh
-# Install (auto-start on boot + scheduled)
-launchctl bootstrap gui/$(id -u) macOS/LaunchAgents/mediakit.plist
-
-# Uninstall
-launchctl bootout gui/$(id -u) macOS/LaunchAgents/mediakit.plist
+mediakit compress -t video --watch --no-scan-existing   # Ctrl-C after it prints "Watching N folders"
 ```
 
-### Step 5: View Logs
+### Step 2: Point the plist at Your Install
 
-Log files are written to the `logs/` directory (e.g., `logs/watcher.log.YYYY-MM-DD.log`).
+`macOS/LaunchAgents/mediakit.plist` ships with the repo's venv entry point. Adjust if you use another install
+(e.g. `/opt/homebrew/bin/mediakit`), and keep `WorkingDirectory` at the directory that owns `.env`, `db.db`
+and `logs/`.
+
+### Step 3: Install
+
+```sh
+# 1. strip Finder/cloud attributes: launchd refuses a quarantined plist with a bare
+#    "Bootstrap failed: 5: Input/output error" while plutil -lint still reports OK
+xattr -c macOS/LaunchAgents/mediakit.plist
+cp macOS/LaunchAgents/mediakit.plist ~/Library/LaunchAgents/
+xattr -c ~/Library/LaunchAgents/mediakit.plist
+
+# 2. load it (starts now and on every login)
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/mediakit.plist
+
+# 3. verify
+launchctl print gui/$(id -u)/com.nut.mediakit | grep -E 'state|pid'
+tail -3 logs/launchd.err
+```
+
+### Step 4: Stop / Unload
+
+```sh
+mediakit stop                                            # graceful; launchd leaves it down
+launchctl bootout gui/$(id -u)/com.nut.mediakit          # remove the job entirely
+launchctl kickstart -k gui/$(id -u)/com.nut.mediakit     # restart in place
+```
 
 ### Notes
 
-- `watcher.sh` automatically activates the `.venv` environment and calls `watcher_.sh`
-- `watcher_.sh` checks if the script is already running to prevent duplicate processes
-- Debugging: run `watcher.sh` manually or via crontab
+- **One instance only** — a second `mediakit compress --watch` exits with `watch daemon already running (PID …)`.
+  The guard is in the app, so it works with or without launchd.
+- **`KeepAlive` is `SuccessfulExit: false`** — a crash restarts the daemon, `mediakit stop` (SIGTERM, exit 0)
+  keeps it down.
+- **PATH** — launchd does not inherit your login shell's PATH, so the plist sets
+  `EnvironmentVariables.PATH` (Homebrew first). Without it ffmpeg/ffprobe are not found and every task fails.
+- **Logs** — launchd captures stdout/stderr into `logs/launchd.{out,err}`; the app's own rotating
+  `logs/{info,warning,error}.log` stay the useful ones.
 
 ## Dynamic CPU Throttling
 
