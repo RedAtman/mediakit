@@ -37,6 +37,9 @@ folders_file = "~/.config/mediakit/folders.txt"   # 仍然支持"一行一路径
 [compress]                                        # 全局压缩缺省；--resolution/--fps 优先
 fps = 24
 
+[database]                                        # db.db 位置；环境变量 SQLITE_DATABASE 会盖过它
+path = "~/Library/Application Support/mediakit/db.db"
+
 [[watch.folders]]                                 # 逐目录覆盖（最长前缀匹配，显式条目优先）
 path       = "~/Downloads/rs/jp.gv"
 media_type = "video"                              # video | audio | image
@@ -54,6 +57,9 @@ mediakit --init-config --config /path/to/config.toml
 仓库里还有 `config.toml.example` 与 `folders.txt.example`；测试保证前者与 `--init-config` 写出的内容逐字节一致，
 示例不会跟 schema 漂移。
 
+- `[database] path` 在任何调度器之前生效，因此 `db.db` 可以放在项目之外（冻结二进制本来就放在平台状态目录）。
+  注意优先级：环境变量或 `.env` 里的 `SQLITE_DATABASE` **优先于**这一行 —— 想让它生效需要先删掉那边；
+  否则启动时会打一条 warning 同时列出两个路径。`mediakit dedupe` 默认也跟随同一个库，`--db` 仍可覆盖。
 - 配置写错（未知键、相对路径、未知 `media_type`、`resolution="1080p"`、`fps=0`）会**直接拒绝启动**并打印一行
   `config error: …`，不会静默忽略。
 - **一个目录都没有配**同样硬失败：`nothing to watch: no media folders configured`，并列出三条修复途径

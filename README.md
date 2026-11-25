@@ -59,6 +59,9 @@ folders_file = "~/.config/mediakit/folders.txt"   # a plain one-path-per-line li
 [compress]                                 # global defaults; `--resolution`/`--fps` win
 fps = 24
 
+[database]                                 # where db.db lives; an SQLITE_DATABASE env var wins
+path = "~/Library/Application Support/mediakit/db.db"
+
 [[watch.folders]]                          # per-directory overrides (longest prefix wins)
 path       = "~/Downloads/rs/jp.gv"
 media_type = "video"                       # video | audio | image
@@ -75,6 +78,11 @@ mediakit --init-config --config /path/to/config.toml
 
 The repo also ships `config.toml.example` and `folders.txt.example`; a test keeps the former byte-identical to
 the text `--init-config` writes, so the example cannot drift from the schema.
+
+`[database] path` is applied before any scheduler runs, so `db.db` can live outside the project (the frozen
+binary already keeps it in the platform state dir). Note the precedence: an `SQLITE_DATABASE` in the environment
+or in `.env` wins over this line — remove it there if you want the config file to decide, otherwise startup logs
+a warning naming both values. `mediakit dedupe` follows the same database unless `--db` overrides it.
 
 An invalid config aborts startup with a one-line message instead of being ignored, and so does a run with no
 folders at all (`nothing to watch: no media folders configured` plus the three ways to fix it). Editing the file

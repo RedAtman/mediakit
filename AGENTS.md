@@ -231,6 +231,12 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   it without the old platform-marker churn: dropping `ffmpeg-python`/`future` produced a 24-line
   deletion with no unrelated changes (verified 2026-11-23). The old advice to hand-edit a single line
   applied to the revision 3 → 5 bump and is stale; still run `uv lock --check` after hand edits
+- **`[database] path` is applied in `cli.main`, before any scheduler** — `DatabaseEngine.engine()` is a cached
+  lazy property, so `apply_database_path()` sets `CONFIG.SQLITE_DATABASE`, calls `DatabaseEngine.reset()` and
+  creates the parent dir; the engine itself still creates the file on first use. Precedence is `SQLITE_DATABASE`
+  env > config file > default (a conflicting env logs a warning, since the user's `.env` silently winning is the
+  trap we already hit with `WATCH_FOLDER_FILE`). `stop` deliberately skips config loading so a broken config can
+  never block stopping a daemon. `dedupe` defaults to `CONFIG.SQLITE_DATABASE` and `--db` overrides it
 - **The starter config has one source** — `src/config_file.py::EXAMPLE_CONFIG_TEXT` is what `mediakit
   --init-config` writes (refusing to overwrite); the repo's `config.toml.example` must stay byte-identical and a
   test enforces it, otherwise the example rots. `folders.txt.example` is validated through `parse_folder_file`
