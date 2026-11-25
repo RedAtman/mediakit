@@ -3,6 +3,7 @@ import signal
 import time
 from unittest import TestCase, mock
 
+from src.config_file import Settings
 from utils import exceptions
 
 
@@ -77,6 +78,9 @@ class TestWatcherScheduler(TestCase):
             mock.patch('src.schedulers.watcher.os.path.getmtime', return_value=1000.0),
             mock.patch('src.schedulers.watcher.os.path.isfile', return_value=True),
             mock.patch('src.schedulers.watcher.parse_folder_file', return_value=['/tmp/media']),
+            # 本用例验的是 legacy folder-file 的状态簿记, 把 TOML 配置读取隔离掉:
+            # os.path.isfile 是全局 patch, 否则 config 发现会以为 ~/.config 下真有文件
+            mock.patch('src.schedulers.watcher.load_settings', return_value=Settings()),
         ):
             scheduler.core(
                 folder_file='/tmp/config', type='video', max_workers=2, cpu_limit=None, no_scan_existing=True
@@ -239,7 +243,8 @@ class TestWatcherScheduler(TestCase):
         tracker = mock.Mock()
         tracker.wait_until_stable.return_value = True
         buffer = mock.Mock()
-        return _WatchEventHandler(buffer, tracker, categories), tracker, buffer
+        # categories 现在按路径查询 (不同目录可有不同 --type)
+        return _WatchEventHandler(buffer, tracker, lambda _path: categories), tracker, buffer
 
     @mock.patch('src.schedulers.watcher.logger')
     def test_drops_ds_store_before_stability_and_logging(self, watcher_logger):
@@ -581,6 +586,53 @@ class TestWatcherScheduler(TestCase):
         self.assertIn('Probe failed', watcher_logger.warning.call_args[0][0])
         self.assertNotIn(os.path.realpath('/tmp/media/bad.mp4'), scheduler._processing_files)
         self.assertNotIn(os.path.realpath('/tmp/media/good.mp4'), scheduler._processing_files)
+
+    def test_flush_callback_applies_per_path_compress_opts(self):
+        """不同目录各自的分辨率/帧率要跟着任务走, 而不是整轮一份."""
+        from src.config_file import Resolver, Settings
+
+        scheduler = self.scheduler
+        scheduler._resolver = Resolver(
+            Settings(
+                watch={
+                    'folders': [
+                        {'path': '/tmp/media/hd', 'compress': {'resolution': 'HD'}},
+                        {'path': '/tmp/media/fhd', 'compress': {'resolution': 'FHD', 'fps': 60}},
+                    ]
+                },
+                compress={'fps': 24},
+            )
+        )
+        mock_media = mock.Mock()
+        type(mock_media).metadata = mock.PropertyMock(return_value={'streams': []})
+
+        with mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls:
+            mock_folder_cls.return_value.MEDIA_CLS.return_value = mock_media
+            with (
+                mock.patch('src.schedulers.watcher.Folder.run___'),
+                mock.patch('src.schedulers.watcher._make_watched_task') as make_task,
+            ):
+                scheduler._flush_callback(['/tmp/media/hd/a.mp4', '/tmp/media/fhd/b.mp4'], 'video', 1)
+
+        # 两条路径共用同一份 mock media, 所以按调用顺序断言 (flush 按 new_paths 顺序建任务)
+        self.assertEqual(
+            [call[0][2] for call in make_task.call_args_list],
+            [{'resolution': 'HD', 'fps': 24}, {'resolution': 'FHD', 'fps': 60}],
+        )
+
+    def test_setup_multi_observer_uses_per_path_recursive(self):
+        """recursive 是 per-path 的: 配置里标了 recursive 的目录要按递归 schedule."""
+        from src.config_file import Resolver, Settings
+
+        scheduler = self.scheduler
+        scheduler._resolver = Resolver(Settings(watch={'folders': [{'path': '/tmp/media/deep', 'recursive': True}]}))
+        scheduler._setup_multi_observer(
+            ['/tmp/media/deep', '/tmp/media/flat'], recursive=False, media_type='video', max_workers=1
+        )
+
+        calls = {call[0][1]: call[1]['recursive'] for call in scheduler.observer.schedule.call_args_list}
+        self.assertTrue(calls['/tmp/media/deep'])
+        self.assertFalse(calls['/tmp/media/flat'])
 
     def test_flush_callback_reuses_the_probed_instance(self):
         """探过的实例必须原样交给任务, 否则 cached_property 的"不重复 probe"契约就断了."""

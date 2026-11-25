@@ -7,12 +7,14 @@ from pathlib import Path
 import signal
 import threading
 import time
+from typing import Callable
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from config import CONFIG
 from folder import Folder, make_media
+from src.config_file import Resolver, find_config_file, load_settings
 from src.file.debounce import DebounceBuffer
 from src.file.paths import collapse_nested, find_folder_file, parse_folder_file
 from src.file.stability import FileStabilityTracker
@@ -40,17 +42,25 @@ def _include_categories(media_type: str) -> list[str]:
     return list(MEDIA_CATEGORIES)
 
 
+def _processing_media_type(media_type: str) -> str:
+    """--type -> 具体 MEDIA_CLS 的名字. 'all'/'image' 还没有实现类, 沿用旧行为按 video 判."""
+    return media_type if media_type in ('video', 'audio') else 'video'
+
+
 class _WatchEventHandler(FileSystemEventHandler):
     def __init__(
         self,
         debounce_buffer: DebounceBuffer,
         stability_tracker: FileStabilityTracker,
-        include_categories: list[str] | None = None,
+        categories_for: Callable[[str], list[str]] | None = None,
     ):
         self.debounce_buffer = debounce_buffer
         self.stability_tracker = stability_tracker
-        # 显式的空列表就是"什么都不收", 不能被 `or` 吞成"放过所有类别"
-        self.include_categories = list(MEDIA_CATEGORIES if include_categories is None else include_categories)
+        # 同一轮 watch 里不同目录可以有不同的 --type, 所以类别是"按路径查"而不是整轮一个
+        self._categories_for = categories_for or (lambda _path: list(MEDIA_CATEGORIES))
+
+    def include_categories(self, path: str) -> list[str]:
+        return list(self._categories_for(path))
 
     def dispatch(self, event):
         if event.is_directory:
@@ -66,7 +76,7 @@ class _WatchEventHandler(FileSystemEventHandler):
         # 扩展名类别闸门: .DS_Store / ._xxx / --type 之外的扩展名在这里就出去.
         # 放行的话它们会先进 FileStabilityTracker (同步轮询阻塞 Observer 事件线程 ~3s),
         # 再进去抖缓冲, 直到 flush 阶段的类型判定才被拒.
-        if guess(path) not in self.include_categories:
+        if guess(path) not in self._categories_for(path):
             return
         logger.info(f'File event detected: {event.event_type} {path}')
         if self.stability_tracker.wait_until_stable(path):
@@ -90,6 +100,11 @@ def _make_watched_task(scheduler, media, opts=None):
 
 
 class WatcherScheduler:
+    # 未加载配置时的空 Resolver: 所有查询退回"整轮缺省", 行为与旧版一致.
+    # 放在类上而不是 __init__, 是因为测试常用 object.__new__ 构造实例.
+    _resolver: Resolver = Resolver()
+    # config.toml 与旧的纯文本清单是两种解析器, mtime 轮询要分开处理
+    _config_is_toml: bool = False
     # Video.compress 透传参数 (resolution/fps), 由 core() 按 CLI 覆盖; 默认空 = 全走 CONFIG 兜底
     _compress_opts: dict = {}
 
@@ -219,9 +234,13 @@ class WatcherScheduler:
                     return
 
                 try:
-                    folder = Folder(os.path.dirname(new_paths[0]) if new_paths else '.')
-                    medias = []
+                    tasks = []
                     for path in new_paths:
+                        # 'image'/'all' 没有对应的 MEDIA_CLASSES 实现, 与旧行为一致按 video 判定
+                        folder = Folder(
+                            os.path.dirname(path),
+                            _processing_media_type(self._resolver.media_type_for(path, media_type)),
+                        )
                         try:
                             media = folder.MEDIA_CLS(path)
                         except exceptions.NotMediaException:
@@ -247,10 +266,13 @@ class WatcherScheduler:
                                 self._processing_files.discard(self._normalize_path(path))
                             logger.warning('Probe failed, skipping for now: %s (%s)', path, err)
                             continue
-                        medias.append(media)
-                    if medias:
-                        scheduler = media_compress.core
-                        tasks = [_make_watched_task(scheduler, media, self._compress_opts) for media in medias]
+                        # 逐目录参数: media_type 决定用哪个 MEDIA_CLS, opts 覆盖 resolution/fps
+                        tasks.append(
+                            _make_watched_task(
+                                media_compress.core, media, self._resolver.compress_opts_for(path, self._compress_opts)
+                            )
+                        )
+                    if tasks:
                         Folder.run___(tasks=tasks, max_workers=max_workers, callback_list=[self._batch_callback])
                 finally:
                     with self._processing_lock:
@@ -266,7 +288,11 @@ class WatcherScheduler:
             callback=partial(self._flush_callback, media_type=media_type, max_workers=max_workers),
         )
         tracker = FileStabilityTracker(sample_interval=1.0, stable_samples=3, timeout=30.0)
-        handler = _WatchEventHandler(buffer, tracker, _include_categories(media_type))
+        handler = _WatchEventHandler(
+            buffer,
+            tracker,
+            lambda event_path: _include_categories(self._resolver.media_type_for(event_path, media_type)),
+        )
         self._handler = handler
 
         self.observer = Observer()
@@ -341,7 +367,14 @@ class WatcherScheduler:
         logger.info('Config monitoring: mtime changed %s -> %s', self._config_mtime, current_mtime)
 
         try:
-            raw_paths = parse_folder_file(self._config_filepath)
+            if self._config_is_toml:
+                # 改了 TOML: 重新加载, 同时刷新 resolver, 让 resolution/fps 的改动对新事件生效.
+                # recursive 的改动要重新 schedule, 属于重启才生效的项 (见 README).
+                settings = load_settings(self._config_filepath)
+                self._resolver = settings.resolver()
+                raw_paths = self._resolver.paths()
+            else:
+                raw_paths = parse_folder_file(self._config_filepath)
         except Exception as exc:
             logger.warning('Failed to parse config file %s: %s. Keeping current watches.', self._config_filepath, exc)
             return
@@ -396,11 +429,14 @@ class WatcherScheduler:
             if not os.path.isdir(path):
                 logger.warning('Cannot watch new config path (not a directory): %s', path)
                 continue
-            watch = self.observer.schedule(self._handler, path, recursive=self._recursive)
+            path_recursive = self._resolver.recursive_for(path, self._recursive)
+            watch = self.observer.schedule(self._handler, path, recursive=path_recursive)
             self._path_to_watch[path] = watch
             self._watched_paths.add(path)
-            logger.info('Started watching (added from config): %s (recursive=%s)', path, self._recursive)
-            self._feed_existing(path, self._media_type, self._max_workers)
+            logger.info('Started watching (added from config): %s (recursive=%s)', path, path_recursive)
+            self._feed_existing(
+                path, _processing_media_type(self._resolver.media_type_for(path, self._media_type)), self._max_workers
+            )
 
         self._config_mtime = current_mtime
 
@@ -433,7 +469,11 @@ class WatcherScheduler:
             callback=partial(self._flush_callback, media_type=media_type, max_workers=max_workers),
         )
         tracker = FileStabilityTracker(sample_interval=1.0, stable_samples=3, timeout=30.0)
-        handler = _WatchEventHandler(buffer, tracker, _include_categories(media_type))
+        handler = _WatchEventHandler(
+            buffer,
+            tracker,
+            lambda event_path: _include_categories(self._resolver.media_type_for(event_path, media_type)),
+        )
         self._handler = handler
 
         # New Observer + clear stale state so the dict matches what this Observer
@@ -441,10 +481,29 @@ class WatcherScheduler:
         self.observer = Observer()
         self._path_to_watch.clear()
         for path in paths:
-            watch = self.observer.schedule(handler, path, recursive=recursive)
+            path_recursive = self._resolver.recursive_for(path, recursive)
+            watch = self.observer.schedule(handler, path, recursive=path_recursive)
             self._path_to_watch[path] = watch
         self.observer.start()
-        logger.info('Watching %d folders (recursive=%s)', len(paths), recursive)
+        logger.info('Watching %d folders (recursive default=%s)', len(paths), recursive)
+
+    def _resolve_config_paths(self, configured: list[str], recursive: bool):
+        """config.toml 声明的目录: 过滤不存在项, 只对 recursive 的子树折叠嵌套.
+
+        非递归时每个目录是独立身份, 不能折叠 (见 AGENTS.md 的 watcher 不变量).
+        """
+        valid_paths = [p for p in configured if os.path.isdir(p)]
+        missing = [p for p in configured if p not in valid_paths]
+        if missing:
+            logger.warning('%d of %d configured folders do not exist: %s', len(missing), len(configured), missing[:5])
+
+        recursive_paths = [p for p in valid_paths if self._resolver.recursive_for(p, recursive)]
+        if recursive_paths:
+            collapsed = collapse_nested(recursive_paths)
+            if len(collapsed) != len(recursive_paths):
+                logger.info('Recursive watch: collapsed %d nested path(s)', len(recursive_paths) - len(collapsed))
+            valid_paths = [p for p in valid_paths if p not in recursive_paths] + collapsed
+        return configured, valid_paths
 
     @staticmethod
     def _resolve_watch_paths(folder_path: str, folder_file: str | None, recursive: bool):
@@ -494,16 +553,27 @@ class WatcherScheduler:
     def core(self, **kwargs):
         folder_path = kwargs.get('folder', CONFIG.MEDIA_FILE_FOLDER)
         folder_file = kwargs.get('folder_file', None)
+        config_path = kwargs.get('config', None)
         media_type = kwargs.get('type', 'video')
         max_workers = kwargs.get('max_workers', CONFIG.MAX_WORKERS)
-        cpu_limit = kwargs.get('cpu_limit', None)
         # action = kwargs.get('action', 'compress')  # unused; kept for future extensibility
         recursive = kwargs.get('recursive', False)
         no_scan_existing = kwargs.get('no_scan_existing', False)
 
+        # 配置非法就让进程 Failed fast: 静默忽略一个写错的 key 比拒绝启动更糟
+        settings = load_settings(config_path)
+        self._resolver = settings.resolver()
+        # CLI -c 优先于 config 里的 watch.cpu_limit 优先于环境/CONFIG
+        cpu_limit = kwargs.get('cpu_limit') or settings.watch.cpu_limit
+
         self._setup_cpu_throttling(cpu_limit)
 
-        raw_paths, valid_paths, config_filepath = self._resolve_watch_paths(folder_path, folder_file, recursive)
+        if self._resolver.paths():
+            config_filepath = str(find_config_file(config_path) or '')
+            self._config_is_toml = True
+            raw_paths, valid_paths = self._resolve_config_paths(self._resolver.paths(), recursive)
+        else:
+            raw_paths, valid_paths, config_filepath = self._resolve_watch_paths(folder_path, folder_file, recursive)
 
         # --- State initialization for dynamic config monitoring ---
         self._watched_paths = set(valid_paths)
@@ -541,10 +611,14 @@ class WatcherScheduler:
         if not no_scan_existing:
             logger.info('Scanning existing media files...')
             for p in valid_paths:
-                self._feed_existing(p, media_type, max_workers)
+                self._feed_existing(
+                    p, _processing_media_type(self._resolver.media_type_for(p, media_type)), max_workers
+                )
 
         if len(valid_paths) == 1:
-            self._setup_observer(valid_paths[0], recursive, media_type, max_workers)
+            self._setup_observer(
+                valid_paths[0], self._resolver.recursive_for(valid_paths[0], recursive), media_type, max_workers
+            )
         else:
             self._setup_multi_observer(valid_paths, recursive, media_type, max_workers)
         logger.info('Watch is running. Waiting for file changes...')

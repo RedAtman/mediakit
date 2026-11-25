@@ -13,6 +13,7 @@ Also available via direct python invocation:
 
 import logging
 
+from src.config_file import ConfigError
 from utils.cli import create_parser
 
 logger = logging.getLogger()
@@ -35,7 +36,11 @@ def main():
             # utils.cli 的词表与实现由 src/schedulers/folder.py 在 import 期校验, 走到这里
             # 说明 argv 绕过了 argparse 的 choices
             raise SystemExit(f'unknown action: {args.action}')
-    result = getattr(scheduler, 'core')(**args.__dict__)
+    try:
+        result = getattr(scheduler, 'core')(**args.__dict__)
+    except ConfigError as err:
+        # 配置错不是崩溃: 打一条人读得懂的错并退出, 排错时无需翻 traceback
+        raise SystemExit(f'config error: {err}') from None
     logger.info(result)
 
 

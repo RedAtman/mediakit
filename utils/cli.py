@@ -107,7 +107,13 @@ def create_parser(actions: tuple[str, ...] = ACTIONS):
         '--folder-file',
         type=str,
         default=None,
-        help='Path to a text file with folder paths (one per line, # comments skipped)',
+        help='Legacy plain-text folder list (one path per line, # comments); prefer --config',
+    )
+    parser.add_argument(
+        '--config',
+        type=str,
+        default=None,
+        help='TOML config (default: $XDG_CONFIG_HOME/mediakit/config.toml, i.e. ~/.config/mediakit/config.toml)',
     )
     parser.add_argument(
         '--watch',

@@ -40,6 +40,7 @@ mediakit/
 | Dedupe                    | `src/schedulers/dedupe.py`                   | md5-based dedup: scans watched folders, moves duplicate media copies to macOS Trash (dry-run by default)          |
 | Middleware pattern        | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it                     |
 | Config                    | `config.py`                                  | Environment subclass pattern (Development/Testing/Production)                                                    |
+| Watch config (TOML)       | `src/config_file.py`                         | `~/.config/mediakit/config.toml`: folders, per-path overrides, longest-prefix `Resolver`, pydantic fail-fast       |
 | CPU throttler coordinator | `utils/throttle/coordinator.py` (241L)       | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution               |
 | CPU throttler process     | `utils/throttle/throttler.py` (154L)         | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller                         |
 | CPU sampling              | `utils/throttle/sampling.py` (233L)          | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat`                                         |
@@ -219,7 +220,16 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   it without the old platform-marker churn: dropping `ffmpeg-python`/`future` produced a 24-line
   deletion with no unrelated changes (verified 2026-11-23). The old advice to hand-edit a single line
   applied to the revision 3 → 5 bump and is stale; still run `uv lock --check` after hand edits
-- Config loads logger at module end via `import_module("utils.logger.init")` — import order matters
+- **Watch config lives in `~/.config/mediakit/config.toml` (XDG, even on macOS), state stays in the platform
+  state dir** — config vs state is the split; `logs/`/`db.db` do not move. Discovery order: `--config` →
+  `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml` → legacy `var/folder.sh` → `-f`. A bad key/path/resolution
+  aborts startup via `ConfigError` (cli prints one line), because a silently-ignored typo is worse than refusing to
+  start. `[watch] folders_file` keeps a plain one-path-per-line list usable, so 300+ entries need not be rewritten;
+  `[[watch.folders]]` entries are merged on top and win on duplicates. Per-path `media_type`/`recursive`/`compress`
+  are resolved by longest prefix over the event path (`Resolver`, realpath on both sides because macOS `/tmp` is
+  `/private/tmp`); watch keeps ONE buffer/handler, so per-path behaviour must stay a lookup, not per-path threads.
+  Editing the file hot-reloads folders and resolution/fps; `recursive` changes need a restart. `cpu_limit` is
+  global by design (single coordinator) and `max_workers` stays global for now (one pool per flush batch)
 - `build/` directory contains stale frozen distribution (bdist.macosx-15.0-arm64)
 - Largest complexity hotspot: `base/video.py:combine()` — 167 lines, 4+ nesting levels
 - `config.py` uses `find_dotenv(usecwd=True)` to load `.env` — falls back to `~/.env` if not found in cwd

@@ -40,11 +40,36 @@ mediakit scale --watch -f /path/to/folder -t video
 | `-t`                 | Media type (video/audio/image)                                 | `video`                         |
 | `-w`                 | Number of worker threads                                       | `MAX_WORKERS`                   |
 | `-c`                 | CPU limit per worker (%)                                       | auto                            |
-| `--folder-file`      | Path to text file with folder paths (one per line, # comments) | —                               |
+| `--config`           | TOML config (default `~/.config/mediakit/config.toml`)         | `$XDG_CONFIG_HOME/mediakit/config.toml` |
+| `--folder-file`      | Legacy plain-text folder list (one per line, # comments)       | —                               |
 | `--recursive`        | Watch subdirectories                                           | `False` (non-recursive default) |
 | `--no-scan-existing` | Skip processing existing files at startup                      | `False`                         |
 
-When `--folder-file` is not specified and `-f` is not explicitly set, the watcher reads from the default file (`var/folder.sh`) and falls back to `MEDIA_FILE_FOLDER`.
+#### Config file
+
+Watch mode reads `~/.config/mediakit/config.toml` (override with `--config` or `MEDIAKIT_CONFIG`). Precedence:
+`--config` → `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml` → legacy `var/folder.sh` → `-f DIR`.
+
+```toml
+[watch]
+cpu_limit   = 200                          # global; `-c` wins
+folders_file = "~/.config/mediakit/folders.txt"   # a plain one-path-per-line list still works
+
+[compress]                                 # global defaults; `--resolution`/`--fps` win
+fps = 24
+
+[[watch.folders]]                          # per-directory overrides (longest prefix wins)
+path       = "~/Downloads/rs/jp.gv"
+media_type = "video"                       # video | audio | image
+recursive  = true                          # this subtree only
+compress   = { resolution = "HD", fps = 30 }
+```
+
+An invalid config aborts startup with a one-line message instead of being ignored. Editing the file while the
+daemon runs re-reads folders and `resolution`/`fps`; changing `recursive` needs a restart.
+
+When no config file exists, the watcher falls back to `--folder-file`, then the legacy `var/folder.sh` at the
+project root, then `-f DIR`.
 
 ### Stop the Watcher
 
