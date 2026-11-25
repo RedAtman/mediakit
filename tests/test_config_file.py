@@ -138,8 +138,10 @@ def test_resolver_uses_longest_prefix_and_layers_compress_options():
     assert resolver.compress_opts_for('/a/b/x.mp4', {}) == {'resolution': 'HD', 'fps': 24}
     # 未配置路径: 只剩全局缺省
     assert resolver.compress_opts_for('/other/x.mp4', {}) == {'fps': 24}
-    # CLI 传来的缺省作为最底层, 不能盖掉配置文件
-    assert resolver.compress_opts_for('/a/b/c/x.mp4', {'resolution': 'UHD'})['resolution'] == 'FHD'
+    # CLI 显式给的参数最高优先: 显式 flag 永远压过配置文件
+    assert resolver.compress_opts_for('/a/b/c/x.mp4', {'resolution': 'UHD'}) == {'resolution': 'UHD', 'fps': 60}
+    # CLI 没给的键仍然来自配置
+    assert resolver.compress_opts_for('/a/b/c/x.mp4', {'fps': 25}) == {'resolution': 'FHD', 'fps': 25}
     assert resolver.recursive_for('/a/b/c/deep', False) is True
     assert resolver.recursive_for('/a/b', True) is True
 

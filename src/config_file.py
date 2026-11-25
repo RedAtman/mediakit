@@ -263,9 +263,13 @@ class Resolver:
         entry = self.entry_for(path)
         return default if entry is None or entry.recursive is None else entry.recursive
 
-    def compress_opts_for(self, path: str, default: dict[str, Any] | None = None) -> dict[str, Any]:
-        """[compress] 是全局缺省, 逐目录的 compress 覆盖它, 未指定的键保留上一层."""
-        opts: dict[str, Any] = dict(default or {})
+    def compress_opts_for(self, path: str, cli_opts: dict[str, Any] | None = None) -> dict[str, Any]:
+        """逐目录 compress > [compress] > CLI 显式参数之外的默认.
+
+        优先级: CLI 显式给的 --resolution/--fps 最高, 其次逐目录, 再次 [compress].
+        CLI 没给时 cli_opts 里没有这些键, 于是配置文件说了算.
+        """
+        opts: dict[str, Any] = {}
         entry = self.entry_for(path)
         for layer in (self.settings.compress, entry.compress if entry else None):
             if layer is None:
@@ -274,6 +278,8 @@ class Resolver:
                 opts['resolution'] = layer.resolution
             if layer.fps is not None:
                 opts['fps'] = layer.fps
+        # CLI 最后覆盖: 显式 flag 永远压过配置文件
+        opts.update({key: value for key, value in (cli_opts or {}).items() if value is not None})
         return opts
 
 
