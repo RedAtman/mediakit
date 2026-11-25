@@ -237,7 +237,8 @@ class WatcherScheduler:
                         except exceptions.NotMediaException as err:
                             with self._processing_lock:
                                 self._processing_files.discard(self._normalize_path(path))
-                            logger.info('Not processable media, ignoring: %s (%s)', path, err.msg)
+                            # 同上: 级别与原因由 get_metadata 打过了, 这里只留 trace
+                            logger.debug('Not processable media, skipping task: %s (%s)', path, err.msg)
                             continue
                         medias.append(media)
                     if medias:

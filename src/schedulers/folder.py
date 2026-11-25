@@ -82,6 +82,9 @@ def _scan(*args: Any, ctx: Context, **kwargs: dict[str, Any]):
         folder = Folder(_folder)
     except FileNotFoundError:
         return
+    # 已知取舍: 仍在写入的文件每轮内容 md5 都不同, 于是每轮重新入库一行、各自落 ignored.
+    # watch 模式有 FileStabilityTracker 兜着, 一次性扫描 / 启动扫描没有; 下载完成后
+    # md5 变化会产生新行并正常处理, 所以这是行数噪音而非数据丢失.
     folder.scan_media()
     kwargs['folder'] = folder
     return ctx.next(*args, **kwargs)

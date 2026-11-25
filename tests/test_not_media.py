@@ -45,6 +45,57 @@ def test_get_metadata_keeps_vanished_file_retryable(tmp_path):
             BaseMedia.get_metadata(missing)
 
 
+def test_get_metadata_keeps_unreadable_file_retryable(tmp_path):
+    """文件在但读不了 (ACL / SMB 抖动) 也不是"非媒体"."""
+    unreadable = tmp_path / 'locked.mp4'
+    unreadable.write_bytes(b'x')
+    failure = subprocess.CalledProcessError(1, ['ffprobe'], output='Permission denied')
+
+    with (
+        mock.patch('base.media.CommandExecutor.run', side_effect=failure),
+        mock.patch('base.media.os.access', return_value=False),
+    ):
+        with pytest.raises(subprocess.CalledProcessError):
+            BaseMedia.get_metadata(str(unreadable))
+
+
+def test_broken_media_warns_with_size(tmp_path):
+    """扩展名自称是媒体却打不开 = 损坏, 要进 warning.log 并带上体积."""
+    broken = tmp_path / 'clip.mp4'
+    broken.write_bytes(b'x' * 4096)
+    failure = subprocess.CalledProcessError(1, ['ffprobe'], output='moov atom not found')
+
+    with (
+        mock.patch('base.media.CommandExecutor.run', side_effect=failure),
+        mock.patch('base.media.logger') as media_logger,
+    ):
+        with pytest.raises(exceptions.NotMediaException):
+            BaseMedia.get_metadata(str(broken))
+
+    media_logger.warning.assert_called_once()
+    media_logger.info.assert_not_called()
+    assert 'MB' in media_logger.warning.call_args[0][1]
+
+
+def test_unparsable_output_is_retryable(tmp_path):
+    """探测输出完全解析不出 = 探测异常, 不能把文件写进终态 ignored."""
+    clip = tmp_path / 'clip.mp4'
+    clip.write_bytes(b'x' * 16)
+
+    with mock.patch('base.media.CommandExecutor.run', return_value='garbage'):
+        with pytest.raises(RuntimeError):
+            BaseMedia.get_metadata(str(clip))
+
+
+def test_noise_before_json_still_parses(tmp_path):
+    """stderr 与 stdout 合流时, 从第一个 '{' 开始仍能解析."""
+    clip = tmp_path / 'clip.mp4'
+    clip.write_bytes(b'x' * 16)
+
+    with mock.patch('base.media.CommandExecutor.run', return_value='noise: skipped\n{"streams": [], "format": {}}'):
+        assert BaseMedia.get_metadata(str(clip)) == {'streams': [], 'format': {}}
+
+
 def test_exception_decorator_maps_not_media_to_its_own_status():
     # 与 src/schedulers/media.py:_compress 同一种用法: 包住一个绑定方法,
     # 这样 media 能从 __self__ 拿到, 回调才有落状态的对象

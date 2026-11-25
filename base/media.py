@@ -140,6 +140,7 @@ class BaseMedia:
         """
         # 必须用列表, 不能拼成 shell 字符串: 文件名里的 & ( ) ' 空格会被 shell
         # 当成语法, 导致 ffprobe 以 127/解析错误失败 (见 decodable_audio_indexes)
+        target = path.strip()
         command = [
             cls._FFPROBE_BIN,
             # -v error 而不是 -v quiet: 好文件不会有额外输出, 而坏文件的原因
@@ -150,23 +151,36 @@ class BaseMedia:
             '-show_streams',
             '-print_format',
             'json',
-            path.strip(),
+            target,
         ]
         try:
             metadata = CommandExecutor.run(command)
         except subprocess.CalledProcessError as err:
-            # 文件不在了 ≠ "这不是媒体": 下载中途改名 / 外接卷未挂载 / SMB 抖动都会
-            # 走到这里, 那条路径必须保持可重试 (failed), 不能写进终态 ignored.
-            if not os.path.exists(path.strip()):
+            # 文件不在了 / 读不了 ≠ "这不是媒体": 下载中途改名 / 外接卷未挂载 / SMB 抖动 /
+            # ACL 受限都会走到这里, 那条路径必须保持可重试 (failed), 不能写进终态 ignored.
+            if not os.path.exists(target) or not os.access(target, os.R_OK):
                 raise
-            # ffprobe 打不开 = 这不是能处理的媒体 (AppleDouble `._foo.mp4` 之类借了
-            # 扩展名的元信息文件). 判据是内容, 不是扩展名: 扩展名只能粗筛, 定夺在这里.
+            # ffprobe 打不开 = 这不是能处理的媒体. 判据是内容, 不是扩展名: 扩展名只能粗筛.
+            # 走到这里的路径必然已过了 reject_reason (扩展名属于某个媒体类别), 所以一律
+            # 是"自称是媒体却打不开" = 损坏/截断: 要进 warning.log, 否则 ignored 是终态,
+            # 用户再也看不到这个文件. 体积是最快的判别信号 (0 B 是空壳, 666 MB 是断档).
             detail = ' '.join((err.output or '').split())[:200]
-            raise exceptions.NotMediaException(101, f'Not processable media: {path} ({detail})') from err
+            msg = f'Not processable media: {path} ({detail})'
+            try:
+                msg += f' [{os.path.getsize(target) / 1024**2:.1f} MB]'
+            except OSError:
+                pass
+            logger.warning('%s', msg)
+            raise exceptions.NotMediaException(101, msg) from err
         try:
             return json.loads(metadata)
-        except json.JSONDecodeError as err:
-            raise exceptions.NotMediaException(101, f'Not processable media: {path} (unparsable output)') from err
+        except json.JSONDecodeError:
+            # stderr 可能与 stdout 合流: 从第一个 '{' 再试一次, 而不是直接把文件判死
+            try:
+                return json.loads(metadata[metadata.find('{') :])
+            except json.JSONDecodeError as err:
+                # 仍解析不出 = 探测异常, 不是"非媒体": 走可重试的 failed
+                raise RuntimeError(f'Unparsable ffprobe output for {target}') from err
 
     @cached_property
     def width_height(self):

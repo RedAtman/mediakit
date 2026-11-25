@@ -52,7 +52,8 @@ class exception:
             # 探测不到元信息 = 这不该被当成媒体: 不是失败, 不重试, 不输出 traceback
             media = getattr(self.fn, '__self__', None)
             data = {'media': media} if media else None
-            logger.info('Not processable media, ignoring: %s', err.msg)
+            # 检测点 (BaseMedia.get_metadata) 已按"是否自称媒体"分好级别并打过日志, 这里只留 trace
+            logger.debug('Not processable media: %s', err.msg)
             return Result(ResultStatus.NOT_MEDIA, data=data, msg=err.msg)
         except Exception as err:
             logger.exception(err)

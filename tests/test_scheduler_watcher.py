@@ -544,10 +544,39 @@ class TestWatcherScheduler(TestCase):
                 scheduler._flush_callback(['/tmp/media/._clip.mp4'], 'video', 1)
 
         mock_run.assert_not_called()
-        # 探不到是 INFO (针对性忽略), 不是 WARNING
-        watcher_logger.info.assert_called_once()
+        # 级别与原因由 get_metadata 打过了, 这里只留 trace
+        watcher_logger.debug.assert_called_once()
+        watcher_logger.info.assert_not_called()
         watcher_logger.warning.assert_not_called()
         self.assertNotIn(os.path.realpath('/tmp/media/._clip.mp4'), scheduler._processing_files)
+
+    def test_flush_callback_reuses_the_probed_instance(self):
+        """探过的实例必须原样交给任务, 否则 cached_property 的"不重复 probe"契约就断了."""
+        import functools
+
+        scheduler = self.scheduler
+        calls = []
+
+        class _Media:
+            # 用真的 cached_property 模拟 BaseMedia.metadata
+            @functools.cached_property
+            def metadata(self):
+                calls.append(1)
+                return {'streams': []}
+
+        media = _Media()
+        with mock.patch('src.schedulers.watcher.Folder') as mock_folder_cls:
+            mock_folder_cls.return_value.MEDIA_CLS.return_value = media
+            with (
+                mock.patch('src.schedulers.watcher.Folder.run___'),
+                mock.patch('src.schedulers.watcher._make_watched_task') as make_task,
+            ):
+                scheduler._flush_callback(['/tmp/media/clip.mp4'], 'video', 1)
+
+        make_task.assert_called_once()
+        self.assertIs(make_task.call_args[0][1], media)
+        media.metadata  # 任务侧 (compress) 再读一次也只走缓存
+        self.assertEqual(len(calls), 1)
 
     def test_flush_callback_cleans_up_even_when_callback_cannot_identify_path(self):
         """Batch-level finally guarantees cleanup even if callback can't identify path."""
