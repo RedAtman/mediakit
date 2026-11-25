@@ -137,7 +137,9 @@ mediakit stop --force
 | --------- | ------------------------------------ | ------- |
 | `--force` | 立即杀死所有 mediakit 和 ffmpeg 进程 | `False` |
 
-通过 `~/.mediakit/daemon.pid` PID 文件追踪守护进程。详见 `src/schedulers/folder.py:_stop()` 和 `src/schedulers/watcher.py`。
+守护进程会在**开始压缩启动积压之前**就写好 `~/.mediakit/daemon.pid`，所以 `mediakit stop` 与单实例守卫从第一秒
+就生效，而不是等积压压完。积压期间收到停止请求会在**下一个目录边界**退出。`MEDIAKIT_PID_DIR` 可以把文件挪到
+别处（容器、测试）。
 
 ### 媒体去重
 

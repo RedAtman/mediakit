@@ -102,7 +102,7 @@ live only in a 975-line implementation plan; keep them here instead.
 | `DebounceBuffer(max_flush_interval=)` | 60.0 s | a file that never stops being written is still flushed after 60 s |
 | `FileStabilityTracker(sample_interval=, stable_samples=, timeout=)` | 1.0 s / 3 / 30 s | a file is processed only after size+mtime stop changing for 3 samples; it is given up on after 30 s |
 | config mtime poll | 5.0 s | editing the folder file adds/removes watched dirs without a restart |
-| pid file | `~/.mediakit/daemon.pid` | written on start, removed on graceful exit, read by `mediakit stop` |
+| pid file | `~/.mediakit/daemon.pid` (`MEDIAKIT_PID_DIR` overrides the dir) | **written before the startup backlog drain** (see NOTES), removed on exit only if it still holds our pid, read by `mediakit stop` and by the single-instance guard |
 | FSEvents emitter | one per watched path: ~33 KB (thread stack) plus one kernel stream | 224 paths ≈ 8 MB, 227 threads, ~2100 fds — measured, not estimated. Scheduling costs ~95 ms per stream and cannot be parallelised (macOS serialises stream creation): 224 paths ≈ 23 s before the daemon is fully watching. De-dupe/normalize the list (`src/file/paths.py`); treat a 4-digit path count as a bug |
 
 ## COMMANDS
@@ -220,6 +220,15 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   `process died unexpectedly` warning. `ffmpeg-python -> future.moves` used to be one importer of the
   module; dropping that dependency (it was only used by a single `ffmpeg.probe` call, now gone) did
   **not** make the module unreachable, so the exclude has to stay
+- **The pid file is a reservation, not a status flag** — `core()` writes it right after the config/paths are
+  validated and *before* `_feed_existing()` drains the backlog, wrapped in `try/finally`. Writing it later (it used
+  to sit just before `_run_event_loop`) left the daemon doing hours of real work with no pid file, so `mediakit
+  stop` said "No running daemon found" and the single-instance guard had nothing to read — a second watcher
+  would happily compress the same files into the same output dirs. Signals are installed before the backlog too,
+  and the drain checks `_stop_event` between folders (a folder boundary is the safe exit point). Cleanup only
+  unlinks a pid file that still contains our own pid, and `src/file/pid.py` owns the path for both the scheduler
+  and `_stop()` — tests point `MEDIAKIT_PID_DIR` at tmp, because a test run used to write *and delete* the real
+  `~/.mediakit/daemon.pid`, silently disarming a running daemon
 - **LaunchAgent gotchas (learned the hard way)** — (1) launchd does not inherit the login shell's PATH
   (`/usr/bin:/bin` only), so with an empty `FFMPEG_BIN_DIR` the daemon starts and then fails every task with
   "No such file or directory: 'ffprobe'"; the plist ships `EnvironmentVariables.PATH`. (2) A plist copied out of

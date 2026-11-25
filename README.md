@@ -162,7 +162,10 @@ mediakit stop --force
 | --------- | -------------------------------------------------- | ------- |
 | `--force` | Immediately kill all mediakit and ffmpeg processes | `False` |
 
-Use PID file at `~/.mediakit/daemon.pid` to track the running daemon. See `src/schedulers/folder.py:_stop()` and `src/schedulers/watcher.py` for implementation details.
+The daemon writes `~/.mediakit/daemon.pid` **before** it starts compressing the startup backlog, so `mediakit stop`
+and the single-instance guard work from the first second of a run — not after the backlog finishes. During that
+drain a stop request takes effect at the next folder boundary. `MEDIAKIT_PID_DIR` moves the file (containers,
+tests).
 
 ### Deduplicate Media Files
 
