@@ -14,7 +14,7 @@ import os
 import sqlite3
 import subprocess
 
-from src.config_file import default_config_path
+from src.config_file import default_config_path, load_settings
 from src.file.paths import find_folder_file, parse_folder_file
 from utils.file import calculate_md5
 from utils.media import MEDIA_CATEGORIES, guess
@@ -24,14 +24,34 @@ logger = logging.getLogger()
 __all__ = ['dedupe']
 
 
+def _resolve_folders(folder_file: str | None, config: str | None) -> list[str]:
+    """待扫描目录: 与 watch 同源 —— config.toml 的 [[watch.folders]] 优先, 其次清单文件.
+
+    两个命令各读一处会让"我明明配在 config.toml 里"变成谜案: dedupe 曾经只认清单文件.
+    """
+    resolver = load_settings(config).resolver()
+    if resolver.paths():
+        if folder_file:
+            logger.warning('--config wins over --folder-file (%s ignored)', folder_file)
+        return resolver.paths()
+
+    listing = folder_file or find_folder_file() or str(default_config_path().parent / 'folders.txt')
+    if not os.path.isfile(listing):
+        raise SystemExit(
+            f'no folders to scan: {listing} does not exist '
+            f'(add [[watch.folders]] to ~/.config/mediakit/config.toml, or pass --folder-file FILE)'
+        )
+    return parse_folder_file(listing)
+
+
 def _send_to_trash(path: str) -> None:
     """Move a file to the macOS Trash via Finder so it stays recoverable."""
     subprocess.run(['osascript', '-e', f'tell application "Finder" to delete POSIX file "{path}"'], check=False)
 
 
-def _collect_duplicates(folder_file: str, db_path: str) -> list[tuple[str, list[str]]]:
+def _collect_duplicates(folders: list[str], db_path: str) -> list[tuple[str, list[str]]]:
     """Return [(kept_path, [duplicate_paths])] for media files sharing an md5."""
-    dirs = [d for d in parse_folder_file(folder_file) if os.path.isdir(d)]
+    dirs = [d for d in folders if os.path.isdir(d)]
     by_md5: dict[str, list[str]] = {}
     for d in dirs:
         try:
@@ -77,16 +97,10 @@ def dedupe(**kwargs) -> None:
         db: Path to the media database (default: ./db.db).
         apply: When truthy, move duplicates to Trash; otherwise dry-run.
     """
-    folder_file = kwargs.get('folder_file') or find_folder_file() or str(default_config_path().parent / 'folders.txt')
-    if not os.path.isfile(folder_file):
-        # 配置迁移后最常见的就是"清单不在这儿了": 与其抛 FileNotFoundError 栈,
-        # 不如说清去哪配、怎么临时指定
-        raise SystemExit(
-            f'folder list not found: {folder_file} (create ~/.config/mediakit/config.toml, or pass --folder-file FILE)'
-        )
+    folders = _resolve_folders(kwargs.get('folder_file'), kwargs.get('config'))
     db_path = os.path.abspath(kwargs.get('db') or 'db.db')
     apply = bool(kwargs.get('apply'))
-    duplicates = _collect_duplicates(folder_file, db_path)
+    duplicates = _collect_duplicates(folders, db_path)
 
     if not duplicates:
         logger.info('No duplicate media files found.')

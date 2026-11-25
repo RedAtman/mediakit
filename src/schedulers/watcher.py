@@ -648,6 +648,8 @@ class WatcherScheduler:
                 'Add folders there, or delete the file to silence this.'
             )
         if self._resolver.paths():
+            if folder_file:
+                logger.warning('--config wins over --folder-file (%s ignored for the watch set)', folder_file)
             config_filepath = str(find_config_file(config_path) or '')
             self._config_is_toml = True
             listed = self._resolver.settings.watch.folders_file

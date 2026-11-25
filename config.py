@@ -101,8 +101,8 @@ class _BaseConfig:
     # MEDIA FILE
     MEDIA_FILE_PATH = os.getenv('MEDIA_FILE_PATH', 'samples/zh.mp4')
     MEDIA_FILE_FOLDER: str = os.getenv('MEDIA_FILE_FOLDER', 'samples')
-    # 只作文档性兜底: 实际解析在 src/file/paths.py::find_folder_file()
-    WATCH_FOLDER_FILE: str = os.getenv('WATCH_FOLDER_FILE', '~/.config/mediakit/folders.txt')
+    # 注: 文件夹清单由 src/file/paths.py::find_folder_file() 直接读 WATCH_FOLDER_FILE,
+    # 这里不再重复声明一个没人读的 CONFIG 属性
 
     # TRANSCRIBER
     TRANSCRIBER_MODEL = os.getenv('TRANSCRIBER_MODEL', 'base')
