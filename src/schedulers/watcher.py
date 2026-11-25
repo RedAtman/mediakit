@@ -3,7 +3,6 @@ from functools import partial
 import glob
 import logging
 import os
-from pathlib import Path
 import signal
 import threading
 import time
@@ -17,6 +16,7 @@ from folder import Folder, make_media
 from src.config_file import Resolver, default_config_path, find_config_file, load_settings
 from src.file.debounce import DebounceBuffer
 from src.file.paths import collapse_nested, find_folder_file, parse_folder_file
+from src.file.pid import daemon_pid_path, read_live_pid
 from src.file.stability import FileStabilityTracker
 from utils import exceptions, response
 from utils.media import MEDIA_CATEGORIES, guess
@@ -193,51 +193,24 @@ class WatcherScheduler:
                     self._processing_files.discard(normalized_media_path)
         mark_compress_outcome(result)
 
-    @staticmethod
-    def _ensure_pid_dir() -> str:
-        pid_dir = Path.home() / '.mediakit'
-        try:
-            pid_dir.mkdir(parents=True, exist_ok=True)
-        except FileExistsError:
-            pass
-        return str(pid_dir)
-
-    @staticmethod
-    def _read_live_pid(pid_path: Path) -> int | None:
-        """pid 文件里指向的存活进程, 没有/陈旧/不可解析都返回 None."""
-        try:
-            pid = int(pid_path.read_text().strip())
-        except OSError, ValueError:
-            return None
-        if pid == os.getpid():
-            return None
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return None  # 陈旧 pid 文件
-        except PermissionError:
-            return pid  # 存在但属于别人: 仍然占用
-        return pid
-
     def _ensure_single_instance(self):
         """已有 daemon 存活就拒绝启动.
 
         单实例保护原先只存在于 watcher_.sh 的 pgrep 里; 脚本删掉后必须由应用自己守:
         两个 daemon 同时盯同一批目录会把同一份文件压两遍.
         """
-        pid_path = Path(self._ensure_pid_dir()) / 'daemon.pid'
-        live = self._read_live_pid(pid_path)
+        live = read_live_pid(daemon_pid_path())
         if live is not None:
             raise SystemExit(f'watch daemon already running (PID {live}); run `mediakit stop` first')
 
     def _write_pid_file(self):
-        pid_dir = self._ensure_pid_dir()
-        pid_path = Path(pid_dir) / 'daemon.pid'
+        pid_path = daemon_pid_path()
+        pid_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             # O_EXCL: 早先的 liveness 检查与写入之间仍有窗口, 两个进程可能同时通过检查
             fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
         except FileExistsError:
-            live = self._read_live_pid(pid_path)
+            live = read_live_pid(pid_path)
             if live is not None:
                 raise SystemExit(f'watch daemon already running (PID {live}); run `mediakit stop` first') from None
             pid_path.unlink(missing_ok=True)  # 陈旧文件: 重来一次
@@ -252,10 +225,17 @@ class WatcherScheduler:
 
     @staticmethod
     def _cleanup_pid_file():
-        pid_path = Path.home() / '.mediakit' / 'daemon.pid'
-        if pid_path.exists():
-            pid_path.unlink()
-            logger.info('PID file cleaned up: %s', pid_path)
+        pid_path = daemon_pid_path()
+        try:
+            owner = int(pid_path.read_text().strip())
+        except OSError, ValueError:
+            return
+        if owner != os.getpid():
+            # 只删自己写的那个: 否则任何走到清理的进程都会删掉别人的 pid 文件
+            logger.warning('PID file belongs to PID %d; leaving it alone: %s', owner, pid_path)
+            return
+        pid_path.unlink(missing_ok=True)
+        logger.info('PID file cleaned up: %s', pid_path)
 
     def _setup_cpu_throttling(self, cpu_limit: int | None):
         from src.schedulers.folder import coordinator
@@ -646,6 +626,9 @@ class WatcherScheduler:
         if self._resolver.paths():
             if folder_file:
                 logger.warning('--config wins over --folder-file (%s ignored for the watch set)', folder_file)
+            elif folder_path != CONFIG.MEDIA_FILE_FOLDER:
+                # 显式 -f 被静默忽略会让人以为在盯自己的目录 (实测踩过): 说清楚
+                logger.warning('-f %s is ignored because the config file declares folders', folder_path)
             config_filepath = str(find_config_file(config_path) or '')
             self._config_is_toml = True
             listed = self._resolver.settings.watch.folders_file
@@ -700,27 +683,35 @@ class WatcherScheduler:
                 '  pass -f DIR'
             )
 
-        if not no_scan_existing:
-            logger.info('Scanning existing media files...')
-            for p in valid_paths:
-                self._feed_existing(
-                    p, _processing_media_type(self._resolver.media_type_for(p, media_type)), max_workers
-                )
-
-        if len(valid_paths) == 1:
-            self._setup_observer(
-                valid_paths[0], self._resolver.recursive_for(valid_paths[0], recursive), media_type, max_workers
-            )
-        else:
-            self._setup_multi_observer(valid_paths, recursive, media_type, max_workers)
-        logger.info('Watch is running. Waiting for file changes...')
-
+        # 信号先装: backlog 压缩可能持续数小时, 期间 `mediakit stop` 必须能生效
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
+        # ★ 先占位再干长活: pid 文件从这一刻起对 `stop` 和单实例守卫可见.
+        # 之前写在 backlog 之后, 于是积压压缩期间 stop 说"没有守护进程"、第二个
+        # 实例也照常启动, 两个 daemon 会把同一批文件压进同一个输出目录.
         self._write_pid_file()
         try:
-            self._run_event_loop()
+            if not no_scan_existing:
+                logger.info('Scanning existing media files...')
+                for p in valid_paths:
+                    if self._stop_event.is_set():
+                        # 目录边界是安全的退出点: 当前目录的文件都已处理完
+                        logger.info('Stop requested during the startup backlog; stopping before %s', p)
+                        break
+                    self._feed_existing(
+                        p, _processing_media_type(self._resolver.media_type_for(p, media_type)), max_workers
+                    )
+
+            if not self._stop_event.is_set():
+                if len(valid_paths) == 1:
+                    self._setup_observer(
+                        valid_paths[0], self._resolver.recursive_for(valid_paths[0], recursive), media_type, max_workers
+                    )
+                else:
+                    self._setup_multi_observer(valid_paths, recursive, media_type, max_workers)
+                logger.info('Watch is running. Waiting for file changes...')
+                self._run_event_loop()
         finally:
             self._cleanup_pid_file()
 

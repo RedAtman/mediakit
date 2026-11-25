@@ -2,12 +2,12 @@ from concurrent.futures import Future
 from functools import partial
 import logging
 import os as _os
-from pathlib import Path as _Path
 import signal as _signal
 from typing import Any
 
 from config import CONFIG
 from folder import Folder, make_media
+from src.file.pid import daemon_pid_path, read_live_pid
 from src.patterns.middleware_context_closure import Context, MiddlewareScheduler
 from utils import file, response
 from utils.cli import ACTIONS
@@ -227,31 +227,36 @@ concat = _scheduler(lambda **kwargs: Folder.concat(concat_list=kwargs.get('conca
 
 def _stop(**kwargs):
     force = kwargs.get('force', False)
-    pid_path = _Path.home() / '.mediakit' / 'daemon.pid'
+    # 路径与判活逻辑与守护进程共用一处 (src/file/pid.py), 避免两份定义漂移
+    pid_path = daemon_pid_path()
 
     if not pid_path.exists():
         logger.info('No running daemon found.')
         return
 
-    pid = int(pid_path.read_text().strip())
-
-    try:
-        _os.kill(pid, 0)
-    except ProcessLookupError:
+    pid = read_live_pid(pid_path)
+    if pid is None:
         logger.info('No running daemon found (stale PID file).')
         pid_path.unlink(missing_ok=True)
         return
-    except PermissionError:
-        logger.warning('Permission denied checking PID %d', pid)
-        return
 
-    if force:
-        logger.info('Force-stopping daemon PID %d and all child processes...', pid)
-        pgid = _os.getpgid(pid)
-        _os.killpg(pgid, _signal.SIGKILL)
-    else:
-        logger.info('Stopping daemon PID %d gracefully...', pid)
-        _os.kill(pid, _signal.SIGTERM)
+    try:
+        if force:
+            logger.info('Force-stopping daemon PID %d and all child processes...', pid)
+            pgid = _os.getpgid(pid)
+            _os.killpg(pgid, _signal.SIGKILL)
+        else:
+            logger.info('Stopping daemon PID %d gracefully...', pid)
+            _os.kill(pid, _signal.SIGTERM)
+    except PermissionError:
+        # 守护进程属于别的用户: 说清楚, 不要抛栈
+        logger.warning('Permission denied signalling PID %d', pid)
+        return
+    except ProcessLookupError:
+        # 判活与发信号之间它自己退了
+        logger.info('No running daemon found (stale PID file).')
+        pid_path.unlink(missing_ok=True)
+        return
 
     logger.info('Stop signal sent to PID %d.', pid)
 

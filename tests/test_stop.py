@@ -1,13 +1,15 @@
 import os
-from pathlib import Path
 import signal
 from unittest import TestCase, mock
+
+from src.file.pid import daemon_pid_path
 
 
 class TestStopCommand(TestCase):
     def setUp(self):
-        self.pid_dir = Path.home() / '.mediakit'
-        self.pid_path = self.pid_dir / 'daemon.pid'
+        # conftest 的 isolated_pid_dir 把 MEDIAKIT_PID_DIR 指到 tmp_path
+        self.pid_path = daemon_pid_path()
+        self.pid_dir = self.pid_path.parent
         self.pid_dir.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self):
@@ -57,15 +59,19 @@ class TestStopCommand(TestCase):
                 mock_log.info.assert_any_call('No running daemon found (stale PID file).')
                 self.assertFalse(self.pid_path.exists())
 
-    def test_stop_stale_pid_permission_error(self):
+    def test_stop_permission_error_is_reported_not_raised(self):
+        """守护进程属于别的用户: 判活时权限拒绝说明它活着, 发信号再被拒要给出警告."""
         self.pid_path.write_text('99999')
-        with mock.patch('src.schedulers.folder._os.kill', side_effect=PermissionError):
-            with mock.patch('src.schedulers.folder.logger') as mock_log:
-                from src.schedulers.folder import _stop
+        with (
+            mock.patch('src.file.pid.os.kill', side_effect=PermissionError),
+            mock.patch('src.schedulers.folder._os.kill', side_effect=PermissionError),
+            mock.patch('src.schedulers.folder.logger') as mock_log,
+        ):
+            from src.schedulers.folder import _stop
 
-                _stop(force=False)
-                mock_log.warning.assert_called_once()
-                self.assertIn('Permission denied', mock_log.warning.call_args[0][0])
+            _stop(force=False)
+        mock_log.warning.assert_called_once()
+        self.assertIn('Permission denied', mock_log.warning.call_args[0][0])
 
     def test_stop_is_exported(self):
         from src.schedulers import folder
@@ -109,7 +115,7 @@ class TestWatcherPidFile(TestCase):
     def tearDown(self):
         for p in self.patchers:
             p.stop()
-        pid_path = Path.home() / '.mediakit' / 'daemon.pid'
+        pid_path = daemon_pid_path()
         if pid_path.exists():
             pid_path.unlink()
 
@@ -157,7 +163,7 @@ class TestWatcherPidFile(TestCase):
         from src.schedulers.watcher import WatcherScheduler
 
         scheduler = WatcherScheduler()
-        pid_path = Path.home() / '.mediakit' / 'daemon.pid'
+        pid_path = daemon_pid_path()
         if pid_path.exists():
             pid_path.unlink()
         scheduler._write_pid_file()
@@ -166,7 +172,7 @@ class TestWatcherPidFile(TestCase):
         pid_path.unlink()
 
     def test_cleanup_pid_file_removes_file(self):
-        pid_path = Path.home() / '.mediakit' / 'daemon.pid'
+        pid_path = daemon_pid_path()
         pid_path.parent.mkdir(parents=True, exist_ok=True)
         pid_path.write_text(str(os.getpid()))
         from src.schedulers.watcher import WatcherScheduler
@@ -174,25 +180,75 @@ class TestWatcherPidFile(TestCase):
         WatcherScheduler._cleanup_pid_file()
         self.assertFalse(pid_path.exists())
 
-    def test_ensure_pid_dir_creates_directory(self):
-        import shutil
 
-        pid_dir = Path.home() / '.mediakit'
-        if pid_dir.exists():
-            shutil.rmtree(str(pid_dir))
+class TestPidReservationBeforeBacklog(TestCase):
+    """pid 文件必须在启动积压之前写好, 否则 stop 与单实例守卫在积压期间完全失效."""
+
+    def setUp(self):
+        self.patchers = [
+            mock.patch('src.schedulers.watcher.Observer'),
+            mock.patch('src.schedulers.watcher.DebounceBuffer'),
+            mock.patch('src.schedulers.watcher.FileStabilityTracker'),
+            mock.patch('src.schedulers.watcher.os.path.isdir', return_value=True),
+        ]
+        for patcher in self.patchers:
+            patcher.start()
+        self.pid_path = daemon_pid_path()
+
+    def tearDown(self):
+        for patcher in self.patchers:
+            patcher.stop()
+        if self.pid_path.exists():
+            self.pid_path.unlink()
+
+    def _scheduler(self):
         from src.schedulers.watcher import WatcherScheduler
 
-        result = WatcherScheduler._ensure_pid_dir()
-        self.assertTrue(pid_dir.exists())
-        self.assertTrue(pid_dir.is_dir())
-        self.assertEqual(result, str(pid_dir))
+        scheduler = WatcherScheduler()
+        scheduler._setup_observer = mock.Mock()
+        scheduler._run_event_loop = mock.Mock()
+        return scheduler
 
-    def test_ensure_pid_dir_is_idempotent(self):
+    def test_pid_file_exists_while_the_backlog_runs(self):
+        scheduler = self._scheduler()
+        seen = {}
+
+        def fake_feed_existing(*args, **kwargs):
+            seen['exists'] = self.pid_path.exists()
+            seen['pid'] = int(self.pid_path.read_text().strip()) if self.pid_path.exists() else None
+
+        scheduler._feed_existing = mock.Mock(side_effect=fake_feed_existing)
+        scheduler.core(folder='/tmp/media', type='video', max_workers=1, cpu_limit=None, recursive=False)
+
+        self.assertTrue(seen.get('exists'), 'nothing to stop during the backlog: pid file was missing')
+        self.assertEqual(seen['pid'], os.getpid())
+        self.assertFalse(self.pid_path.exists(), 'core() must still clean up on the way out')
+
+    def test_pid_file_is_removed_when_the_backlog_raises(self):
+        scheduler = self._scheduler()
+        scheduler._feed_existing = mock.Mock(side_effect=RuntimeError('ffmpeg vanished'))
+        with self.assertRaises(RuntimeError):
+            scheduler.core(folder='/tmp/media', type='video', max_workers=1, cpu_limit=None, recursive=False)
+        self.assertFalse(self.pid_path.exists())
+
+    def test_stop_during_backlog_skips_the_remaining_folders(self):
+        scheduler = self._scheduler()
+        scheduler._feed_existing = mock.Mock(side_effect=lambda *a, **k: scheduler._stop_event.set())
+        scheduler.core(folder='/tmp/media', type='video', max_workers=1, cpu_limit=None, recursive=False)
+
+        # 第一个目录处理完就退出, 不再进第二个, 也不进事件循环
+        self.assertEqual(scheduler._feed_existing.call_count, 1)
+        scheduler._run_event_loop.assert_not_called()
+        self.assertFalse(self.pid_path.exists())
+
+    def test_cleanup_leaves_a_foreign_pid_file(self):
         from src.schedulers.watcher import WatcherScheduler
 
-        first = WatcherScheduler._ensure_pid_dir()
-        second = WatcherScheduler._ensure_pid_dir()
-        self.assertEqual(first, second)
+        self.pid_path.parent.mkdir(parents=True, exist_ok=True)
+        self.pid_path.write_text('424242')
+        WatcherScheduler._cleanup_pid_file()
+        self.assertTrue(self.pid_path.exists(), "cleanup must not delete another process's pid file")
+        self.assertEqual(self.pid_path.read_text().strip(), '424242')
 
 
 class TestWatcherInflightTracking(TestCase):

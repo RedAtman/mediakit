@@ -5,6 +5,7 @@ import time
 from unittest import TestCase, mock
 
 from src.config_file import Settings
+from src.file.pid import daemon_pid_path
 from utils import exceptions
 
 
@@ -156,11 +157,10 @@ class TestWatcherScheduler(TestCase):
     def test_core_refuses_a_second_instance(self):
         """已有 daemon 存活时必须拒绝启动 (删掉 watcher_.sh 的 pgrep 后由应用自己守)."""
         scheduler = self.scheduler
-        with mock.patch('src.schedulers.watcher.Path.home', return_value=Path('/tmp/homedir')):
-            pid_dir = Path('/tmp/homedir/.mediakit')
-            pid_dir.mkdir(parents=True, exist_ok=True)
-            (pid_dir / 'daemon.pid').write_text('424242')
-
+        pid_path = daemon_pid_path()
+        pid_path.parent.mkdir(parents=True, exist_ok=True)
+        pid_path.write_text('424242')
+        if True:
             with mock.patch('src.schedulers.watcher.os.kill') as kill:  # 存活
                 with self.assertRaises(SystemExit) as caught:
                     scheduler.core(folder_file='/tmp/x', type='video', max_workers=1, no_scan_existing=True)
@@ -172,14 +172,12 @@ class TestWatcherScheduler(TestCase):
         scheduler = self.scheduler
         scheduler._feed_existing = mock.Mock()
         observed = {}
+        pid_path = daemon_pid_path()
         # core() 正常退出时会清理 pid 文件, 所以在"运行中"这一刻取值
-        scheduler._run_event_loop = mock.Mock(
-            side_effect=lambda: observed.update(pid=Path('/tmp/homedir2/.mediakit/daemon.pid').read_text().strip())
-        )
-        with mock.patch('src.schedulers.watcher.Path.home', return_value=Path('/tmp/homedir2')):
-            pid_dir = Path('/tmp/homedir2/.mediakit')
-            pid_dir.mkdir(parents=True, exist_ok=True)
-            (pid_dir / 'daemon.pid').write_text('424242')
+        scheduler._run_event_loop = mock.Mock(side_effect=lambda: observed.update(pid=pid_path.read_text().strip()))
+        if True:
+            pid_path.parent.mkdir(parents=True, exist_ok=True)
+            pid_path.write_text('424242')
 
             # 不 patch os.path.isfile: Python 3.14 里 Path.is_file() 会走它,
             # 一旦全局返回 True, 配置发现就会以为 ~/.config 下真有配置文件.

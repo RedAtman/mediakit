@@ -34,3 +34,14 @@ def isolated_config(tmp_path, monkeypatch):
     monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'xdg-config'))
     monkeypatch.delenv('MEDIAKIT_CONFIG', raising=False)
     monkeypatch.delenv('WATCH_FOLDER_FILE', raising=False)
+
+
+@pytest.fixture(autouse=True)
+def isolated_pid_dir(tmp_path, monkeypatch):
+    """每个测试用自己的 pid 目录.
+
+    Root cause: watcher 的 core() 测试会走到 _write_pid_file()/_cleanup_pid_file(),
+    于是整个测试套件在 ~/.mediakit/daemon.pid 上又写又删 —— 守护进程运行时跑一次测试,
+    它的 pid 文件就没了, `mediakit stop` 和单实例守卫随之失效.
+    """
+    monkeypatch.setenv('MEDIAKIT_PID_DIR', str(tmp_path / 'mediakit-pid'))
