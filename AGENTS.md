@@ -67,6 +67,8 @@ mediakit/
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
+- **Do NOT reintroduce shell launchers for the daemon** — `watcher.sh` / `watcher_.sh` / `var/folder.sh` were removed: watch config now lives in `~/.config/mediakit/config.toml`, single-instance protection is in `WatcherScheduler._ensure_single_instance()`, logging is rotated by the app and launchd owns the process lifecycle
+
 - **Do NOT call ctx.next() inside core functions** — causes infinite loop in MiddlewareScheduler
 - **Do NOT import src/ from utils/** — `utils/progress.py` imports `src.models` which creates fragile layer coupling
 - **Do NOT extend config.py import graph** — already has side effects (sys.path insert, logging init)
@@ -85,7 +87,7 @@ mediakit/
 - **Callback failure handling**: `src/schedulers/callbacks.py::mark_compress_outcome` is the ONLY place that turns a finished compress task into DB state — `result == 0` sets `StateChoices.finished(2)` + `soft_remove`, `ResultStatus.NOT_MEDIA(602)` sets `StateChoices.ignored(-3)` (file left where it is), otherwise `StateChoices.failed(-2)`. Both `_callback` (folder) and `_batch_callback` (watcher) call it and keep only their own bookkeeping; do not re-implement the state decision in either
 - **"Not media" is decided by content, not by extension**: `BaseMedia.get_metadata` raises `exceptions.NotMediaException(101)` when ffprobe cannot open the file (e.g. AppleDouble `._foo.mp4`, which borrows a real video extension). `utils/decorator.exception` turns that into `ResultStatus.NOT_MEDIA(602)`, the watcher probes `media.metadata` before scheduling a task (the cached probe is reused by compress, so no extra process), and `ignored` is terminal: `QUERY_UNPROCESSED` only re-queries `unprocessed`/`failed`. Extension matching (`reject_reason`, the watcher `dispatch` gate) is a cheap prefilter only — never the authority. Recovery has two distinct branches: **content changed** (a finished download) means a new md5, hence a new row that is queued normally — the stale `-3` row is left behind as an orphan; **same bytes, only readable again** (permissions, remount) keeps the row at `-3`, so scans never retry it and only a fresh watch event can, because a task's opening `update_state` writes `unprocessed` back. `os.access` only inspects permission bits, so an SMB/cloud hiccup that fails on open but passes `access` still ends at `ignored`
 - **Result contract**: the watcher feeds tasks through `media_compress.core` (not `Folder.run__`) precisely so results arrive as `response.Result`; `Folder.run__` returns plain dicts and would silently skip every state update
-- **Watcher folder file fallback**: `src/file/paths.py::find_folder_file()` resolves `var/folder.sh` via: (1) `WATCH_FOLDER_FILE` env var, (2) parent-dir walk from cwd, (3) parent-dir walk from config.py source location. `parse_folder_file()` (expanduser + normpath + de-dup) and `collapse_nested()` live in the same module so watcher and dedupe share one parser
+- **Watcher folder file fallback**: `src/file/paths.py::find_folder_file()` resolves the folder list via: (1) `WATCH_FOLDER_FILE` env var (missing file logs a warning instead of being skipped silently), (2) `~/.config/mediakit/folders.txt`, (3) parent-dir walk from cwd for the legacy `var/folder.sh`, (4) the same walk from config.py's location. `parse_folder_file()` (expanduser + normpath + de-dup) and `collapse_nested()` live in the same module so watcher and dedupe share one parser
 
 ## WATCHER INVARIANTS
 
@@ -140,7 +142,7 @@ mediakit compress -t video -f /path/to/folder --resolution FHD --fps 30
 mediakit compress -t video --watch -f /path/to/folder
 
 # Watch mode with folder file
-mediakit compress -t video --watch --folder-file var/folder.sh
+mediakit compress -t video --watch   # 读 ~/.config/mediakit/config.toml
 
 # Stop running watch daemon (graceful)
 mediakit stop
@@ -234,7 +236,7 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
 - Largest complexity hotspot: `base/video.py:combine()` — 167 lines, 4+ nesting levels
 - `config.py` uses `find_dotenv(usecwd=True)` to load `.env` — falls back to `~/.env` if not found in cwd
 - `FFMPEG_BIN_DIR` default is `/opt/homebrew/bin` (not the `ffmpeg` binary) — `os.path.join()` appends `ffmpeg`
-- `WATCH_FOLDER_FILE` default is `var/folder.sh` (relative) — resolved at runtime by `_find_watch_folder_file()`
+- `WATCH_FOLDER_FILE` default is `~/.config/mediakit/folders.txt`; the legacy `var/folder.sh` keeps working as a last-resort fallback, and an env var pointing at a missing file now logs a warning
 - `utils/translator.py` must NOT validate config at class body level — import-time crash when env vars missing
 - `_batch_callback` receives `response.Result` objects (not plain dicts) — always use `result.data.get("media")`, never `result.get("new_file_path")`
 - `base/video.py` compress command includes `-progress pipe:1 -nostats` — ffmpeg outputs machine-readable progress to stdout (unbuffered)

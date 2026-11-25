@@ -68,13 +68,23 @@ def _walk_up_for(relpath: str, start: str) -> str | None:
 
 
 def find_folder_file() -> str | None:
-    """Locate var/folder.sh: env var → cwd and ancestors → tool source ancestors."""
+    """Locate the folder list: env var → ~/.config/mediakit/folders.txt → repo var/folder.sh (legacy)."""
     env_path = os.getenv('WATCH_FOLDER_FILE')
     if env_path:
         # 允许 .env 里写成 VAR="path" 或 VAR='path'
         env_path = env_path.strip().strip('\'"')
         if os.path.isfile(env_path):
             return env_path
+        # 静默回退会让 "我明明配了 WATCH_FOLDER_FILE" 变成谜案, 所以明说
+        logger.warning('WATCH_FOLDER_FILE points at a missing file, ignoring it: %s', env_path)
+
+    # XDG 位置优先于仓库内的 var/: 配置属于机器, 不该跟着 checkout 位置漂移.
+    # 函数内 import 避免与 src.config_file 形成模块级循环 (它 import 本模块的解析器).
+    from src.config_file import config_dir
+
+    xdg_list = config_dir() / 'folders.txt'
+    if xdg_list.is_file():
+        return str(xdg_list)
 
     found = _walk_up_for(FOLDER_FILE_RELPATH, os.getcwd())
     if found:

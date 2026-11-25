@@ -21,3 +21,16 @@ def isolated_sqlite(tmp_path, monkeypatch):
     _cached_engine.cache_clear()
     yield
     _cached_engine.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path, monkeypatch):
+    """每个测试都在空配置目录下跑, 看不见开发者自己的 ~/.config/mediakit.
+
+    Root cause: 一旦机器上存在 ~/.config/mediakit/config.toml (以及 .env 里的
+    WATCH_FOLDER_FILE), watcher 的测试就会读到真实配置, 断言里突然出现用户自己的
+    325 个下载目录. 与 isolated_sqlite 同一个道理: 机器状态不能渗进测试.
+    """
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'xdg-config'))
+    monkeypatch.delenv('MEDIAKIT_CONFIG', raising=False)
+    monkeypatch.delenv('WATCH_FOLDER_FILE', raising=False)

@@ -48,7 +48,7 @@ mediakit scale --watch -f /path/to/folder -t video
 #### Config file
 
 Watch mode reads `~/.config/mediakit/config.toml` (override with `--config` or `MEDIAKIT_CONFIG`). Precedence:
-`--config` → `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml` → legacy `var/folder.sh` → `-f DIR`.
+`--config` → `MEDIAKIT_CONFIG` → `~/.config/mediakit/config.toml` → `~/.config/mediakit/folders.txt` → `-f DIR`.
 
 ```toml
 [watch]
@@ -68,8 +68,8 @@ compress   = { resolution = "HD", fps = 30 }
 An invalid config aborts startup with a one-line message instead of being ignored. Editing the file while the
 daemon runs re-reads folders and `resolution`/`fps`; changing `recursive` needs a restart.
 
-When no config file exists, the watcher falls back to `--folder-file`, then the legacy `var/folder.sh` at the
-project root, then `-f DIR`.
+When no config file exists, the watcher falls back to `--folder-file`, then `~/.config/mediakit/folders.txt`
+(a plain one-path-per-line list), then `-f DIR`.
 
 ### Stop the Watcher
 

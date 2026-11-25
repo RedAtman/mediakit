@@ -198,6 +198,34 @@ class WatcherScheduler:
             pass
         return str(pid_dir)
 
+    @staticmethod
+    def _read_live_pid(pid_path: Path) -> int | None:
+        """pid 文件里指向的存活进程, 没有/陈旧/不可解析都返回 None."""
+        try:
+            pid = int(pid_path.read_text().strip())
+        except OSError, ValueError:
+            return None
+        if pid == os.getpid():
+            return None
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return None  # 陈旧 pid 文件
+        except PermissionError:
+            return pid  # 存在但属于别人: 仍然占用
+        return pid
+
+    def _ensure_single_instance(self):
+        """已有 daemon 存活就拒绝启动.
+
+        单实例保护原先只存在于 watcher_.sh 的 pgrep 里; 脚本删掉后必须由应用自己守:
+        两个 daemon 同时盯同一批目录会把同一份文件压两遍.
+        """
+        pid_path = Path(self._ensure_pid_dir()) / 'daemon.pid'
+        live = self._read_live_pid(pid_path)
+        if live is not None:
+            raise SystemExit(f'watch daemon already running (PID {live}); run `mediakit stop` first')
+
     def _write_pid_file(self):
         pid_dir = self._ensure_pid_dir()
         pid_path = Path(pid_dir) / 'daemon.pid'
@@ -507,7 +535,7 @@ class WatcherScheduler:
 
     @staticmethod
     def _resolve_watch_paths(folder_path: str, folder_file: str | None, recursive: bool):
-        """Resolve --folder-file / -f DIR / default var/folder.sh into watch paths.
+        """Resolve --folder-file / -f DIR / the default folder list into watch paths.
 
         Returns (raw_paths as configured, existing paths to watch, the config file
         being monitored or None). Kept out of core() because core() is the run loop
@@ -525,10 +553,10 @@ class WatcherScheduler:
                 config_filepath = watch_file
             else:
                 logger.warning(
-                    'No var/folder.sh found from cwd (%s). '
-                    'Either: (1) cd to project root and re-run, '
-                    '(2) set WATCH_FOLDER_FILE env var, '
-                    '(3) use -f DIR, or (4) use --folder-file FILE.',
+                    'No folder list found from cwd (%s). '
+                    'Either: (1) create ~/.config/mediakit/config.toml, '
+                    '(2) create ~/.config/mediakit/folders.txt, '
+                    '(3) set WATCH_FOLDER_FILE, (4) use -f DIR, or (5) use --folder-file FILE.',
                     os.getcwd(),
                 )
                 raw_paths = [folder_path]
@@ -559,6 +587,8 @@ class WatcherScheduler:
         # action = kwargs.get('action', 'compress')  # unused; kept for future extensibility
         recursive = kwargs.get('recursive', False)
         no_scan_existing = kwargs.get('no_scan_existing', False)
+
+        self._ensure_single_instance()
 
         # 配置非法就让进程 Failed fast: 静默忽略一个写错的 key 比拒绝启动更糟
         settings = load_settings(config_path)

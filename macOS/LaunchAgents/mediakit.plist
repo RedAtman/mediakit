@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  mediakit watch daemon.
+
+  Install:   cp macOS/LaunchAgents/mediakit.plist ~/Library/LaunchAgents/
+             launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/mediakit.plist
+  Stop:      launchctl bootout gui/$(id -u)/com.nut.mediakit    (or: mediakit stop)
+  Reload:    launchctl kickstart -k gui/$(id -u)/com.nut.mediakit
+
+  No shell wrapper on purpose: the folder list and per-directory parameters live
+  in ~/.config/mediakit/config.toml, single-instance protection is inside the
+  daemon (WatcherScheduler._ensure_single_instance), log rotation is the app's
+  own handlers, and launchd owns restart-on-crash via KeepAlive.
+
+  Program is the repo's venv entry point until the config feature ships in a
+  release; after that point it at /opt/homebrew/bin/mediakit and drop
+  WorkingDirectory down to whatever directory should own .env and db.db.
+-->
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -8,21 +25,36 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/nut/Dropbox/dev/tools/media_handler/watcher.sh</string>
+        <string>/Users/nut/Dropbox/dev/redatman/mediakit/.venv/bin/mediakit</string>
+        <string>compress</string>
+        <string>-t</string>
+        <string>video</string>
+        <string>--watch</string>
     </array>
 
-    <key>StartInterval</key>
-    <integer>60</integer> <!-- 每300秒 = 每5分钟 -->
+    <!-- .env, db.db and logs/ resolve relative to this directory -->
+    <key>WorkingDirectory</key>
+    <string>/Users/nut/Dropbox/dev/redatman/mediakit</string>
 
     <key>RunAtLoad</key>
     <true/>
 
-    <key>WorkingDirectory</key>
-    <string>/Users/nut/Dropbox/dev/tools/media_handler</string>
+    <!-- restart on crash, but stay down after a graceful `mediakit stop` (exit 0) -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
 
     <key>StandardOutPath</key>
-    <string>/Users/nut/Dropbox/dev/tools/media_handler/log/LaunchAgents.out</string>
+    <string>/Users/nut/Dropbox/dev/redatman/mediakit/logs/launchd.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/nut/Dropbox/dev/tools/media_handler/log/LaunchAgents.err</string>
+    <string>/Users/nut/Dropbox/dev/redatman/mediakit/logs/launchd.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
 </dict>
 </plist>
