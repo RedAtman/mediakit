@@ -18,6 +18,11 @@ class DatabaseEngine:
         return engine
 
     @classmethod
+    def reset(cls) -> None:
+        """Drop the cached engine; required after CONFIG.SQLITE_DATABASE changes."""
+        cls.__dict__['engine'].__func__.cache_clear()
+
+    @classmethod
     def get_engine(cls, engine: base.BaseEngine | None = None) -> base.BaseEngine:
         if engine is not None:
             return engine

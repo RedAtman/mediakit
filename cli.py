@@ -38,6 +38,17 @@ def main():
     if args.action is None:
         raise SystemExit('an action is required (e.g. `mediakit compress ...`); see --help')
 
+    if args.action != 'stop':
+        # `stop` 例外: 配置写坏了也必须能停掉正在跑的守护进程.
+        # engine() 是懒建的, 所以只要在调度器之前把路径应用上去就够.
+        from src.config_file import apply_database_path, load_settings
+
+        try:
+            apply_database_path(load_settings(args.config))
+        except ConfigError as err:
+            # 与下面 core() 的处理器同一个契约: 配置错给一行提示, 不留 traceback
+            raise SystemExit(f'config error: {err}') from None
+
     if args.watch:
         from src.schedulers.watcher import WatcherScheduler
 

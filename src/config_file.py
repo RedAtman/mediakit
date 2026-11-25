@@ -28,6 +28,7 @@ logger = logging.getLogger()
 
 __all__ = [
     'CONFIG_ENV_VAR',
+    'apply_database_path',
     'EXAMPLE_CONFIG_TEXT',
     'write_starter_config',
     'ConfigError',
@@ -69,6 +70,11 @@ cpu_limit = 200
 # Global compress defaults; --resolution / --fps override them per run.
 fps = 24
 
+# Where db.db lives. An SQLITE_DATABASE environment variable (or .env entry) wins
+# over this value -- remove it there first if you want this line to take effect.
+# [database]
+# path = "~/Library/Application Support/mediakit/db.db"
+
 # Per-directory overrides. Longest matching path wins; explicit entries beat folders_file.
 # [[watch.folders]]
 # path       = "~/Downloads/rs/jp.gv"
@@ -76,6 +82,45 @@ fps = 24
 # recursive  = true
 # compress   = { resolution = "HD", fps = 30 }
 """
+
+
+def apply_database_path(settings: Settings) -> str | None:
+    """把 [database].path 应用到 CONFIG 上, 返回生效的路径 (没配/被 env 覆盖时返回 None).
+
+    优先级与其它配置一致: env `SQLITE_DATABASE` > TOML > 内置默认. env 与 TOML 都设且不一致时
+    明确告警 —— 陈旧 env 静默胜出正是我们刚在 WATCH_FOLDER_FILE 上踩过的坑.
+
+    DatabaseEngine.engine() 是 @cache 的懒建属性, 所以必须清缓存, 否则先用旧路径建出来的引擎
+    会继续被复用. 调用点应在任何 scheduler 之前 (cli.main).
+    """
+    from config import CONFIG
+
+    declared = settings.database.path
+    if not declared:
+        return None
+    if os.getenv('SQLITE_DATABASE'):
+        # 与 CONFIG 解析后的值比, 而不是自己再 abspath 一次: 相对路径由 config.py 决定相对谁
+        if CONFIG.SQLITE_DATABASE != declared:
+            logger.warning(
+                'SQLITE_DATABASE (%s) wins over [database] path (%s); '
+                'remove it from the environment/.env if the config file should decide',
+                CONFIG.SQLITE_DATABASE,
+                declared,
+            )
+        return None
+    if declared == CONFIG.SQLITE_DATABASE:
+        return None
+
+    try:
+        Path(declared).parent.mkdir(parents=True, exist_ok=True)
+    except OSError as err:
+        raise ConfigError(f'cannot create the directory for database.path {declared}: {err}') from err
+    CONFIG.SQLITE_DATABASE = declared
+    from src.db import DatabaseEngine
+
+    DatabaseEngine.reset()
+    logger.info('Using database from config file: %s', declared)
+    return declared
 
 
 def write_starter_config(target: str | Path | None = None) -> Path:
@@ -130,6 +175,24 @@ class FolderEntry(BaseModel):
         return value
 
 
+class DatabaseSettings(BaseModel):
+    """Where db.db lives. env SQLITE_DATABASE still wins (see apply_database_path)."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    path: str | None = None
+
+    @field_validator('path')
+    @classmethod
+    def _absolute(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        expanded = os.path.normpath(os.path.expanduser(value))
+        if not os.path.isabs(expanded):
+            raise ValueError(f'database.path must be absolute or start with ~, got {value!r}')
+        return expanded
+
+
 class WatchSettings(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -159,6 +222,7 @@ class Settings(BaseModel):
 
     watch: WatchSettings = Field(default_factory=WatchSettings)
     compress: CompressOptions = Field(default_factory=CompressOptions)
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
 
     def resolver(self) -> 'Resolver':
         return Resolver(self)

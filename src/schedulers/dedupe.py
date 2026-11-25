@@ -14,6 +14,7 @@ import os
 import sqlite3
 import subprocess
 
+from config import CONFIG
 from src.config_file import default_config_path, load_settings
 from src.file.paths import find_folder_file, parse_folder_file
 from utils.file import calculate_md5
@@ -89,6 +90,10 @@ def _collect_duplicates(folders: list[str], db_path: str) -> list[tuple[str, lis
     return result
 
 
+def _resolve_db(explicit: str | None) -> str:
+    return os.path.abspath(explicit or CONFIG.SQLITE_DATABASE)
+
+
 def dedupe(**kwargs) -> None:
     """Scan watched folders and move duplicate-media copies to Trash.
 
@@ -98,7 +103,8 @@ def dedupe(**kwargs) -> None:
         apply: When truthy, move duplicates to Trash; otherwise dry-run.
     """
     folders = _resolve_folders(kwargs.get('folder_file'), kwargs.get('config'))
-    db_path = os.path.abspath(kwargs.get('db') or 'db.db')
+    # 默认跟随 CONFIG (可能来自 --config 的 [database] path 或 SQLITE_DATABASE), --db 仍可覆盖
+    db_path = _resolve_db(kwargs.get('db'))
     apply = bool(kwargs.get('apply'))
     duplicates = _collect_duplicates(folders, db_path)
 

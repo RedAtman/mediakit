@@ -14,6 +14,7 @@ from src.config_file import (
     FolderEntry,
     Resolver,
     Settings,
+    apply_database_path,
     config_dir,
     default_config_path,
     find_config_file,
@@ -208,3 +209,53 @@ def test_write_starter_config_writes_and_refuses_overwrite(tmp_path):
 
     with pytest.raises(FileExistsError):
         write_starter_config(target)
+
+
+def test_database_path_is_expanded_and_must_be_absolute():
+    settings = Settings(database={'path': '~/state/db.db'})
+    assert settings.database.path == str(Path('~/state/db.db').expanduser())
+    with pytest.raises(ValueError):
+        Settings(database={'path': 'relative/db.db'})
+
+
+def test_apply_database_path_sets_config_and_creates_parent(tmp_path, monkeypatch):
+    from config import CONFIG
+    from src.db import DatabaseEngine
+
+    monkeypatch.delenv('SQLITE_DATABASE', raising=False)
+    target = tmp_path / 'state' / 'custom.db'
+    monkeypatch.setattr(CONFIG, 'SQLITE_DATABASE', str(tmp_path / 'old.db'))
+    DatabaseEngine.reset()
+
+    applied = apply_database_path(Settings(database={'path': str(target)}))
+
+    assert applied == str(target)
+    assert CONFIG.SQLITE_DATABASE == str(target)
+    assert target.parent.is_dir()  # engine 建库时不会替你建目录
+    DatabaseEngine.reset()
+
+
+def test_env_database_wins_over_the_config_file(tmp_path, monkeypatch):
+    from config import CONFIG
+
+    monkeypatch.setenv('SQLITE_DATABASE', str(tmp_path / 'from-env.db'))
+    monkeypatch.setattr(CONFIG, 'SQLITE_DATABASE', str(tmp_path / 'from-env.db'))
+
+    with mock.patch('src.config_file.logger') as logger:
+        assert apply_database_path(Settings(database={'path': str(tmp_path / 'from-toml.db')})) is None
+
+    assert CONFIG.SQLITE_DATABASE == str(tmp_path / 'from-env.db')
+    logger.warning.assert_called_once()
+    message = logger.warning.call_args[0][0]
+    # 必须告诉用户"怎么让配置文件生效", 不只说谁赢
+    assert 'wins over' in message
+    assert '.env' in message
+
+
+def test_no_database_section_is_a_noop(tmp_path, monkeypatch):
+    from config import CONFIG
+
+    monkeypatch.delenv('SQLITE_DATABASE', raising=False)
+    before = CONFIG.SQLITE_DATABASE
+    assert apply_database_path(Settings()) is None
+    assert CONFIG.SQLITE_DATABASE == before

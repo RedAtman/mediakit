@@ -15,6 +15,11 @@ cpu_limit = 200
 # Global compress defaults; --resolution / --fps override them per run.
 fps = 24
 
+# Where db.db lives. An SQLITE_DATABASE environment variable (or .env entry) wins
+# over this value -- remove it there first if you want this line to take effect.
+# [database]
+# path = "~/Library/Application Support/mediakit/db.db"
+
 # Per-directory overrides. Longest matching path wins; explicit entries beat folders_file.
 # [[watch.folders]]
 # path       = "~/Downloads/rs/jp.gv"

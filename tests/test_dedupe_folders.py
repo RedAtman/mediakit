@@ -47,3 +47,13 @@ def test_warns_when_both_config_and_folder_file_are_given(tmp_path):
         with mock.patch('src.schedulers.dedupe.logger') as logger:
             assert _resolve_folders(str(listing), None) == ['/from-config']
     logger.warning.assert_called_once()
+
+
+def test_db_defaults_to_the_configured_database(tmp_path, monkeypatch):
+    from config import CONFIG
+    from src.schedulers.dedupe import _resolve_db
+
+    monkeypatch.setattr(CONFIG, 'SQLITE_DATABASE', str(tmp_path / 'configured.db'))
+    assert _resolve_db(None) == str(tmp_path / 'configured.db')
+    # --db 仍然可以覆盖
+    assert _resolve_db(str(tmp_path / 'explicit.db')) == str(tmp_path / 'explicit.db')
