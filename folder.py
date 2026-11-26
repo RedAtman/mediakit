@@ -28,7 +28,12 @@ def make_media(folder, path):
     try:
         return folder.MEDIA_CLS(path)
     except (exceptions.NotMediaException, OSError) as exc:
-        logger.warning('Skipping unprocessable media: %s: %s', path, exc)
+        # 文件不在 (被移走 / 卷未挂载) 不等于"坏媒体": 这是可能恢复的, 不该每轮扫描刷
+        # WARNING. 真正不可处理 (目录、扩展名不对) 仍然告警.
+        if not os.path.exists(path):
+            logger.debug('Skipping missing media: %s: %s', path, exc)
+        else:
+            logger.warning('Skipping unprocessable media: %s: %s', path, exc)
         return None
 
 

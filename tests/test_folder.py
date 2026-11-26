@@ -84,6 +84,58 @@ class TestFolder(unittest.TestCase):
         assert isinstance(result, response.Result)
         assert result.code == response.ResultStatus.SUCCESS
 
+    def test_query_unprocessed_includes_interrupted_progress_rows(self):
+        """进度值 (0.0-2.0) 是"被中断"的中间态, 必须可重试.
+
+        回归: 库里曾积了 30 条 0/0.x/1.9x 的行, 因为旧条件只认 -1/-2 而永远不再被取到;
+        其中一条若将来卷挂回来, 会被 get_or_create 命中且静默跳过.
+        """
+        import uuid
+
+        from src.schemas import StateChoices
+
+        folder = Folder(self.temp_dir)
+        md5s = {name: str(uuid.uuid4()) for name in ('progress', 'wrong_mid', 'finished', 'ignored')}
+        try:
+            for name, value in (
+                ('progress', 0.68),
+                ('wrong_mid', 1.983977),
+                ('finished', StateChoices.finished),
+                ('ignored', StateChoices.ignored),
+            ):
+                model = models.Media.get_or_create(md5=md5s[name], title=f'{name}.mp4', dirname=folder.abspath)
+                model.update_state('compress', value)
+
+            query = folder.get_query_statement('QUERY_UNPROCESSED')
+            self.assertIsNotNone(query)
+            result = folder.query(query)
+            titles = {m.title for m in result.data} if result.data else set()
+
+            self.assertIn('progress.mp4', titles)
+            self.assertIn('wrong_mid.mp4', titles)
+            self.assertNotIn('finished.mp4', titles)
+            self.assertNotIn('ignored.mp4', titles)
+        finally:
+            for md5 in md5s.values():
+                model = models.Media.get(md5=md5)
+                if model is not None:
+                    model.delete()
+
+    def test_make_media_is_quiet_for_missing_files(self):
+        """文件不在 -> debug; 文件在但不可处理 -> warning (别让缺失文件淹没真正的坏文件)."""
+        from folder import make_media
+
+        folder = Folder(self.temp_dir)
+        with mock.patch('folder.logger') as make_logger:
+            assert make_media(folder, os.path.join(self.temp_dir, 'gone.mp4')) is None
+        make_logger.debug.assert_called_once()
+        make_logger.warning.assert_not_called()
+
+        # 目录: 存在但不可处理 -> 仍然 warning
+        with mock.patch('folder.logger') as make_logger:
+            assert make_media(folder, self.temp_dir) is None
+        make_logger.warning.assert_called_once()
+
     def test_query_unprocessed_includes_failed(self):
         """QUERY_UNPROCESSED must return both unprocessed (-1) and failed (-2) files,
         so a transient failure (e.g. bad ffmpeg path at startup) does not strand files."""

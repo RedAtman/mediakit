@@ -42,10 +42,12 @@ class BaseFolderMixin:
             .where(
                 models.Media.state.op('->>')('compress')
                 .cast(Integer)
-                .in_([StateChoices.unprocessed, StateChoices.failed])
+                .notin_([StateChoices.finished, StateChoices.ignored])
             )  # type: ignore
-            # Failed (-2) is included so a transient failure (e.g. bad ffmpeg path at
-            # startup) does not strand files forever; both states are retryable.
+            # 除了 finished(2) 和 ignored(-3), 其余都算可重试: 包括 failed(-2) 以及
+            # 0.0-2.0 之间的进度值. 后者是任务被杀/崩溃时留下的中间态 —— 以前只认
+            # -1/-2, 于是这些行永远不会再被取到 (库里曾积了 30 条, 全都指向已不在的文件).
+            # cast(Integer) 会截断小数, 但我们只判"等不等于 2 / -3", 截断不影响结论.
         }
         return MAPPER_QUERY_STATEMENT.get(key)
 
