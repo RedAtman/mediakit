@@ -317,7 +317,14 @@ kill -SIGUSR1 <pid>   # → 无限（自动模式）
 touch /tmp/mediakit_cpu_25   # 设置 25% 限制
 ```
 
-文件被读取后会自动删除。
+文件被读取后会自动删除，且这次变更会以 **WARNING** 级别记录 —— 因此它一定会出现在 mediakit 自己的日志里
+（轮转到 `logs/warning.log`；以 `LOG_LEVEL=WARNING` 运行的守护进程不写 INFO，过去会让"已生效的 override"看起来像没反应）：
+
+```
+CPU budget override: 25% total (~25%/worker) from mediakit_cpu_25
+```
+
+新预算作用于**下一次**限流决策；如果当前没有 ffmpeg 在跑，那么只有预算数字变化，CPU 使用率自然看不出来。
 
 ### 多 Worker 情况
 

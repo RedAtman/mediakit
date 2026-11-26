@@ -237,6 +237,13 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   uses `SuccessfulExit: false` so `mediakit stop` (SIGTERM, exit 0) leaves the job down, while the
   single-instance guard exits 1 on purpose — launchd then retries it every `ThrottleInterval`, which is the
   behaviour we want when a stray daemon holds the pid file
+- **Operator actions must be visible at the default log level** — `utils/logger/init.py` defaults `LOG_LEVEL` to
+  **WARNING** (`config.py`'s own `LOG_LEVEL` attribute says DEBUG, which is a red herring: the logger reads the
+  env var itself). So INFO-level confirmations are invisible in a normal run: a `/tmp/mediakit_cpu_*` override is
+  now reported at WARNING with the total and per-worker target, and `mediakit stop` prints its outcome to stdout.
+  The override poller is pinned by a test that starts the real monitor thread (interval patched to ms), drops a
+  file in an injected directory and waits for `_manual_target` — the older tests stopped the thread and called
+  `_scan_file_override()` by hand, which is why "the poller never starts" could pass the suite
 - **CPU throttling degrades instead of crashing off Linux/macOS** — `utils/throttle/sampling.py`
   only implements those two, so `CPULimiterCoordinator` checks the platform up front and runs
   unthrottled with one warning. This is what keeps the Windows binary usable

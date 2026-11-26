@@ -348,7 +348,15 @@ Create a special file to set a temporary CPU limit:
 touch /tmp/mediakit_cpu_25   # Set 25% limit
 ```
 
-The file is automatically deleted after being read.
+The file is automatically deleted after being read, and the change is logged at **WARNING** so it always shows up
+in `mediakit`'s own logs (they are rotated in `logs/warning.log`; a daemon started with `LOG_LEVEL=WARNING` writes
+nothing at INFO level, which used to make a successful override look like a no-op):
+
+```
+CPU budget override: 25% total (~25%/worker) from mediakit_cpu_25
+```
+
+The new budget applies to the *next* throttle decision; if no ffmpeg process is running yet, only the budget changes.
 
 ### Multi-Worker Behavior
 

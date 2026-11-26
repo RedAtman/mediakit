@@ -189,9 +189,16 @@ class CPULimiterCoordinator:
                 parts = basename.rsplit('_', 1)
                 if len(parts) == 2 and parts[1].isdigit():
                     target = int(parts[1])
-                    logger.info('File override detected: %s → %d%%', basename, target)
                     self.set_manual_override(target)
                     os.remove(filepath)
+                    # WARNING 而不是 INFO: 这是操作者的显式动作, 必须能在 `cli logs` 里看到.
+                    # daemon 常常以 WARNING 级运行, INFO 级的"已生效"等于没写.
+                    logger.warning(
+                        'CPU budget override: %d%% total (~%d%%/worker) from %s',
+                        target,
+                        self._calculate_per_process_target(),
+                        basename,
+                    )
                     return
             except (OSError, ValueError) as err:
                 logger.warning('Failed to process override file %s: %s', filepath, err)

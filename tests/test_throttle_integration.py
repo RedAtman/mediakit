@@ -2,6 +2,7 @@ import logging
 import os
 import signal
 import tempfile
+import time
 from unittest import TestCase, mock
 
 logger = logging.getLogger()
@@ -211,4 +212,64 @@ def test_watcher_setup_creates_coordinator_without_cpu_limit(monkeypatch, tmp_pa
     WatcherScheduler._setup_cpu_throttling(object.__new__(WatcherScheduler), None)
 
     assert len(created) == 1, 'watch mode must create the coordinator too'
-    created[0]._stop_monitor()
+    coord = created[0]
+    # 没有 -c 时也必须真的有监视线程在扫 override 目录, 否则 touch 永远不生效
+    assert coord._monitor_thread.is_alive()
+    coord._stop_monitor()
+
+
+def _wait_for(predicate, timeout: float = 6.0, interval: float = 0.02) -> bool:
+    """条件轮询而不是固定 sleep: 监视线程 2s 一轮, 用真实线程就必须等条件成立."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval)
+    return predicate()
+
+
+def test_monitor_thread_picks_up_overrides_created_after_start(tmp_path):
+    """真监视线程 + 真文件: 这是唯一能证明"touch 之后会被消费"的测试.
+
+    以前的用例统统先 _stop_monitor() 再手调 _scan_file_override(), 于是把
+    "监视线程根本没启动" / "pattern 指向别的目录" 这类回归全都放过去了.
+    """
+    from utils.throttle.coordinator import FILE_OVERRIDE_PATTERN, CPULimiterCoordinator
+
+    assert FILE_OVERRIDE_PATTERN == '/tmp/mediakit_cpu_*'  # 生产默认值
+
+    # 轮询间隔压到毫秒级: 仍然是真的监视线程, 但不必每个用例等 2 秒 (也避免 CI 上 flaky)
+    with mock.patch('utils.throttle.coordinator.FILE_SCAN_INTERVAL', 0.02):
+        coord = CPULimiterCoordinator(file_override_pattern=str(tmp_path / 'mediakit_cpu_*'))
+        try:
+            assert coord._monitor_thread.is_alive(), 'monitor thread must run without -c'
+
+            (tmp_path / 'mediakit_cpu_25').touch()
+            assert _wait_for(lambda: coord._manual_target == 25), 'override file was never consumed'
+            assert not (tmp_path / 'mediakit_cpu_25').exists()
+
+            # 消费一个文件之后必须继续轮询
+            (tmp_path / 'mediakit_cpu_10').touch()
+            assert _wait_for(lambda: coord._manual_target == 10)
+            assert not (tmp_path / 'mediakit_cpu_10').exists()
+        finally:
+            coord._stop_monitor()
+
+
+def test_override_is_reported_at_warning_level(tmp_path):
+    """操作者的显式动作要能在 warning.log 里看到 (INFO 在 daemon 里常常是关掉的)."""
+    from utils.throttle.coordinator import CPULimiterCoordinator
+
+    coord = CPULimiterCoordinator(default_limit=100, file_override_pattern=str(tmp_path / 'mediakit_cpu_*'))
+    coord._stop_monitor()
+    try:
+        (tmp_path / 'mediakit_cpu_40').touch()
+        with mock.patch('utils.throttle.coordinator.logger') as coord_logger:
+            coord._scan_file_override()
+        coord_logger.warning.assert_called_once()
+        args = coord_logger.warning.call_args[0]
+        assert args[1] == 40  # 生效的总预算
+        assert args[2] == 40  # 每个 worker 分到的目标
+        assert args[3] == 'mediakit_cpu_40'
+    finally:
+        coord._stop_monitor()
