@@ -59,8 +59,16 @@ class CPULimiterCoordinator:
             self._monitor_thread.start()
 
     def _stop_monitor(self):
-        """Stop the background monitor thread."""
+        """Stop the background monitor thread and wait for it to finish.
+
+        join 是必须的: 只 set event 的话线程可能正处在本轮扫描中, 于是它会继续
+        删僵尸 PID / 抢着消费 override 文件, 和测试(或 shutdown)形成竞态 —— CI 上
+        就出现过 "KeyError: 9997" 和"同一条 override 被消费两次".
+        """
         self._monitor_stop.set()
+        thread = self._monitor_thread
+        if thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=5.0)
 
     def _handle_sigusr1(self, signum, frame):
         """SIGUSR1 handler: cycle to next CPU profile."""
@@ -221,7 +229,9 @@ class CPULimiterCoordinator:
                 self._cleanup_zombies()
                 if self.auto_mode and not self._manual_override_active:
                     self._apply_target_to_all()
-                time.sleep(FILE_SCAN_INTERVAL)
+                # wait() 而不是 sleep(): 停止时立刻醒来, join 不必等一个完整周期
+                if self._monitor_stop.wait(FILE_SCAN_INTERVAL):
+                    break
             except Exception:
                 logger.exception('CPULimiterCoordinator monitor error')
         logger.info('CPULimiterCoordinator monitor stopped')

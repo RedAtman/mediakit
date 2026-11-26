@@ -244,14 +244,17 @@ def test_monitor_thread_picks_up_overrides_created_after_start(tmp_path):
         try:
             assert coord._monitor_thread.is_alive(), 'monitor thread must run without -c'
 
-            (tmp_path / 'mediakit_cpu_25').touch()
+            file_25 = tmp_path / 'mediakit_cpu_25'
+            file_25.touch()
             assert _wait_for(lambda: coord._manual_target == 25), 'override file was never consumed'
-            assert not (tmp_path / 'mediakit_cpu_25').exists()
+            # 删除发生在 set_manual_override 之后, 所以这里也要等条件而不是立刻断言
+            assert _wait_for(lambda: not file_25.exists()), 'override file was not removed'
 
             # 消费一个文件之后必须继续轮询
-            (tmp_path / 'mediakit_cpu_10').touch()
+            file_10 = tmp_path / 'mediakit_cpu_10'
+            file_10.touch()
             assert _wait_for(lambda: coord._manual_target == 10)
-            assert not (tmp_path / 'mediakit_cpu_10').exists()
+            assert _wait_for(lambda: not file_10.exists())
         finally:
             coord._stop_monitor()
 
