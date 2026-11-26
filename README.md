@@ -212,9 +212,10 @@ mediakit compress -t video --watch --no-scan-existing   # Ctrl-C after it prints
 
 ### Step 2: Point the plist at Your Install
 
-`macOS/LaunchAgents/mediakit.plist` ships with the repo's venv entry point. Adjust if you use another install
-(e.g. `/opt/homebrew/bin/mediakit`), and keep `WorkingDirectory` at the directory that owns `.env`, `db.db`
-and `logs/`.
+`macOS/LaunchAgents/mediakit.plist` ships with the Homebrew entry point (`/opt/homebrew/bin/mediakit`, the
+Apple Silicon prefix — Intel Homebrew installs into `/usr/local/bin`). Running from a source checkout instead?
+Point it at `<repo>/.venv/bin/mediakit`. Either way keep `WorkingDirectory` at the directory that owns `.env`,
+`db.db` and `logs/`.
 
 ### Step 3: Install
 
@@ -233,13 +234,18 @@ launchctl print gui/$(id -u)/com.nut.mediakit | grep -E 'state|pid'
 tail -3 logs/launchd.err
 ```
 
-### Step 4: Stop / Unload
+### Step 4: Start / Stop / Unload
 
 ```sh
-mediakit stop                                            # graceful; launchd leaves it down
-launchctl bootout gui/$(id -u)/com.nut.mediakit          # remove the job entirely
-launchctl kickstart -k gui/$(id -u)/com.nut.mediakit     # restart in place
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/mediakit.plist   # only when not loaded yet
+launchctl kickstart -k gui/$(id -u)/com.nut.mediakit                     # start or restart a loaded job
+mediakit stop                                                           # graceful; launchd leaves it down
+launchctl bootout gui/$(id -u)/com.nut.mediakit                          # unload the job entirely
 ```
+
+`mediakit stop` leaves the job **loaded but not running** (that is how `KeepAlive { SuccessfulExit: false }` is
+supposed to behave). Starting it again therefore needs `kickstart`; `bootstrap` on an already-loaded job fails with
+`Bootstrap failed: 5: Input/output error`, which is a launchd quirk, not a plist problem.
 
 ### Notes
 

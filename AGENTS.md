@@ -229,6 +229,11 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   unlinks a pid file that still contains our own pid, and `src/file/pid.py` owns the path for both the scheduler
   and `_stop()` — tests point `MEDIAKIT_PID_DIR` at tmp, because a test run used to write *and delete* the real
   `~/.mediakit/daemon.pid`, silently disarming a running daemon
+- **The repo plist names the Homebrew entry point** (`/opt/homebrew/bin/mediakit`, Apple Silicon prefix) — a
+  source checkout points `ProgramArguments` back at `<repo>/.venv/bin/mediakit`; `WorkingDirectory` stays at the
+  directory owning `.env`/`db.db`/`logs/` either way. In the frozen onefile build the pid file records the
+  **child** (app) pid while launchd tracks the bootloader; `mediakit stop` signalling the child still takes the
+  whole job down
 - **LaunchAgent gotchas (learned the hard way)** — (1) launchd does not inherit the login shell's PATH
   (`/usr/bin:/bin` only), so with an empty `FFMPEG_BIN_DIR` the daemon starts and then fails every task with
   "No such file or directory: 'ffprobe'"; the plist ships `EnvironmentVariables.PATH`. (2) A plist copied out of

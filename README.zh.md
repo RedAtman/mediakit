@@ -185,8 +185,9 @@ mediakit compress -t video --watch --no-scan-existing   # 打印 "Watching N fol
 
 ### 步骤二：按你的安装方式改 plist
 
-`macOS/LaunchAgents/mediakit.plist` 里默认指向仓库的 venv 入口；若用 brew 安装，改成
-`/opt/homebrew/bin/mediakit`。`WorkingDirectory` 保持指向拥有 `.env`、`db.db`、`logs/` 的那个目录。
+`macOS/LaunchAgents/mediakit.plist` 默认指向 Homebrew 入口（`/opt/homebrew/bin/mediakit`，Apple Silicon 的
+前缀；Intel 版 Homebrew 在 `/usr/local/bin`）。如果是从源码运行，把它改成 `<仓库>/.venv/bin/mediakit`。
+`WorkingDirectory` 两种情况都要保持指向拥有 `.env`、`db.db`、`logs/` 的那个目录。
 
 ### 步骤三：安装
 
@@ -205,13 +206,18 @@ launchctl print gui/$(id -u)/com.nut.mediakit | grep -E 'state|pid'
 tail -3 logs/launchd.err
 ```
 
-### 步骤四：停止 / 卸载
+### 步骤四：启动 / 停止 / 卸载
 
 ```sh
-mediakit stop                                            # 优雅停止；launchd 不会再拉起
-launchctl bootout gui/$(id -u)/com.nut.mediakit          # 彻底移除服务
-launchctl kickstart -k gui/$(id -u)/com.nut.mediakit     # 原地重启
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/mediakit.plist   # 仅用于"尚未加载"
+launchctl kickstart -k gui/$(id -u)/com.nut.mediakit                     # 启动/重启已加载的任务
+mediakit stop                                                           # 优雅停止；launchd 不会再拉起
+launchctl bootout gui/$(id -u)/com.nut.mediakit                          # 彻底卸载任务
 ```
+
+`mediakit stop` 之后任务处于**已加载但未运行**（这正是 `KeepAlive { SuccessfulExit: false }` 的语义），所以再次启动
+要用 `kickstart`；对已加载的任务执行 `bootstrap` 会报 `Bootstrap failed: 5: Input/output error` —— 那是 launchd 的
+怪癖，不是 plist 写错。
 
 ### 说明
 

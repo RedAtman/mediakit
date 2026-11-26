@@ -21,9 +21,9 @@
   daemon (WatcherScheduler._ensure_single_instance), log rotation is the app's
   own handlers, and launchd owns restart-on-crash via KeepAlive.
 
-  Program is the repo's venv entry point until the config feature ships in a
-  release; after that point it at /opt/homebrew/bin/mediakit and drop
-  WorkingDirectory down to whatever directory should own .env and db.db.
+  Program is the Homebrew binary (a release install). Running from a source
+  checkout instead? point ProgramArguments at <repo>/.venv/bin/mediakit.
+  WorkingDirectory stays at the directory that owns .env, db.db and logs/.
 -->
 <plist version="1.0">
 <dict>
@@ -32,7 +32,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/nut/Dropbox/dev/redatman/mediakit/.venv/bin/mediakit</string>
+        <string>/opt/homebrew/bin/mediakit</string>
         <string>compress</string>
         <string>-t</string>
         <string>video</string>
