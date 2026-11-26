@@ -73,6 +73,28 @@ class TestStopCommand(TestCase):
         mock_log.warning.assert_called_once()
         self.assertIn('Permission denied', mock_log.warning.call_args[0][0])
 
+    def test_stop_prints_its_outcome(self):
+        """默认 LOG_LEVEL=WARNING 时 INFO 全被过滤, 所以 stop 必须直接打印结果."""
+        import builtins
+
+        self.pid_path.write_text('99999')
+        from src.schedulers.folder import _stop
+
+        with mock.patch('src.schedulers.folder._os.kill'), mock.patch.object(builtins, 'print') as fake_print:
+            _stop(force=False)
+        assert any('Stop signal sent to PID 99999' in str(call) for call in fake_print.call_args_list)
+
+    def test_stop_prints_when_no_daemon_is_running(self):
+        import builtins
+
+        if self.pid_path.exists():
+            self.pid_path.unlink()
+        from src.schedulers.folder import _stop
+
+        with mock.patch.object(builtins, 'print') as fake_print:
+            _stop(force=False)
+        assert any('No running daemon found' in str(call) for call in fake_print.call_args_list)
+
     def test_stop_is_exported(self):
         from src.schedulers import folder
 

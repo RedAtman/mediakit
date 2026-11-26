@@ -232,12 +232,16 @@ def _stop(**kwargs):
 
     if not pid_path.exists():
         logger.info('No running daemon found.')
+        # 默认 LOG_LEVEL=WARNING 会把 INFO 全部过滤, 于是 `mediakit stop` 一声不吭 ——
+        # 它是一次性的操作者命令, 直接给终端反馈
+        print('No running daemon found.')
         return
 
     pid = read_live_pid(pid_path)
     if pid is None:
         logger.info('No running daemon found (stale PID file).')
         pid_path.unlink(missing_ok=True)
+        print('No running daemon found (stale PID file).')
         return
 
     try:
@@ -251,14 +255,17 @@ def _stop(**kwargs):
     except PermissionError:
         # 守护进程属于别的用户: 说清楚, 不要抛栈
         logger.warning('Permission denied signalling PID %d', pid)
+        print(f'Permission denied signalling PID {pid}.')
         return
     except ProcessLookupError:
         # 判活与发信号之间它自己退了
         logger.info('No running daemon found (stale PID file).')
         pid_path.unlink(missing_ok=True)
+        print('No running daemon found (stale PID file).')
         return
 
     logger.info('Stop signal sent to PID %d.', pid)
+    print(f'Stop signal sent to PID {pid}.')
 
 
 from .watcher import WatcherScheduler  # noqa: E402
