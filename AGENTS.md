@@ -85,6 +85,16 @@ mediakit/
 - **Lazy config validation**: `utils/translator.py` defers Baidu Translate credential checks to `_require_config()` called inside `translate()` — avoids import-time crashes when env vars are missing
 - **Progress bar: tqdm with TTY detection**: `TqdmProgress` in `utils/progress.py` auto-detects TTY: uses `sys.stdout` + `dynamic_ncols` for interactive terminals, `sys.stderr` + `ascii=True` for daemon/watch mode (non-TTY, log-friendly)
 - **FFmpeg progress pipe**: `base/video.py` passes `-progress pipe:1 -nostats` to ffmpeg — sends machine-readable progress to stdout (unbuffered), parsed by `FfmpegCurrentFrameStdoutParser` in `utils/process/parser.py`
+- **Processing is per-directory, and the match is exact** — `_feed_existing()` queries
+  `Media.dirname == folder.abspath` (equality, not a prefix), so a row can only be picked up when its own
+  `dirname` is the folder being processed. Two consequences worth knowing before debugging "why is this file
+  never processed": (1) a row whose `dirname` is not one of the configured folders is never queried by anything —
+  `compress -f D` only sees D's rows and the watcher only sees its own folders, so such rows sit at their state
+  forever, silently; (2) rows only land there by accident (a row created inside `_[compress...]` output dirs, a
+  folder that was later deleted, a legacy project path). Adding a "skip unconfigured dirs" guard is pointless:
+  the query already restricts to the current folder. Retryability by terminal state (below) heals interrupted
+  rows only **inside** a configured folder; rows in unconfigured folders must be deleted or their folder added to
+  the watch list (never add a `_[compress...]` output dir — that is how products became inputs)
 - **`QUERY_UNPROCESSED` is "not finished and not ignored"** — progress values (0.0-2.0) are written into
   `state.compress` while ffmpeg runs (`utils/progress.py`), so a killed or crashed task leaves one behind. The
   query used to match only `-1/-2`, which stranded 30 such rows for years (all pointing at files that were later
