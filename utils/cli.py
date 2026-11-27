@@ -111,6 +111,12 @@ def create_parser(actions: tuple[str, ...] = ACTIONS):
         help='Legacy plain-text folder list (one path per line, # comments); prefer --config',
     )
     parser.add_argument(
+        '--check-config',
+        action='store_true',
+        default=False,
+        help='Print a read-only health report for the watch config and exit',
+    )
+    parser.add_argument(
         '--init-config',
         action='store_true',
         default=False,

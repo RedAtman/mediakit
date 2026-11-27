@@ -40,6 +40,7 @@ mediakit/
 | Middleware pattern        | `src/patterns/middleware_context_closure.py` | Runtime ctx.next() enforcement; raises RuntimeError if middleware returns without calling it                     |
 | Config                    | `config.py`                                  | Environment subclass pattern (Development/Testing/Production)                                                    |
 | Watch config (TOML)       | `src/config_file.py`                         | `~/.config/mediakit/config.toml`: folders, per-path overrides, longest-prefix `Resolver`, pydantic fail-fast       |
+| Watch config check        | `src/config_check.py`                        | `mediakit --check-config`: read-only report (entries/usable/missing/recursive/estimate), never mutates state       |
 | CPU throttler coordinator | `utils/throttle/coordinator.py` (241L)       | `CPULimiterCoordinator` manages per-PID `ProcessThrottler` instances, manual override/distribution               |
 | CPU throttler process     | `utils/throttle/throttler.py` (154L)         | `ProcessThrottler` daemon thread: samples CPU, SIGSTOP/SIGCONT via duty cycle controller                         |
 | CPU sampling              | `utils/throttle/sampling.py` (233L)          | macOS: `ps` primary, `proc_pidinfo` ctypes fallback. Linux: `/proc/stat`                                         |
@@ -282,6 +283,11 @@ No secrets required: the release uses the default `GITHUB_TOKEN` with
   env > config file > default (a conflicting env logs a warning, since the user's `.env` silently winning is the
   trap we already hit with `WATCH_FOLDER_FILE`). `stop` deliberately skips config loading so a broken config can
   never block stopping a daemon. `dedupe` defaults to `CONFIG.SQLITE_DATABASE` and `--db` overrides it
+- **`--check-config` answers "what did I actually configure?"** — `src/config_check.py` resolves folders the same
+  way a run does (config → `--folder-file` → `~/.config/mediakit/folders.txt`), de-duplicates by realpath before
+  counting (otherwise `entries 2 / usable 2 / duplicates 1` contradict each other), and prints the measured
+  FSEvents cost from the WATCHER INVARIANTS table (33 KB stacks, ~9 fds and ~95 ms per stream). It is read-only
+  and exits 0 even when folders are missing — an intentional entry in the list is a report item, not an error
 - **The starter config has one source** — `src/config_file.py::EXAMPLE_CONFIG_TEXT` is what `mediakit
   --init-config` writes (refusing to overwrite); the repo's `config.toml.example` must stay byte-identical and a
   test enforces it, otherwise the example rots. `folders.txt.example` is validated through `parse_folder_file`

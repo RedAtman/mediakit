@@ -111,6 +111,23 @@ mediakit --init-config --config /path/to/config.toml
 仓库里还有 `config.toml.example` 与 `folders.txt.example`；测试保证前者与 `--init-config` 写出的内容逐字节一致，
 示例不会跟 schema 漂移。
 
+启动（或重启）守护进程前，`mediakit --check-config` 会打印配置实际解析出的结果：去重后的条目数、可用/失效目录、
+recursive 折叠效果、`cpu_limit`、压缩缺省、数据库路径（以及是否被环境变量覆盖），还有实测的 FSEvents 开销：
+
+```
+config: /Users/you/.config/mediakit/config.toml
+folders from: [[watch.folders]] + folders_file
+  entries  : 326 (after de-duplication)
+  usable   : 225
+  missing  : 101
+    - /…/Oma.XXX.Filmpack…
+    … 96 more
+  estimate : 225 FSEvents streams ≈ 225 threads, ~7.3 MB stacks, ~2025 fds, ~21.4s to schedule (serial)
+cpu_limit: 200 (env CPU_LIMIT=200 wins)
+compress : fps=24 resolution=FHD
+database : /…/mediakit/db.db (env SQLITE_DATABASE wins)
+```
+
 - `[database] path` 在任何调度器之前生效，因此 `db.db` 可以放在项目之外（冻结二进制本来就放在平台状态目录）。
   注意优先级：环境变量或 `.env` 里的 `SQLITE_DATABASE` **优先于**这一行 —— 想让它生效需要先删掉那边；
   否则启动时会打一条 warning 同时列出两个路径。`mediakit dedupe` 默认也跟随同一个库，`--db` 仍可覆盖。

@@ -97,6 +97,7 @@ mediakit scale --watch -f /path/to/folder -t video
 | `-c`                 | CPU limit per worker (%)                                       | auto                            |
 | `--config`           | TOML config (default `~/.config/mediakit/config.toml`)         | `$XDG_CONFIG_HOME/mediakit/config.toml` |
 | `--init-config`      | Write the starter config and exit (never overwrites)            | `False`                         |
+| `--check-config`     | Print a read-only health report for the config and exit          | `False`                         |
 | `--folder-file`      | Legacy plain-text folder list (one per line, # comments)       | —                               |
 | `--recursive`        | Watch subdirectories                                           | `False` (non-recursive default) |
 | `--no-scan-existing` | Skip processing existing files at startup                      | `False`                         |
@@ -133,6 +134,24 @@ mediakit --init-config --config /path/to/config.toml
 
 The repo also ships `config.toml.example` and `folders.txt.example`; a test keeps the former byte-identical to
 the text `--init-config` writes, so the example cannot drift from the schema.
+
+Before starting (or restarting) the daemon, `mediakit --check-config` prints what the configuration actually
+resolves to — entries after de-duplication, usable vs missing folders, recursive collapsing, `cpu_limit`,
+compress defaults, the database path (and whether an env var overrides it), plus the measured FSEvents cost:
+
+```
+config: /Users/you/.config/mediakit/config.toml
+folders from: [[watch.folders]] + folders_file
+  entries  : 326 (after de-duplication)
+  usable   : 225
+  missing  : 101
+    - /…/Oma.XXX.Filmpack…
+    … 96 more
+  estimate : 225 FSEvents streams ≈ 225 threads, ~7.3 MB stacks, ~2025 fds, ~21.4s to schedule (serial)
+cpu_limit: 200 (env CPU_LIMIT=200 wins)
+compress : fps=24 resolution=FHD
+database : /…/mediakit/db.db (env SQLITE_DATABASE wins)
+```
 
 `[database] path` is applied before any scheduler runs, so `db.db` can live outside the project (the frozen
 binary already keeps it in the platform state dir). Note the precedence: an `SQLITE_DATABASE` in the environment

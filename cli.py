@@ -35,6 +35,17 @@ def main():
         print('      mediakit compress -t video --watch')
         return
 
+    if args.check_config:
+        from src.config_check import build_report
+        from src.config_file import load_settings
+
+        try:
+            settings = load_settings(args.config)
+        except ConfigError as err:
+            raise SystemExit(f'config error: {err}') from None
+        print(build_report(settings, args.config, args.folder_file))
+        return
+
     if args.action is None:
         raise SystemExit('an action is required (e.g. `mediakit compress ...`); see --help')
 
