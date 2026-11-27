@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Generator
 
-from sqlalchemy import Integer, TextClause, select
+from sqlalchemy import Integer, TextClause, func, select
 from sqlalchemy.sql.expression import Update
 from sqlalchemy.sql.selectable import Select
 
@@ -40,9 +40,9 @@ class BaseFolderMixin:
             'QUERY_UNPROCESSED': select(models.Media)
             .where(models.Media.dirname == self.abspath)
             .where(
-                models.Media.state.op('->>')('compress')
-                .cast(Integer)
-                .notin_([StateChoices.finished, StateChoices.ignored])
+                func.coalesce(models.Media.state.op('->>')('compress').cast(Integer), StateChoices.unprocessed).notin_(
+                    [StateChoices.finished, StateChoices.ignored]
+                )
             )  # type: ignore
             # 除了 finished(2) 和 ignored(-3), 其余都算可重试: 包括 failed(-2) 以及
             # 0.0-2.0 之间的进度值. 后者是任务被杀/崩溃时留下的中间态 —— 以前只认

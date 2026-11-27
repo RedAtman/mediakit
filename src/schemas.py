@@ -21,23 +21,30 @@ class StateChoices(IntEnum):
         return str({key: value._value_ for key, value in cls._member_map_.items()})
 
 
+# 没有默认值: "这个 action 没被执行过" 就不该在 state 里留下 key (见 State.dump).
 _state_field = Field(
+    default=None,
     ge=StateChoices.ignored,
     le=StateChoices.finished,
-    default=StateChoices.unprocessed,
     # description="-3 ignored, -2 is failed, -1 is unprocessed, 0.0 - 1.0 is in progress, 2 is finished.",
     description=StateChoices.__str__(),
-    validate_default=True,
 )
 
 
 class State(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    compress: float = _state_field
-    trim: float = _state_field
-    # compress: StateChoices = StateChoices.unprocessed
-    # trim: StateChoices = StateChoices.unprocessed
+    compress: float | None = _state_field
+    trim: float | None = _state_field
+
+    def dump(self) -> dict[str, float]:
+        """只保留真正写过状态的 action.
+
+        未执行过的 action 不落库: 以前新建一行就带 `{"compress": -1, "trim": -1}`,
+        而 trim 从来没有 scheduler 写它, 那些 key 是纯噪音. 缺失的 key 语义等于
+        unprocessed(-1), QUERY_UNPROCESSED 用 coalesce 兜住.
+        """
+        return self.model_dump(exclude_none=True)
 
     def __str__(self) -> str:
         return f'<{self.__class__.__name__}({self.__dict__})>'
@@ -47,7 +54,9 @@ class State(BaseModel):
 
     @field_validator('compress', 'trim')
     @classmethod
-    def field_validator(cls, value: float, info: ValidationInfo) -> float:
+    def field_validator(cls, value: float | None, info: ValidationInfo) -> float | None:
+        if value is None:
+            return None
         assert StateChoices.ignored <= value <= StateChoices.finished, (
             f'{info.field_name} must be between {StateChoices.ignored} and {StateChoices.finished}.'
         )

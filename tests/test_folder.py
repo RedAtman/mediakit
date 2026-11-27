@@ -115,6 +115,12 @@ class TestFolder(unittest.TestCase):
             self.assertIn('wrong_mid.mp4', titles)
             self.assertNotIn('finished.mp4', titles)
             self.assertNotIn('ignored.mp4', titles)
+
+            # 从未被执行过的行 state 是 {} —— 缺失 compress 必须等同于 unprocessed
+            fresh = models.Media.get_or_create(md5=str(uuid.uuid4()), title='fresh.mp4', dirname=folder.abspath)
+            self.assertEqual(fresh.state, {})
+            titles_after = {m.title for m in folder.query(query).data or []}
+            self.assertIn('fresh.mp4', titles_after)
         finally:
             for md5 in md5s.values():
                 model = models.Media.get(md5=md5)

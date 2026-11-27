@@ -41,7 +41,8 @@ class Media(Base):
     # created_at = Column(DateTime, default=datetime.utcnow, read_only=True)
     _created_at = Column('created_at', DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=None, nullable=True)
-    state = Column(JSON, default=schemas.State().model_dump(), nullable=False)
+    # 新行不带任何 action 的 key: 只有真跑过的 action 才会写进来
+    state = Column(JSON, default=dict, nullable=False)
 
     @hybrid_property
     def created_at(self):
@@ -109,7 +110,7 @@ class Media(Base):
         with _session() as session:
             state: dict = self.state.copy()  # type: ignore
             state[key] = val
-            new_state = schemas.State(**state).model_dump()
+            new_state = schemas.State(**state).dump()
             logger.debug('update_state: new_state=%s, before session.add', new_state)
             self.state = new_state
             session.add(self)

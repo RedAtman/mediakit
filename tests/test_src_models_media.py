@@ -31,13 +31,18 @@ class MediaTest(unittest.TestCase):
         self.assertEqual(m2.title, 'moved.mp4')
         self.assertEqual(m2.dirname, '/tmp/moved')
         self.assertIsNotNone(m2.updated_at)
-        self.assertEqual(m2.state, {'compress': -1, 'trim': -1})
+        # 新行不带任何 action 的 key (缺失 == unprocessed)
+        self.assertEqual(m2.state, {})
         self.model = m2
 
     def test_update_state(self):
         result = self.model.update_state('compress', StateChoices.finished)
         logger.debug(result)
         assert isinstance(result, response.Result)
+
+    def test_update_state_writes_only_the_touched_key(self):
+        self.model.update_state('compress', StateChoices.finished)
+        self.assertEqual(Media.get(md5=self.test_md5).state, {'compress': 2})
 
     def test_get_or_create_skips_title_dirname_update_when_finished(self):
         """Finished records must stay untouched: no title/dirname sync and no updated_at bump."""

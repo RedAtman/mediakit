@@ -32,7 +32,7 @@ mediakit/
 | Media operations          | `base/video.py` (558L), `base/audio.py`      | FFmpeg wrapper methods                                                                                           |
 | Folder batch ops          | `folder.py` + `base/folder.py`               | `Folder` class with DB mixin                                                                                     |
 | DB models                 | `src/models/media.py`                        | SQLAlchemy model (single source)                                                                                 |
-| State machine             | `src/schemas.py`                             | Pydantic State model (-3 ignored → -2 failed → 2 finished)                                                       |
+| State machine             | `src/schemas.py`                             | Pydantic State model (-3 ignored → -2 failed → 2 finished); keys are written lazily                               |
 | DB engine                 | `src/db.py`                                  | Injectable engine via `get_engine(engine=None)`                                                                  |
 | Scheduler dispatcher      | `src/schedulers/folder.py`                   | MiddlewareScheduler (compress) + _SimpleScheduler (trivial actions, stop)                                        |
 | Watcher scheduler         | `src/schedulers/watcher.py` (514L)           | Watch mode: Observer + DebounceBuffer + FileStabilityTracker + callbacks.mark_compress_outcome                  |
@@ -96,6 +96,12 @@ mediakit/
   the query already restricts to the current folder. Retryability by terminal state (below) heals interrupted
   rows only **inside** a configured folder; rows in unconfigured folders must be deleted or their folder added to
   the watch list (never add a `_[compress...]` output dir — that is how products became inputs)
+- **`state` keys are lazy** — a new row starts as `{}` and a key appears only when an action actually writes it
+  (`State.dump()` = `model_dump(exclude_none=True)`, and the fields default to `None`). A missing `compress`
+  therefore means "never touched" = unprocessed, and `QUERY_UNPROCESSED` coalesces the JSON to `-1` before
+  comparing; without that the fresh rows (`{}`) would be invisible to every scan. `trim` is the cautionary case:
+  it has no scheduler, so `trim` was never a real value and every `"trim": -1` in old rows was pure default noise —
+  do not reintroduce a default for an action nobody writes
 - **`QUERY_UNPROCESSED` is "not finished and not ignored"** — progress values (0.0-2.0) are written into
   `state.compress` while ffmpeg runs (`utils/progress.py`), so a killed or crashed task leaves one behind. The
   query used to match only `-1/-2`, which stranded 30 such rows for years (all pointing at files that were later
