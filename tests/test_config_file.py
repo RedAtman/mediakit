@@ -261,3 +261,40 @@ def test_no_database_section_is_a_noop(tmp_path, monkeypatch):
     before = CONFIG.SQLITE_DATABASE
     assert apply_database_path(Settings()) is None
     assert CONFIG.SQLITE_DATABASE == before
+
+
+def test_resolver_caches_the_canonical_path(tmp_path):
+    """一次 flush 里同一路径会被查 2-3 次, realpath 只该算一次."""
+    import src.config_file as config_file
+    from src.config_file import Resolver, Settings
+
+    config_file._canonical.cache_clear()
+    resolver = Resolver(Settings(watch={'folders': [{'path': '/a/b'}, {'path': '/a/b/c'}]}))
+    after_construction = config_file._canonical.cache_info()
+
+    for _ in range(3):
+        resolver.media_type_for('/a/b/c/x.mp4', 'video')
+        resolver.recursive_for('/a/b/c/x.mp4', False)
+        resolver.compress_opts_for('/a/b/c/x.mp4', {})
+
+    info = config_file._canonical.cache_info()
+    # 构造时每条 entry 各 miss 一次, 之后同一路径只 miss 一次, 其余全部命中
+    assert after_construction.misses == 2
+    assert info.misses == after_construction.misses + 1
+    assert info.hits >= 8
+    config_file._canonical.cache_clear()
+
+
+def test_resolver_still_matches_through_symlinks(tmp_path):
+    """/tmp 与 /private/tmp 是同一处: 缓存不能破坏这条."""
+    import src.config_file as config_file
+
+    config_file._canonical.cache_clear()
+    real = tmp_path / 'media'
+    real.mkdir()
+    link = tmp_path / 'link'
+    link.symlink_to(real, target_is_directory=True)
+    settings = Settings(watch={'folders': [{'path': str(real)}]})
+    resolver = settings.resolver()
+    assert resolver.entry_for(str(link / 'x.mp4')) is not None
+    config_file._canonical.cache_clear()

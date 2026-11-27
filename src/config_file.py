@@ -11,6 +11,7 @@ computes. macOS is not special-cased here because this machine's tooling already
 lives in `~/.config`.
 """
 
+import functools
 import logging
 import os
 from pathlib import Path
@@ -228,6 +229,12 @@ class Settings(BaseModel):
         return Resolver(self)
 
 
+# 一次 flush 里同一条路径会被问 2-3 次 (media_type / recursive / compress opts),
+# 每次都 realpath 是纯浪费. 缓存的是"路径 -> 规范路径"这一层, 目录本身被替换/移动
+# 后最多停留一个缓存条目的陈旧判断, 对写文件的场景无影响.
+_canonical = functools.lru_cache(maxsize=4096)(os.path.realpath)
+
+
 class Resolver:
     """Longest-prefix lookup from an event path to the entry that governs it.
 
@@ -240,13 +247,13 @@ class Resolver:
         # 两边都取 realpath 再比: 事件路径来自 watchdog (未被 _normalize_path 处理),
         # 而 flush 里用的是 realpath, 且 macOS 上 /tmp 与 /private/tmp 是同一处.
         self._entries = sorted(
-            ((os.path.realpath(entry.path), entry) for entry in self.settings.watch.folders),
+            ((_canonical(entry.path), entry) for entry in self.settings.watch.folders),
             key=lambda pair: len(pair[0]),
             reverse=True,
         )
 
     def entry_for(self, path: str):
-        canonical = os.path.realpath(path)
+        canonical = _canonical(path)
         for prefix, entry in self._entries:
             if canonical == prefix or canonical.startswith(prefix + os.sep):
                 return entry
